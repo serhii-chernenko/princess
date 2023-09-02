@@ -1,6 +1,6 @@
 - name: Update Princess Bot on VPS
   hosts: all
-  remote_user: admin
+  remote_user: root
   vars:
     dir: "{{ VPS_APP_PATH }}"
   roles:
