@@ -1,8 +1,6 @@
 - name: Update Princess Bot on VPS
   hosts: all
-  remote_user: root
-  become: yes
-  become_user: root
+  remote_user: admin
   environment:
     PATH: "/usr/bin:{{ ansible_env.PATH }}"
   vars:
