@@ -3,6 +3,7 @@
   remote_user: admin
   vars:
     dir: "{{ VPS_APP_PATH }}"
+    ansible_python_interpreter: /usr/bin/python3
   roles:
     - git_pull
     - docker_restart
