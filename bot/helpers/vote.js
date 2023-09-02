@@ -53,15 +53,24 @@ const dailyVote = async (ctx, channel, date, type) => {
     await channel.updateOne({
         updated_at: date
     });
-    await ctx.replyWithHTML(
+
+    let resultMessage =
         messages.winner.replace('%name', returnUserName(member.user, 'name')) +
-            `<em>${messages.congrats[
-                returnRandomInt(0, messages.congrats.length - 1)
-            ].replace(
-                '%nick',
-                `<strong>${returnUserName(member.user)}</strong>`
-            )} ❤️</em>`
-    );
+        `<em>${messages.congrats[
+            returnRandomInt(0, messages.congrats.length - 1)
+        ].replace(
+            '%nick',
+            `<strong>${returnUserName(member.user)}</strong>`
+        )} ❤️</em>`;
+
+    if (messages.DONATION) {
+        resultMessage += `\n\n${messages.DONATION}\n\n`.replace(
+            '%tgChannel',
+            process.env.TG_CHANNEL
+        );
+    }
+
+    await ctx.replyWithHTML(resultMessage);
     await printPlayers(ctx, channel);
 };
 

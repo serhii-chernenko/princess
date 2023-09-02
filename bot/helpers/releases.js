@@ -9,7 +9,7 @@ module.exports = (spliceIndex = 0, releasesToPost = []) => {
     const { labels, order } = messages.releases;
 
     for (const release of unreleasedChanges) {
-        let result = `🎉 *${release} - ${releases[release].date}*\n`;
+        let result = `🎉 <strong>${release} - ${releases[release].date}</strong>\n`;
 
         for (const group of order) {
             const features = releases[release].list[group];
@@ -18,10 +18,10 @@ module.exports = (spliceIndex = 0, releasesToPost = []) => {
                 continue;
             }
 
-            result += `\n*${labels[group]}*\n\n`;
+            result += `\n<strong>${labels[group]}</strong>\n\n`;
 
             for (const feature of features) {
-                result += `- ${feature}\n`;
+                result += `${features.length > 1 ? '- ' : ''}${feature}\n`;
             }
         }
 

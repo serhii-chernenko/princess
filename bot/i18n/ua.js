@@ -1,6 +1,9 @@
 const numbersArray = require('../helpers/numbers-array');
 
 module.exports = {
+    DONATION:
+        'Задонать гривню на корч (Mitsubishi L200) для 15-ї Бригади Кара-Даг, 3-го Батальйону оперативного призначення Національної Гвардії!\n\nБанка:\nhttps://send.monobank.ua/jar/2Y61bk3eRb\n\nНомер банки:\n5375 4112 0809 9106\n\nМета: <strong>300 000 грн</strong>\n\nЗвітність буде тут:\n%tgChannel',
+    // DONATION: 'Вся інформація є на сайті:\nhttps://savelife.in.ua/donate',
     proposalEnter: 'Запропонуйте ваш варіант!',
     proposalWrong: 'Не можна запропонувати команду! Спробуй ще раз 🤷‍♀',
     proposalLeave: 'Ваш варіант буде розглянуто!',
@@ -40,7 +43,7 @@ module.exports = {
     winner: `Принцеска дня:\n\n👸 <strong>%name</strong>\n\n`,
     top: `ТОП-10 принцесок цієї спільноти 👸`,
     players: `Список учасниць 👸`,
-    stats: `<strong>Статистика використання боту:</strong>\n\nСпільноти: <strong>%groups</strong>\nГравці: <strong>%players</strong>\n\n<strong>Автор боту:</strong>\n%url`,
+    stats: `<strong>Статистика використання боту:</strong>\n\nСпільноти: <strong>%groups</strong>\nГравці: <strong>%players</strong>\n\n<strong>Автор боту:</strong>\n- %youtube\n- %twitter\n- %tgChannel\n- Пошта: %mail`,
     commandsLabel: 'Команди для керування ботом',
     commands: [
         '/start - Ініціалізація у спільноті та команди',
@@ -77,7 +80,7 @@ module.exports = {
         '%nick, із тобою навіть зима стає весною!',
         '%nick, без тебе холодна ніч і літо немов зима!'
     ],
-    faq: '<strong>Питання та відповіді:</strong>\n\n%faq\n\n<strong>Якщо у Вас виникли питання, можете звертатися до автора боту:</strong>\n%url',
+    faq: '<strong>Питання та відповіді:</strong>\n\n%faq\n\n<strong>Якщо у Вас виникли питання, можете звертатися до автора боту:</strong>\n- %twitter\n- %tgGroup\n- Пошта: %mail',
     help: [
         {
             question: 'Як розпочати гру?',
@@ -93,11 +96,11 @@ module.exports = {
         },
         {
             question: `Існують інші проєкти автору?`,
-            answer: 'Так існують! Дякую за цікавість :)\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n- %wishlistUrlGH\n\n<i>ChatGPT</i>:\n- %chatGPTUrlTg\n- %chatGPTUrlGH'
+            answer: 'Так існують! Дякую за цікавість :)\n\n<i>Ютуб канал</i>:\n- %youtube\n- %tgChannel\n- %tgGroup\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n- %wishlistUrlGH\n\n<i>ChatGPT</i>:\n- %chatGPTUrlTg\n- %chatGPTUrlGH'
         },
         {
             question: 'Як підтримати ЗСУ? 🇺🇦',
-            answer: 'Вся інформація є на сайті:\nhttps://savelife.in.ua/donate'
+            answer: '%donation'
         }
     ],
     releases: {

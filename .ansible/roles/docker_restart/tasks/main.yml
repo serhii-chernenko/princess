@@ -5,7 +5,7 @@
     force_source: yes
     source: build
     build:
-      path: "{{VPS_APP_PATH}}"
+      path: "{{dir}}"
       dockerfile: "./.docker/{{NODE_ENV}}.dockerfile"
 
 - name: Restart Princess Bot container on VPS
@@ -27,3 +27,8 @@
       WISHLIST_GITHUB_REPO_URL: "{{WISHLIST_GITHUB_REPO_URL}}"
       CHATGPT_TG_URL: "{{CHATGPT_TG_URL}}"
       CHATGPT_GITHUB_REPO_URL: "{{CHATGPT_GITHUB_REPO_URL}}"
+      TG_CHANNEL: "{{TG_CHANNEL}}"
+      TG_GROUP: "{{TG_GROUP}}"
+      YT_CHANNEL: "{{YT_CHANNEL}}"
+      MAIL: "{{MAIL}}"
+

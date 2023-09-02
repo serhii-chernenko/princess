@@ -1,6 +1,6 @@
 - name: Update Princess Bot repo on VPS
   git:
     repo: "git@github.com:{{GITHUB_REPO}}.git"
-    dest: "{{VPS_APP_PATH}}"
+    dest: "{{dir}}"
     update: yes
     version: "{{RELEASE}}"

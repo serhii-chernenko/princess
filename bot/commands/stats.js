@@ -20,7 +20,10 @@ bot.command('stats', async ctx => {
             messages.stats
                 .replace('%groups', channels.toString())
                 .replace('%players', players.toString())
-                .replace('%url', process.env.AUTHOR_TWITTER_LINK)
+                .replace('%youtube', process.env.YT_CHANNEL)
+                .replace('%twitter', process.env.AUTHOR_TWITTER_LINK)
+                .replace('%tgChannel', process.env.TG_CHANNEL)
+                .replace('%mail', process.env.MAIL)
         );
     } catch (error) {
         console.error('stats.js', error);

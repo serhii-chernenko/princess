@@ -1,6 +1,8 @@
 - name: Update Princess Bot on VPS
   hosts: all
-  remote_user: "{{VPS_USER}}"
+  remote_user: admin
+  vars:
+    dir: "{{ VPS_APP_PATH }}"
   roles:
     - git_pull
     - docker_restart

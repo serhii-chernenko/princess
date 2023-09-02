@@ -46,7 +46,7 @@ require('./connect-db')()
                     channel.entity_id,
                     releasesToPost(releaseIndex),
                     {
-                        parse_mode: 'Markdown'
+                        parse_mode: 'HTML'
                     }
                 );
             } catch (error) {

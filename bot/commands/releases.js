@@ -9,7 +9,7 @@ bot.command('releases', async ctx => {
             return ctx;
         }
 
-        await ctx.replyWithMarkdown(await releasesToPost());
+        await ctx.replyWithHTML(await releasesToPost());
     } catch (error) {
         console.error('releases.js', error);
         await ctx.sendMessage(error?.error ?? messages.error);
