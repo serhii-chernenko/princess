@@ -1,9 +1,9 @@
 - name: Update Princess Bot on VPS
   hosts: all
-  remote_user: admin
+  remote_user: inevix
   vars:
     dir: "{{ VPS_APP_PATH }}"
-    ansible_python_interpreter: /usr/local/bin/python3
+    ansible_python_interpreter: /usr/bin/python3
   roles:
     - git_pull
     - docker_restart
