@@ -42,3 +42,4 @@ jobs:
             -e TG_GROUP=${{vars.TG_GROUP}}
             -e YT_CHANNEL=${{vars.YT_CHANNEL}}
             -e MAIL=${{vars.MAIL}}
+            -e ansible_port=${{ secrets.SSH_PORT }}
