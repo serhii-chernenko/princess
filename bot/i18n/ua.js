@@ -1,9 +1,9 @@
 const numbersArray = require('../helpers/numbers-array');
 
 module.exports = {
-    DONATION:
-        'Задонать гривню на корч (Mitsubishi L200) для 15-ї Бригади Кара-Даг, 3-го Батальйону оперативного призначення Національної Гвардії!\n\nБанка:\nhttps://send.monobank.ua/jar/2Y61bk3eRb\n\nНомер банки:\n5375 4112 0809 9106\n\nМета: <strong>300 000 грн</strong>\n\nЗвітність буде тут:\n%tgChannel',
-    // DONATION: 'Вся інформація є на сайті:\nhttps://savelife.in.ua/donate',
+    DONATION_GENERAL:
+        'Вся інформація є на сайті:\nhttps://savelife.in.ua/donate',
+    DONATION_LOCAL: '',
     proposalEnter: 'Запропонуйте ваш варіант!',
     proposalWrong: 'Не можна запропонувати команду! Спробуй ще раз 🤷‍♀',
     proposalLeave: 'Ваш варіант буде розглянуто!',

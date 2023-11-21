@@ -63,8 +63,8 @@ const dailyVote = async (ctx, channel, date, type) => {
             `<strong>${returnUserName(member.user)}</strong>`
         )} ❤️</em>`;
 
-    if (messages.DONATION) {
-        resultMessage += `\n\n${messages.DONATION}\n\n`.replace(
+    if (messages.DONATION_LOCAL) {
+        resultMessage += `\n\n${messages.DONATION_LOCAL}\n\n`.replace(
             '%tgChannel',
             process.env.TG_CHANNEL
         );
