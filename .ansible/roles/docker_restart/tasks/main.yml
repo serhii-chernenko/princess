@@ -16,7 +16,7 @@
     recreate: yes
     network_mode: "host"
     env:
-      NODE_ENV: "production"
+      NODE_ENV: "{{NODE_ENV}}"
       BOT_TOKEN: "{{BOT_TOKEN}}"
       MONGODB_URI: "{{MONGODB_URI}}"
       ADMIN_ID: "{{ADMIN_ID}}"

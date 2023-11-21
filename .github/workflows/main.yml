@@ -25,6 +25,7 @@ jobs:
             [all]
             ${{ secrets.VPS }} address=localhost
           options: |
+            -e NODE_ENV=production
             -e GITHUB_REPO=${{github.repository}}
             -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
             -e MONGODB_URI=${{secrets.MONGODB_URI}}
