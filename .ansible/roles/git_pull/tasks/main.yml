@@ -13,5 +13,6 @@
   git:
     repo: "git@github.com:{{ GITHUB_REPO }}.git"
     dest: "{{ dir }}"
-    update: yes
-    version: "{{ RELEASE }}"
+    single_branch: true
+    version: main
+    accept_newhostkey: true

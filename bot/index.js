@@ -1,6 +1,7 @@
 const cleanDB = require('./helpers/clean-db');
 const Channel = require('./models/channel');
 const searchCriteria = require('./helpers/search-criteria');
+const getVersion = require('./helpers/version');
 require('./connect-db')()
     .then(async () => {
         const bot = require('./bot');

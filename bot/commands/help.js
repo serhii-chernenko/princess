@@ -44,7 +44,9 @@ bot.help(async ctx => {
                 answer = answer
                     .replace(
                         '%donation',
-                        messages.DONATION_LOCAL ?? messages.DONATION_GENERAL
+                        messages.DONATION_LOCAL
+                            ? messages.DONATION_LOCAL
+                            : messages.DONATION_GENERAL
                     )
                     .replace('%tgChannel', process.env.TG_CHANNEL);
             }
