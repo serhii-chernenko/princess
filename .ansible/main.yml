@@ -2,7 +2,7 @@
   hosts: all
   remote_user: inevix
   vars:
-    dir: "{{ VPS_APP_PATH }}"
+    dir: "/home/{{ ansible_user }}/apps/princess"
     ansible_python_interpreter: /usr/bin/python3
   roles:
     - git_pull

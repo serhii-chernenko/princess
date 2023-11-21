@@ -25,8 +25,6 @@ jobs:
             [all]
             ${{ secrets.VPS }} address=localhost
           options: |
-            -e NODE_ENV=production
-            -e VPS_APP_PATH=/home/inevix/apps/princess
             -e GITHUB_REPO=${{github.repository}}
             -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
             -e MONGODB_URI=${{secrets.MONGODB_URI}}
