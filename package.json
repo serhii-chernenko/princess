@@ -1,6 +1,6 @@
 {
     "name": "princess",
-    "version": "4.0.4",
+    "version": "4.0.5",
     "description": "Randomly choose a princess of the day among group subscribers in Telegram",
     "main": "index.js",
     "author": "inevix",
