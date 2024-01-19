@@ -1,6 +1,6 @@
 require('./start');
 require('./help');
-require('./propose');
+// require('./propose');
 require('./join');
 require('./leave');
 require('./run');
