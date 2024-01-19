@@ -1,8 +1,8 @@
 const {
     Telegraf,
+    session,
     Scenes: { Stage }
 } = require('telegraf');
-const { SessionManager } = require('@puregram/session');
 const AppScenes = require('./scenes');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -12,7 +12,7 @@ if (process.env.NODE_ENV === 'dev') {
     bot.use(Telegraf.log());
 }
 
-bot.use(new SessionManager().middleware);
+bot.use(session());
 bot.use(stage.middleware());
 bot.catch(error => console.error(error));
 

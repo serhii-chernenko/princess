@@ -14,7 +14,6 @@
         "docker:dev": "NODE_ENV=dev docker compose -f .docker/compose.yaml up --force-recreate --build"
     },
     "dependencies": {
-        "@puregram/session": "^2.0.1-rc.1",
         "dotenv": "^16.0.3",
         "mongoose": "^6.7.5",
         "telegraf": "^4.11.2"
@@ -25,7 +24,7 @@
         "eslint-config-prettier": "^8.5.0",
         "eslint-plugin-json": "^3.1.0",
         "eslint-plugin-prettier": "^4.2.1",
-        "nodemon": "^2.0.20",
+        "nodemon": "^3.0.3",
         "prettier": "^2.8.0"
     }
 }

@@ -1,9 +1,10 @@
 const {
-    Telegraf,
     Scenes: { BaseScene }
 } = require('telegraf');
+const { message } = require('telegraf/filters');
 const messages = require('../i18n/messages');
 const returnUserName = require('../helpers/username');
+const isForwarded = require('../helpers/forward');
 
 const proposalScene = new BaseScene('proposal');
 
@@ -11,10 +12,11 @@ proposalScene.enter(async ctx => await ctx.sendMessage(messages.proposalEnter));
 proposalScene.leave(async ctx => {
     return await ctx.sendMessage(messages.proposalLeave);
 });
-proposalScene.on('text', async ctx => {
+
+proposalScene.on(message('text'), async ctx => {
     try {
-        if (ctx?.update?.message?.text?.match('/')) {
-            return await ctx.sendMessage(messages.proposalWrong);
+        if (ctx?.update?.message?.text?.match('/') || isForwarded(ctx)) {
+            return ctx;
         }
 
         await ctx.telegram.sendMessage(
