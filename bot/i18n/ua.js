@@ -1,8 +1,7 @@
 const numbersArray = require('../helpers/numbers-array');
 
 module.exports = {
-    DONATION_GENERAL:
-        'Вся інформація є на сайті:\nhttps://savelife.in.ua/donate',
+    DONATION_GENERAL: '',
     DONATION_LOCAL: '',
     proposalEnter: 'Запропонуйте ваш варіант!',
     proposalWrong: 'Не можна запропонувати команду! Спробуй ще раз 🤷‍♀',
@@ -97,10 +96,6 @@ module.exports = {
         {
             question: `Існують інші проєкти автору?`,
             answer: 'Так існують! Дякую за цікавість :)\n\n<i>Ютуб канал</i>:\n- %youtube\n- %tgChannel\n- %tgGroup\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n- %wishlistUrlGH\n\n<i>ChatGPT</i>:\n- %chatGPTUrlTg\n- %chatGPTUrlGH'
-        },
-        {
-            question: 'Як підтримати ЗСУ? 🇺🇦',
-            answer: '%donation'
         }
     ],
     releases: {

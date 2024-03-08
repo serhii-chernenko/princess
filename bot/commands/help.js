@@ -40,17 +40,6 @@ bot.help(async ctx => {
                     );
             }
 
-            if (answer.match(/%donation/)) {
-                answer = answer
-                    .replace(
-                        '%donation',
-                        messages.DONATION_LOCAL
-                            ? messages.DONATION_LOCAL
-                            : messages.DONATION_GENERAL
-                    )
-                    .replace('%tgChannel', process.env.TG_CHANNEL);
-            }
-
             faq.push(`<strong>${question}</strong>\n${answer}`);
         }
 
