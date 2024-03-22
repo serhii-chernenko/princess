@@ -42,7 +42,7 @@ module.exports = {
     winner: `Принцеска дня:\n\n👸 <strong>%name</strong>\n\n`,
     top: `ТОП-10 принцесок цієї спільноти 👸`,
     players: `Список учасниць 👸`,
-    stats: `<strong>Статистика використання боту:</strong>\n\nСпільноти: <strong>%groups</strong>\nГравці: <strong>%players</strong>\n\n<strong>Автор боту:</strong>\n- %youtube\n- %twitter\n- %tgChannel\n- Пошта: %mail`,
+    stats: `<strong>Статистика використання боту:</strong>\n\nСпільноти: <strong>%groups</strong>\nГравці: <strong>%players</strong>\n\n<strong>Автор боту:</strong>\n- %youtube\n- Пошта: %mail`,
     commandsLabel: 'Команди для керування ботом',
     commands: [
         '/start - Ініціалізація у спільноті та команди',
@@ -79,7 +79,7 @@ module.exports = {
         '%nick, із тобою навіть зима стає весною!',
         '%nick, без тебе холодна ніч і літо немов зима!'
     ],
-    faq: '<strong>Питання та відповіді:</strong>\n\n%faq\n\n<strong>Якщо у Вас виникли питання, можете звертатися до автора боту:</strong>\n- %twitter\n- %tgGroup\n- Пошта: %mail',
+    faq: '<strong>Питання та відповіді:</strong>\n\n%faq\n\n<strong>Якщо у Вас виникли питання, можете звертатися до автора боту:</strong>\n- Пошта: %mail',
     help: [
         {
             question: 'Як розпочати гру?',
@@ -88,15 +88,15 @@ module.exports = {
         {
             question: `Що станеться, якщо я зміню нік чи ім'я?`,
             answer: 'Інформація по кожному гравцю оновляється завдяки унікальному ідентифікатору користувача.\nПід час кожного голосування чи формування списку здобутків за допомогою команд:\n/list та /top\nоновлена інформація користувача записується до бази даних боту.\nНе хвилюйтеся :)'
-        },
-        {
-            question: `Чи має бот принцески відкритий код (Open-Source)?`,
-            answer: 'Починаючи з 4-ї версії - має!\n\nРепозиторій:\n%repo'
-        },
-        {
-            question: `Існують інші проєкти автору?`,
-            answer: 'Так існують! Дякую за цікавість :)\n\n<i>Ютуб канал</i>:\n- %youtube\n- %tgChannel\n- %tgGroup\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n- %wishlistUrlGH\n\n<i>ChatGPT</i>:\n- %chatGPTUrlTg\n- %chatGPTUrlGH'
         }
+        // {
+        //     question: `Чи має бот принцески відкритий код (Open-Source)?`,
+        //     answer: 'Починаючи з 4-ї версії - має!\n\nРепозиторій:\n%repo'
+        // },
+        // {
+        //     question: `Існують інші проєкти автору?`,
+        //     answer: 'Так існують! Дякую за цікавість :)\n\n<i>Ютуб канал</i>:\n- %youtube\n- %tgChannel\n- %tgGroup\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n- %wishlistUrlGH\n\n<i>ChatGPT</i>:\n- %chatGPTUrlTg\n- %chatGPTUrlGH'
+        // }
     ],
     releases: {
         labels: {
