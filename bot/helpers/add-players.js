@@ -15,9 +15,6 @@ module.exports = async (ctx, channel, list = 'top', activePlayers = []) => {
             player_id: player._id
         };
         const status = await Status.findOne(channelAndPlayerIds);
-        const inactiveStatus = {
-            status: false
-        };
 
         let member;
 
@@ -29,12 +26,18 @@ module.exports = async (ctx, channel, list = 'top', activePlayers = []) => {
 
         if (isInactivePlayer(member.status, returnUserName(member.user))) {
             if (status?.status) {
-                await status.updateOne(inactiveStatus);
+                await status.updateOne({
+                    status: false
+                });
             }
 
             continue;
         } else {
-            if (!status?.status) {
+            if (!status?.status && !status?.auto) {
+                // Don't update status if a user manually left the game
+                // And don't add the player to the list
+                continue;
+            } else if (!status?.status && status?.auto) {
                 await status.updateOne({
                     status: true
                 });

@@ -41,9 +41,9 @@ bot.command('leave', async ctx => {
         }
 
         await status.updateOne({
-            status: false
+            status: false,
+            auto: false
         });
-        await status.save();
         await ctx.sendMessage(
             messages.successLeave.replace('%s', returnUserName(user))
         );

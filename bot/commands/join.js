@@ -69,7 +69,8 @@ bot.command('join', async ctx => {
         }
 
         await status.updateOne({
-            status: true
+            status: true,
+            auto: true
         });
         await join(channel, user);
         await ctx.sendMessage(

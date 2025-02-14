@@ -15,6 +15,11 @@ module.exports = model(
             type: Boolean,
             default: true,
             required: true
+        },
+        auto: {
+            type: Boolean,
+            default: true,
+            required: true
         }
     })
 );
