@@ -4,7 +4,7 @@ const isForwarded = require('../helpers/forward');
 const { getTime } = require('../helpers/intl');
 const run = require('../helpers/run');
 
-bot.hears('принцес', async ctx => {
+bot.hears(/принцес/i, async ctx => {
     await ctx.replyWithSticker(
         'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ',
         {
