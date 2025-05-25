@@ -14,6 +14,7 @@
     image: princess_bot_image
     restart: yes
     recreate: yes
+    restart_policy: always
     network_mode: "host"
     log_driver: json-file
     log_options:
