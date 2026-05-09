@@ -1,8 +1,6 @@
 module.exports = async players => {
     const sorted = [
-        ...players.sort((a, b) => {
-            return a.score.score < b.score.score ? 1 : -1;
-        })
+        ...players.sort((a, b) => (a.score.score < b.score.score ? 1 : -1))
     ];
 
     if (sorted.length > 10) {

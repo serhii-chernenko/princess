@@ -6,9 +6,7 @@ import { players } from '../schema';
 
 const try_db = <A>(execute: () => Promise<A>) => {
     return Effect.tryPromise({
-        try: () => {
-            return execute();
-        },
+        try: () => execute(),
         catch: cause => {
             return new Error(`Player repository failure: ${String(cause)}`);
         }

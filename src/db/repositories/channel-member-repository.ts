@@ -6,9 +6,7 @@ import { channelMembers, players } from '../schema';
 
 const try_db = <A>(execute: () => Promise<A>) => {
     return Effect.tryPromise({
-        try: () => {
-            return execute();
-        },
+        try: () => execute(),
         catch: cause => {
             return new Error(
                 `Channel member repository failure: ${String(cause)}`
@@ -111,15 +109,11 @@ export const createChannelMemberRepository = (db: AppDb) => {
                     .where(inArray(channelMembers.playerId, candidatePlayerIds))
                     .groupBy(channelMembers.playerId);
 
-                const activePlayerIds = new Set(
-                    rows.map(row => {
-                        return row.playerId;
-                    })
-                );
+                const activePlayerIds = new Set(rows.map(row => row.playerId));
 
-                return candidatePlayerIds.filter(playerId => {
-                    return !activePlayerIds.has(playerId);
-                });
+                return candidatePlayerIds.filter(
+                    playerId => !activePlayerIds.has(playerId)
+                );
             });
         },
         findActiveMemberWithPlayer(channelId: number, playerId: number) {

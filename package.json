@@ -30,7 +30,7 @@
         "docker:dev": "NODE_ENV=dev docker compose -f .docker/compose.yaml up --force-recreate --build",
         "lint": "oxlint .",
         "lint:fix": "oxlint . --fix",
-        "format": "oxfmt .",
+        "format": "oxlint . --fix && oxfmt .",
         "format:check": "oxfmt --check .",
         "typecheck": "npm run worker:types && tsc --noEmit",
         "test": "node --test",

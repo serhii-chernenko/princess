@@ -32,9 +32,7 @@ export const withDatabase = <A>(
 ) => {
     return DatabaseService.use(service => {
         return Effect.tryPromise({
-            try: () => {
-                return evaluate(service);
-            },
+            try: () => evaluate(service),
             catch: cause => {
                 return new Error(`Database service failure: ${String(cause)}`);
             }

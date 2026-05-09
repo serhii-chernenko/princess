@@ -8,14 +8,10 @@ export const players = snakeCase.table(
         displayName: text().notNull(),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
-            .$defaultFn(() => {
-                return new Date();
-            }),
+            .$defaultFn(() => new Date()),
         updatedAt: integer({ mode: 'timestamp_ms' })
             .notNull()
-            .$defaultFn(() => {
-                return new Date();
-            })
+            .$defaultFn(() => new Date())
     },
     table => {
         return [

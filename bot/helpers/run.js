@@ -30,9 +30,7 @@ module.exports = async (ctx, type = 'auto', sudo = false) => {
     const eta = 24 - Math.floor((date - lastRun) / 1000 / 60 / 60);
 
     if (type === 'manual' && eta > 0) {
-        const { label } = messages.hours.find(item => {
-            return item.hours.includes(eta);
-        });
+        const { label } = messages.hours.find(item => item.hours.includes(eta));
 
         return Promise.reject({
             error: messages.errorRunETA

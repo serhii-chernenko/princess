@@ -26,9 +26,7 @@ const run = async () => {
             JSON.stringify(
                 {
                     migrated: true,
-                    tables: tables.results.map(row => {
-                        return row.name;
-                    })
+                    tables: tables.results.map(row => row.name)
                 },
                 null,
                 2

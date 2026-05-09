@@ -138,13 +138,9 @@ const chunk = <T>(items: T[], size: number): T[][] => {
     return chunks;
 };
 
-const escapeSqlString = (value: string): string => {
-    return value.replaceAll("'", "''");
-};
+const escapeSqlString = (value: string): string => value.replaceAll("'", "''");
 
-const quoteString = (value: string): string => {
-    return `'${escapeSqlString(value)}'`;
-};
+const quoteString = (value: string): string => `'${escapeSqlString(value)}'`;
 
 const quoteNullableNumber = (value: number | null): string => {
     if (value === null) {
@@ -344,14 +340,10 @@ const run = async () => {
     }
 
     const playerRows = Array.from(uniquePlayers.values()).sort(
-        (left, right) => {
-            return left.telegramUserId - right.telegramUserId;
-        }
+        (left, right) => left.telegramUserId - right.telegramUserId
     );
     const channelRows = Array.from(uniqueChannels.values()).sort(
-        (left, right) => {
-            return left.telegramChatId - right.telegramChatId;
-        }
+        (left, right) => left.telegramChatId - right.telegramChatId
     );
     const channelMemberRows = Array.from(uniqueChannelMembers.values()).sort(
         (left, right) => {

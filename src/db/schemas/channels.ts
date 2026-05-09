@@ -9,9 +9,7 @@ export const channels = snakeCase.table(
         lastVoteAt: integer({ mode: 'timestamp_ms' }),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
-            .$defaultFn(() => {
-                return new Date();
-            })
+            .$defaultFn(() => new Date())
     },
     table => {
         return [

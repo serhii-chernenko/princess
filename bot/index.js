@@ -35,9 +35,7 @@ require('./connect-db')()
 
         for await (const channel of channels) {
             const releaseIndex = Object.keys(getVersions()).findIndex(
-                version => {
-                    return version === channel.release;
-                }
+                version => version === channel.release
             );
 
             try {
@@ -66,6 +64,4 @@ require('./connect-db')()
             await Promise.reject(error);
         }
     })
-    .catch(error => {
-        return console.log(error);
-    });
+    .catch(error => console.log(error));

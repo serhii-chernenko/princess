@@ -10,23 +10,21 @@ These rules are strict for this repository.
 
 ## Arrow Functions
 
-- Do not use implicit-return arrow bodies.
-- Always write block bodies with explicit `return` when a value is returned.
+- Use concise implicit-return arrows only when the entire arrow function stays on one line.
+- Once an arrow body wraps or the line exceeds the configured width, switch to a block body with an explicit `return`.
 - Preferred:
-
-```ts
-service.use(currentService => {
-    return currentService;
-});
-```
-
-- Forbidden:
 
 ```ts
 service.use(currentService => currentService);
 ```
 
-This rule is enforced in linting with `arrow-body-style: ["error", "always"]`.
+- Forbidden:
+
+```ts
+service.use(currentService => expensiveOperation(currentService));
+```
+
+This rule is enforced in linting with the custom `arrow-body/explicit-return-for-wrapped-arrow` rule.
 
 ## Cloudflare D1
 

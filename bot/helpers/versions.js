@@ -1,3 +1,1 @@
-module.exports = () => {
-    return require('../../changelog.json');
-};
+module.exports = () => require('../../changelog.json');

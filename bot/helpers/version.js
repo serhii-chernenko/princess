@@ -1,3 +1,1 @@
-module.exports = () => {
-    return Object.keys(require('../../changelog.json'))[0];
-};
+module.exports = () => Object.keys(require('../../changelog.json'))[0];

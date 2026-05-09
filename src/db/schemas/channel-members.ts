@@ -16,33 +16,19 @@ export const channelMembers = snakeCase.table(
         id: integer().primaryKey({ autoIncrement: true }),
         channelId: integer()
             .notNull()
-            .references(
-                () => {
-                    return channels.id;
-                },
-                { onDelete: 'cascade' }
-            ),
+            .references(() => channels.id, { onDelete: 'cascade' }),
         playerId: integer()
             .notNull()
-            .references(
-                () => {
-                    return players.id;
-                },
-                { onDelete: 'cascade' }
-            ),
+            .references(() => players.id, { onDelete: 'cascade' }),
         score: integer().notNull().default(0),
         isActive: integer({ mode: 'boolean' }).notNull().default(true),
         isAutoJoined: integer({ mode: 'boolean' }).notNull().default(true),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
-            .$defaultFn(() => {
-                return new Date();
-            }),
+            .$defaultFn(() => new Date()),
         updatedAt: integer({ mode: 'timestamp_ms' })
             .notNull()
-            .$defaultFn(() => {
-                return new Date();
-            })
+            .$defaultFn(() => new Date())
     },
     table => {
         return [

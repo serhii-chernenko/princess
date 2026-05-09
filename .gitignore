@@ -77,3 +77,6 @@
 !/test/*.cjs
 !/types
 !/types/*.d.ts
+!/tools
+!/tools/oxlint
+!/tools/**/*.mjs

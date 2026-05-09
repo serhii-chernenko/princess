@@ -93,9 +93,7 @@ test('db layer files exist for the D1 migration path', async () => {
         .readdirSync(drizzleDir, {
             recursive: true
         })
-        .filter(fileName => {
-            return fileName.endsWith('.sql');
-        });
+        .filter(fileName => fileName.endsWith('.sql'));
 
     assert.ok(migrationFiles.length > 0);
 });
