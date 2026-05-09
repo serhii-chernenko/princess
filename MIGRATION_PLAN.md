@@ -195,7 +195,7 @@ Exit criteria:
 
 ### Phase 2: Worker App Skeleton
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -216,6 +216,25 @@ Exit criteria:
 - Local Worker app boots with Wrangler.
 - Telegram webhook route exists.
 - App structure is ready for feature migration.
+
+Phase 2 implementation result:
+
+1. Added `wrangler.jsonc` with Worker entrypoint and compatibility settings
+2. Added `hono`-based Worker scaffold under `src/worker/`
+3. Added typed Worker env bindings and generated `worker-configuration.d.ts`
+4. Added `/health` route
+5. Added Telegram webhook scaffold route with secret-header validation
+6. Added scheduled handler scaffold for future cleanup/release jobs
+7. Added Worker scripts:
+    - `worker:dev`
+    - `worker:deploy`
+    - `worker:types`
+
+Verification notes:
+
+- `wrangler dev` booted locally
+- `GET /health` returned `200`
+- `POST /telegram` returned `202` for a valid scaffold payload
 
 ### Phase 3: Database Layer Migration
 
