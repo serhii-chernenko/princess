@@ -2,8 +2,8 @@
   hosts: all
   remote_user: inevix
   vars:
-    dir: "/home/{{ ansible_user }}/apps/princess"
-    ansible_python_interpreter: /usr/bin/python3
+      dir: '/home/{{ ansible_user }}/apps/princess'
+      ansible_python_interpreter: /usr/bin/python3
   roles:
-    - git_pull
-    - docker_restart
+      - git_pull
+      - docker_restart

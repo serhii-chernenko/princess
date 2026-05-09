@@ -1,18 +1,18 @@
 - name: Check the Princess Bot repo on VPS if it doesn't exist
   stat:
-    path: "{{ dir }}"
+      path: '{{ dir }}'
   register: result
 
 - name: Clone the Princess Bot repo on VPS if it doesn't exist
   git:
-    repo: "git@github.com:{{ GITHUB_REPO }}.git"
-    dest: "{{ dir }}"
+      repo: 'git@github.com:{{ GITHUB_REPO }}.git'
+      dest: '{{ dir }}'
   when: not result.stat.exists
 
 - name: Update Princess Bot repo on VPS
   git:
-    repo: "git@github.com:{{ GITHUB_REPO }}.git"
-    dest: "{{ dir }}"
-    single_branch: true
-    version: main
-    accept_newhostkey: true
+      repo: 'git@github.com:{{ GITHUB_REPO }}.git'
+      dest: '{{ dir }}'
+      single_branch: true
+      version: main
+      accept_newhostkey: true

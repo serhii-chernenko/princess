@@ -1,4 +1,5 @@
 # Princess of the Day<br/>Принцеска дня
+
 Telegram bot / Телеграм бот
 
 Example:<br/>
@@ -37,6 +38,7 @@ https://t.me/BotFather
 
 Send the command message to the bot:<br/>
 Відправ боту команду:
+
 ```shell
 /newbot
 ```
@@ -46,8 +48,9 @@ And follow instructions<br/>
 
 Also, at current step I recommend you to create second bot, 'cause you will have 2 environments:<br/>
 Також на цьому етапі я хотів би порадити тобі створити ще одного бота, бо в тебе буде 2 оточення:
-   - `dev`
-   - `production`
+
+- `dev`
+- `production`
 
 It includes different docker containers and different databases. In this case, better to have 2 different bots with different tokens to run them separately.<br/>
 Я маю на увазі різні докер контейнери та бази даних. В цьому випадку краще мати 2-х різних ботів з різними токенами, щоб запускати їх окремо.
@@ -84,30 +87,33 @@ npm run docker:dev
 ```
 
 The command `docker:dev` and other you can find in the `package.json` file.<br/>
-Команду `docker:dev` та інші ти можеш знайти у файлі `package.json`. 
+Команду `docker:dev` та інші ти можеш знайти у файлі `package.json`.
 
 ### Get and set your Telegram ID<br/>Отримай та вкажи твій Телеграм ID
 
 When the bot is run, try to have chat with it. Send the message:<br/>
 Коли бот запущений, спробуй написати йому. Відправ наступне повідомлення:
+
 ```shell
 /start
 ```
 
 Go back to the terminal, and you have to see telegram logs. There has to be a JSON object that has to contain sender data. Get your ID from there.<br/>
 Повернись до терміналу, зараз ти повинен побачити телеграм логи. Там повинен бути JSON обʼєкт, в якому буде знаходитися інформація по відправнику. Знайти свій ID.
+
 ```json
 {
-  "message": {
-      "from": {
-          "id": 123456789
-      }
-  }
+    "message": {
+        "from": {
+            "id": 123456789
+        }
+    }
 }
 ```
 
 Copy the ID and open both `.env.dev` and `.env.production` files again. Replace the value of the `ADMIN_ID` with your real ID.<br/>
 Скопіюй ID та відкрий обидва файли знову: `.env.dev` та `.env.production`. Заміни значення змінної `ADMIN_ID` на твій реальний ID.
+
 ```dotenv
 ADMIN_ID=123456789
 ```
@@ -123,6 +129,7 @@ Interrupt the process by hotkey `Ctrl/CMD + C` or `Shift + Ctrl/CMD + C` (that d
 
 Run the command again:<br/>
 Запусти команду знову:
+
 ```shell
 npm run docker:dev
 ```
@@ -130,13 +137,15 @@ npm run docker:dev
 ### Run the bot in the production mode<br/>Запусти бота в продакшн режимі
 
 When you run the bot in the developer mode you can't run docker containers in a background, and you see a lot of logs from telegram updates. You can prevent this. Feel free to run the bot in background mode without any logs of telegram updates by the command:<br/>
-Коли ти запускаєш бота в режимі розробника, ти не можеш запустити докер контейнери у фоні, а також ти бачиш багато логів після кожного оновлення в чаті з ботом. Ти можеш цьому зарадити. Запустити бота у фоні без логів можна за допомогою команди: 
+Коли ти запускаєш бота в режимі розробника, ти не можеш запустити докер контейнери у фоні, а також ти бачиш багато логів після кожного оновлення в чаті з ботом. Ти можеш цьому зарадити. Запустити бота у фоні без логів можна за допомогою команди:
+
 ```shell
 npm run docker:start
 ```
 
 Additional commands:<br/>
 Додаткові команди:
+
 ```shell
 npm run docker:start
 npm run docker:stop
@@ -157,9 +166,10 @@ docker ps
 
 You have to see 2 containers.<br/>
 Ти маєш побачити 2 контейнери
+
 1. For the developer mode<br/>Для режиму розробника<br/>`docker:dev`:
-   1. `princess_db_dev`
-   2. `princess_app_dev`
+    1. `princess_db_dev`
+    2. `princess_app_dev`
 2. For the production mode<br/>Для продакшн режиму<br/>`docker:start`:
     1. `princess_db_production`
     2. `princess_app_production`
@@ -183,6 +193,7 @@ docker exec -ti princess_db_production bash
 
 Connect to MongoDB:<br/>
 Підключись до MongoDB:
+
 ```shell
 mongosh
 ```
@@ -193,7 +204,7 @@ Run some commands there:<br/>
 ```shell
 # See all databases
 # Показати всі бази
-show dbs 
+show dbs
 # Choose a DB of the developer mode
 # Обрати базу даних в режимі розробника
 use princess_dev
@@ -220,6 +231,7 @@ https://www.mongodb.com/docs/manual/reference/method/
 
 To exit from the DB close the terminal tab or run commands below:<br/>
 Щоб вийти з бази, закрий термінал чи виконай наступні команди:
+
 ```shell
 # Exit from the mongosh service
 # Вийти з сервісу mongosh
@@ -234,15 +246,16 @@ exit
 I prefer to use [TablePlus](https://tableplus.com/) but feel free to use any known tools.<br/>
 Я переважно використовую [TablePlus](https://tableplus.com/), але ти можеш використовувати будь-який відомий тобі застосунок.
 
-1. Create a new connection to MongoDB.<br/>Створи нове з'єднання до MongoDB. 
+1. Create a new connection to MongoDB.<br/>Створи нове з'єднання до MongoDB.
 2. Use the URL connection:<br/>Використай зʼєднання по URL:
-   - mongodb://localhost:27027
+    - mongodb://localhost:27027
 
 ### Synchronization<br/>Синхронізація
 
 Files from the docker container of DB will be duplicated on local side. When containers will be run, you will be able to see new directories:<br/>
 Файли з докер контейнеру бази даних будуть дубльовані в твоїй системі. Коли контейнери запущені, ти побачиш наступні директорії:
-1. `.mongo/dev`<br/>- for a container in developer mode<br/>- для контейнеру в режимі розробника 
+
+1. `.mongo/dev`<br/>- for a container in developer mode<br/>- для контейнеру в режимі розробника
 2. `.mongo/production`<br/>- for a container in production mode<br/>- для контейнеру в продакшн режимі
 
 ### Import/Export DB<br/>Імпорт та експорт бази даних
@@ -253,18 +266,21 @@ Disclaimer<br/>Дисклеймер
 
 There will be some examples with a files naming as:<br/>
 Далі будуть деякі приклади з найменуванням файлів:
+
 ```shell
 princess_dev_`date "+%Y-%m-%d"`.gz
 ```
 
 The file will have a name as:<br/>
 В результаті отримаємо файл:
+
 ```shell
 princess_dev_2023_01_01.gz
 ```
 
 Because that's a useful way to give name with a current date. But feel free to replace the name with any other, such as:<br/>
 Тому що зручно мати дамп з датою створення у назві. Але ти можеш змінити формат в наступних командах на будь який зручний для тебе, наприклад:
+
 ```shell
 princess.gz
 princess_dev.gz
@@ -275,6 +291,7 @@ princess_production_2022_12_31.gz
 
 Developer mode:<br/>
 Режим розробника:
+
 ```shell
 # Create a dump
 # Створити дамп
@@ -289,6 +306,7 @@ docker exec -ti princess_db_dev rm /princess_dev_`date "+%Y-%m-%d"`.gz
 
 Production mode:<br/>
 Продакшн режим:
+
 ```shell
 # Create a dump
 # Створити дамп
@@ -305,6 +323,7 @@ docker exec -ti princess_db_production rm /princess_production_`date "+%Y-%m-%d"
 
 Developer mode:<br/>
 Режим розробника:
+
 ```shell
 # Copy a local dump to the container
 # Скопіювати локальний дамп в контейнер
@@ -319,6 +338,7 @@ docker exec -ti princess_db_dev rm /princess_dev_`date "+%Y-%m-%d"`.gz
 
 Production mode:<br/>
 Продакшн режим:
+
 ```shell
 # Copy a local dump to the container
 # Скопіювати локальний дамп в контейнер
@@ -348,6 +368,7 @@ docker exec -ti princess_db_production mongosh princess_production --eval "db.dr
 
 Run the bot in the developer mode:<br/>
 Запусти бот в режимі розробника:
+
 ```shell
 npm run docker:dev
 ```
@@ -365,6 +386,7 @@ If you don't have Node.js locally, please visit the [site](https://nodejs.org/en
 
 Next just install NPM packages to the project directory.<br/>
 Далі просто встанови NPM пакети в директорію проєкту.
+
 ```shell
 npm i
 ```
@@ -376,8 +398,9 @@ There is the `.eslintrc.js` file in the project to present rules for [ESLint](ht
 
 Configure your code editor to follow rules:<br/>
 Налаштуй свій редактор коду під вказані правила:
-   - [VSCode](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-   - [PHPStorm](https://www.jetbrains.com/help/phpstorm/eslint.html)
+
+- [VSCode](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
+- [PHPStorm](https://www.jetbrains.com/help/phpstorm/eslint.html)
 
 ### Code formatting<br/>Форматування коду
 
@@ -386,10 +409,11 @@ There is the `.prettierrc.js` file in the project to preset rules for [Prettier]
 
 Configure your code editor to follow rules:<br/>
 Налаштуй свій редактор коду під вказані правила:
-   - [VSCode](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-   - PHPStorm:
-     - [Plugin / Плагін](https://plugins.jetbrains.com/plugin/10456-prettier)
-     - [Configuration / Налаштування](https://www.jetbrains.com/help/phpstorm/prettier.html)
+
+- [VSCode](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- PHPStorm:
+    - [Plugin / Плагін](https://plugins.jetbrains.com/plugin/10456-prettier)
+    - [Configuration / Налаштування](https://www.jetbrains.com/help/phpstorm/prettier.html)
 
 ## Contributing<br/>Долучитися до проєкту
 
@@ -398,6 +422,7 @@ I'm really excited if you are interested in the improving of my project. Thanks 
 
 There are some steps how you can do that:<br/>
 Тут декілька кроків, що потрібно зробити для цього:
+
 1. Fork my repository.<br/>Зроби форк мого репозиторію.
 2. Deploy the project locally (follow instructions above).<br/>Розгорни проєкт локально, слідуючи інструкціям вище.
 3. Make your changes.<br/>Внеси свої зміни.
@@ -407,5 +432,5 @@ There are some steps how you can do that:<br/>
 7. Wait while I'll check that.<br/>Очікуй, поки я не перевірю.
 8. If I don't agree with your changes, be absolutely sure that I'll write a comment why I think so.<br/>Якщо я не згодний зі змінами, будь певний, я обовʼязково відпишу чому.
 9. If I want to see your changes in the project:<br/>Якщо мені подобаються твої зміни:
-   - I'll merge the PR if everything is fine.<br/>Я внесу їх, якщо все добре.
-   - I'll ask you to do some fixes if something will be wrong.<br/>Я попрошу тебе зробити певні правки, якщо щось буде не так.
+    - I'll merge the PR if everything is fine.<br/>Я внесу їх, якщо все добре.
+    - I'll ask you to do some fixes if something will be wrong.<br/>Я попрошу тебе зробити певні правки, якщо щось буде не так.

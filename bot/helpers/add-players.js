@@ -20,7 +20,7 @@ module.exports = async (ctx, channel, list = 'top', activePlayers = []) => {
 
         try {
             member = await ctx.getChatMember(player.entity_id);
-        } catch (error) {
+        } catch {
             continue;
         }
 

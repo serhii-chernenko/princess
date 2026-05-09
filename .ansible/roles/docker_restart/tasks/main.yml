@@ -1,35 +1,34 @@
 - name: Build Princess Bot image on VPS
   docker_image:
-    name: princess_bot_image
-    state: present
-    force_source: yes
-    source: build
-    build:
-      path: "{{dir}}"
-      dockerfile: "./.docker/{{NODE_ENV}}.dockerfile"
+      name: princess_bot_image
+      state: present
+      force_source: yes
+      source: build
+      build:
+          path: '{{dir}}'
+          dockerfile: './.docker/{{NODE_ENV}}.dockerfile'
 
 - name: Restart Princess Bot container on VPS
   docker_container:
-    name: princess_bot
-    image: princess_bot_image
-    restart: yes
-    recreate: yes
-    restart_policy: always
-    network_mode: "host"
-    log_driver: json-file
-    log_options:
-      max-size: 10m
-      max-file: 5
-    env:
-      NODE_ENV: "{{NODE_ENV}}"
-      BOT_TOKEN: "{{BOT_TOKEN}}"
-      MONGODB_URI: "{{MONGODB_URI}}"
-      ADMIN_ID: "{{ADMIN_ID}}"
-      AUTHOR_TWITTER_LINK: "{{AUTHOR_TWITTER_LINK}}"
-      WISHLIST_TG_URL: "{{WISHLIST_TG_URL}}"
-      CHATGPT_GITHUB_REPO_URL: "{{CHATGPT_GITHUB_REPO_URL}}"
-      TG_CHANNEL: "{{TG_CHANNEL}}"
-      TG_GROUP: "{{TG_GROUP}}"
-      YT_CHANNEL: "{{YT_CHANNEL}}"
-      MAIL: "{{MAIL}}"
-
+      name: princess_bot
+      image: princess_bot_image
+      restart: yes
+      recreate: yes
+      restart_policy: always
+      network_mode: 'host'
+      log_driver: json-file
+      log_options:
+          max-size: 10m
+          max-file: 5
+      env:
+          NODE_ENV: '{{NODE_ENV}}'
+          BOT_TOKEN: '{{BOT_TOKEN}}'
+          MONGODB_URI: '{{MONGODB_URI}}'
+          ADMIN_ID: '{{ADMIN_ID}}'
+          AUTHOR_TWITTER_LINK: '{{AUTHOR_TWITTER_LINK}}'
+          WISHLIST_TG_URL: '{{WISHLIST_TG_URL}}'
+          CHATGPT_GITHUB_REPO_URL: '{{CHATGPT_GITHUB_REPO_URL}}'
+          TG_CHANNEL: '{{TG_CHANNEL}}'
+          TG_GROUP: '{{TG_GROUP}}'
+          YT_CHANNEL: '{{YT_CHANNEL}}'
+          MAIL: '{{MAIL}}'

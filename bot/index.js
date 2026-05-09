@@ -2,7 +2,6 @@ require('./connect-db')()
     .then(async () => {
         const bot = require('./bot');
         const Channel = require('./models/channel');
-        const Status = require('./models/status');
         const cleanDB = require('./helpers/clean-db');
         const releasesToPost = require('./helpers/releases');
         const getVersions = require('./helpers/versions');

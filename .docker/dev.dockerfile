@@ -1,12 +1,13 @@
-FROM node:latest
+FROM node:24-bookworm-slim
 
 RUN mkdir -p /princess/bot
 WORKDIR /princess
 
 COPY ./package.json ./
+COPY ./package-lock.json ./
 COPY ./changelog.json ./
 COPY ./bot ./bot/
 
-RUN npm i
+RUN npm ci
 
 CMD ["npm", "run", "dev"]

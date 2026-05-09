@@ -5,10 +5,13 @@
 !/.github/workflows/main.yml
 !changelog.json
 !LICENSE
+!MIGRATION_PLAN.md
 !README.md
-!.eslintrc.js
-!.prettierrc.js
+!.oxfmtrc.json
+!.oxlintrc.json
 !package.json
+!package-lock.json
+!tsconfig.json
 !/env
 !/env/*.example
 !/.docker
@@ -42,3 +45,7 @@
 !/bot/scenes/*.js
 !/bot/listeners
 !/bot/listeners/*.js
+!/test
+!/test/*.cjs
+!/types
+!/types/*.d.ts

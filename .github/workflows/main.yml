@@ -1,40 +1,40 @@
 name: Build Princess Bot on VPS
 
 on:
-  push:
-    branches:
-      - 'main'
+    push:
+        branches:
+            - 'main'
 
 concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v3
 
-      - name: Run a build command
-        uses: dawidd6/action-ansible-playbook@v2
-        with:
-          playbook: .ansible/main.yml
-          key: ${{secrets.SSH_PRIVATE_KEY}}
-          inventory: |
-            [all]
-            ${{ secrets.VPS }} address=localhost
-          options: |
-            -e NODE_ENV=production
-            -e GITHUB_REPO=${{github.repository}}
-            -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
-            -e MONGODB_URI=${{secrets.MONGODB_URI}}
-            -e ADMIN_ID=${{secrets.ADMIN_ID}}
-            -e AUTHOR_TWITTER_LINK=${{vars.AUTHOR_TWITTER_LINK}}
-            -e WISHLIST_TG_URL=${{vars.WISHLIST_TG_URL}}
-            -e CHATGPT_GITHUB_REPO_URL=${{vars.CHATGPT_GITHUB_REPO_URL}}
-            -e TG_CHANNEL=${{vars.TG_CHANNEL}}
-            -e TG_GROUP=${{vars.TG_GROUP}}
-            -e YT_CHANNEL=${{vars.YT_CHANNEL}}
-            -e MAIL=${{vars.MAIL}}
-            -e ansible_port=${{ secrets.SSH_PORT }}
+            - name: Run a build command
+              uses: dawidd6/action-ansible-playbook@v2
+              with:
+                  playbook: .ansible/main.yml
+                  key: ${{secrets.SSH_PRIVATE_KEY}}
+                  inventory: |
+                      [all]
+                      ${{ secrets.VPS }} address=localhost
+                  options: |
+                      -e NODE_ENV=production
+                      -e GITHUB_REPO=${{github.repository}}
+                      -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
+                      -e MONGODB_URI=${{secrets.MONGODB_URI}}
+                      -e ADMIN_ID=${{secrets.ADMIN_ID}}
+                      -e AUTHOR_TWITTER_LINK=${{vars.AUTHOR_TWITTER_LINK}}
+                      -e WISHLIST_TG_URL=${{vars.WISHLIST_TG_URL}}
+                      -e CHATGPT_GITHUB_REPO_URL=${{vars.CHATGPT_GITHUB_REPO_URL}}
+                      -e TG_CHANNEL=${{vars.TG_CHANNEL}}
+                      -e TG_GROUP=${{vars.TG_GROUP}}
+                      -e YT_CHANNEL=${{vars.YT_CHANNEL}}
+                      -e MAIL=${{vars.MAIL}}
+                      -e ansible_port=${{ secrets.SSH_PORT }}
