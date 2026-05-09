@@ -238,7 +238,7 @@ Verification notes:
 
 ### Phase 3: Database Layer Migration
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -257,9 +257,39 @@ Exit criteria:
 - D1 schema and migrations are committed.
 - Local Worker can read/write bot data through Drizzle.
 
+Phase 3 implementation result:
+
+1. Switched to `drizzle-orm@1.0.0-rc.1` and `drizzle-kit@1.0.0-rc.1`
+2. Added `effect@4` to the new DB service layer
+3. Added `wrangler.jsonc` D1 binding scaffold with `DB`
+4. Added `drizzle.config.ts` and `drizzle.production.config.ts`
+5. Split schema files under `src/db/schemas/`
+6. Switched schema declarations to camelCase TypeScript keys with `snakeCase.table(...)` so SQLite columns stay snake_case
+7. Added typed repositories and DB service under `src/db/`
+8. Generated the new RC migration layout under `drizzle/`
+9. Replaced the broken local Wrangler flat-SQL migration path with a Drizzle-native local D1 migrator script
+10. Added DB scripts:
+    - `db:generate`
+    - `db:migrate:local`
+    - `db:migrate:production`
+    - `db:query:local`
+    - `db:query:production`
+11. Moved the new Worker/D1 flow to root-level `.dev.vars` and `.dev.vars.production`
+12. Prepared `wrangler.jsonc` with:
+    - top-level local development config
+    - nested `env.production` for the real production Worker and D1 binding
+13. Renamed the production Drizzle config to `drizzle.production.config.ts` to match the official multi-config `--config` workflow more clearly
+
+Verification notes:
+
+- `drizzle-kit generate` produced the RC migration successfully
+- `npm run db:migrate:local` created `channels`, `players`, `channel_members`, and `__drizzle_migrations`
+- TypeScript-facing schema keys are camelCase while generated SQLite columns are snake_case
+- `npm run typecheck` passed after the RC and Effect refactor
+
 ### Phase 4: Mongo to D1 Migration Tooling
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -282,6 +312,32 @@ Expected deliverables:
 Exit criteria:
 
 - Existing Mongo data can be migrated into D1 with repeatable steps.
+
+Phase 4 implementation result:
+
+1. Added `scripts/db/prepare-mongo-import.ts`
+2. The script reads the real backup format from `princess-db/` as NDJSON, not JSON arrays
+3. It generates:
+    - `.backups/mongo-to-d1.sql`
+    - `.backups/mongo-to-d1.report.json`
+4. Added scripts:
+    - `db:import:prepare`
+    - `db:import:local`
+    - `db:import:production`
+5. Import statements are chunked conservatively for D1:
+    - players: `20`
+    - channels: `20`
+    - channel members: `10`
+6. Validated the real backup counts:
+    - channels: `225`
+    - players: `974`
+    - scores: `1040`
+    - statuses: `1040`
+7. Verified the transformation result:
+    - channels: `225`
+    - players: `974`
+    - channel members: `1040`
+8. Verified the import locally on a fresh D1 database with matching final row counts
 
 ### Phase 5: Feature Port to Strict TypeScript
 

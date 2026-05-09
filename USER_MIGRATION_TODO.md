@@ -17,27 +17,27 @@ This file should be updated after every significant migration phase.
 There are currently 2 runnable paths:
 
 1. Legacy bot runtime
-   - Real Telegram bot behavior
-   - Node.js + polling
-   - Uses `env/.env.dev`
+    - Real Telegram bot behavior
+    - Node.js + polling
+    - Uses `.dev.vars`
 
 2. Worker scaffold runtime
-   - Cloudflare Worker + Hono skeleton
-   - Has route scaffolding only
-   - Does not yet execute the actual bot game logic
+    - Cloudflare Worker + Hono skeleton
+    - Has route scaffolding only
+    - Does not yet execute the actual bot game logic
 
 ## Route Status
 
 Current Worker routes:
 
 - `GET /`
-  - simple service metadata response
+    - simple service metadata response
 - `GET /health`
-  - readiness/health response
+    - readiness/health response
 - `POST /telegram`
-  - Telegram webhook scaffold
-  - validates path and optional secret
-  - currently accepts the payload but does not yet run bot logic
+    - Telegram webhook scaffold
+    - validates path and optional secret
+    - currently accepts the payload but does not yet run bot logic
 
 Why only `/health` as a "real" endpoint right now:
 
@@ -126,7 +126,7 @@ curl http://127.0.0.1:8787/health
 Expected:
 
 ```json
-{"service":"princess","runtime":"cloudflare-workers","ready":true}
+{ "service": "princess", "runtime": "cloudflare-workers", "ready": true }
 ```
 
 Root endpoint:
@@ -138,7 +138,12 @@ curl http://127.0.0.1:8787/
 Expected:
 
 ```json
-{"service":"princess","runtime":"cloudflare-workers","phase":2,"status":"bootstrapped"}
+{
+    "service": "princess",
+    "runtime": "cloudflare-workers",
+    "phase": 2,
+    "status": "bootstrapped"
+}
 ```
 
 Webhook scaffold:
@@ -153,7 +158,11 @@ curl -X POST http://127.0.0.1:8787/telegram \
 Expected:
 
 ```json
-{"accepted":true,"updateId":42,"note":"Webhook scaffold only. Telegram bot logic will be wired in Phase 5."}
+{
+    "accepted": true,
+    "updateId": 42,
+    "note": "Webhook scaffold only. Telegram bot logic will be wired in Phase 5."
+}
 ```
 
 Invalid secret test:
@@ -200,13 +209,13 @@ BotFather does not manage:
 These values are ours to define:
 
 - `TELEGRAM_WEBHOOK_PATH`
-  - for example: `/telegram`
-  - or `/telegram/princess-prod`
+    - for example: `/telegram`
+    - or `/telegram/princess-prod`
 
 - `TELEGRAM_WEBHOOK_SECRET`
-  - any secret token string we generate
-  - Telegram will send it back in the header:
-    `X-Telegram-Bot-Api-Secret-Token`
+    - any secret token string we generate
+    - Telegram will send it back in the header:
+      `X-Telegram-Bot-Api-Secret-Token`
 
 ### Recommended production shape
 
@@ -272,7 +281,7 @@ Until the Worker bot logic is fully migrated, the real game flow still runs thro
 
 Use:
 
-- `env/.env.dev`
+- `.dev.vars`
 
 ### Local run
 
@@ -352,22 +361,303 @@ curl -X POST "https://<YOUR_WORKER_DOMAIN><YOUR_WEBHOOK_PATH>" \
   -d '{"update_id":42}'
 ```
 
-## Upcoming Phases To Document Here
+## Phase 3
 
-The following must be added here as they are implemented:
+### What changed
 
-### Phase 3
+- Drizzle upgraded to `1.0.0-rc.1`
+- Effect integrated into the new DB service layer
+- Table definitions split into `src/db/schemas/`
+- Drizzle schema keys are now `camelCase` in TypeScript
+- Database columns remain `snake_case` through `snakeCase.table(...)`
+- Local D1 migrations now use Drizzle's own D1 migrator
+- Remote D1 migrations now use Drizzle Kit with a dedicated D1 HTTP config
+- Repo rule added in `AGENT.md` and enforced in Oxlint:
+  no implicit-return arrow bodies
 
-- D1 setup
-- local database creation
-- local migration commands
-- schema verification commands
+### Important architecture note
 
-### Phase 4
+Do not use `wrangler d1 migrations apply DB --local` for the Drizzle RC schema migrations in this repo.
 
-- Mongo export/import workflow
-- migration dry-run steps
-- production migration checklist
+Reason:
+
+- Drizzle RC writes migrations in the nested folder format under `drizzle/<timestamp_name>/migration.sql`
+- Wrangler's flat SQL migration flow did not apply that format correctly in local validation
+- The working local flow here is `npm run db:migrate:local`
+
+### Wrangler environment layout
+
+`wrangler.jsonc` is intentionally split into 2 layers:
+
+- top-level config
+  local-only Worker development
+  local placeholder D1 binding
+  Worker name: `princess-local`
+- `env.production`
+  real production Worker deployment
+  real production D1 binding
+  Worker name: `princess`
+
+Use:
+
+- `npm run worker:dev`
+  for local root config
+- `npm run worker:dev:production`
+  if you need to emulate the production Worker config locally
+- `npm run worker:deploy:production`
+  for the real deploy target
+
+### Local schema workflow
+
+Generate schema migrations:
+
+```sh
+npm run db:generate
+```
+
+Apply schema migrations to local D1:
+
+```sh
+npm run db:migrate:local
+```
+
+Inspect local schema:
+
+```sh
+npm run db:query:local -- --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+```
+
+Expected tables:
+
+- `__drizzle_migrations`
+- `channels`
+- `players`
+- `channel_members`
+
+### Remote schema workflow
+
+Create the production vars file:
+
+```sh
+cp .dev.vars.production.example .dev.vars.production
+```
+
+Fill:
+
+```dotenv
+CLOUDFLARE_ACCOUNT_ID=""
+CLOUDFLARE_DATABASE_ID=""
+CLOUDFLARE_D1_TOKEN=""
+```
+
+`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and `TELEGRAM_WEBHOOK_PATH` should also be set in `.dev.vars.production` for production-oriented local commands.
+
+### Why `drizzle.production.config.ts` exists
+
+`drizzle.production.config.ts` is not a special Drizzle filename.
+
+It works because Drizzle Kit supports multiple config files and lets you choose one explicitly with `--config`.
+
+This repo uses:
+
+```sh
+drizzle-kit migrate --config drizzle.production.config.ts
+```
+
+That file is only the production D1 HTTP config for Drizzle Kit commands.
+
+It is separate from:
+
+- `drizzle.config.ts`
+  local schema generation config
+- `wrangler.jsonc`
+  Worker runtime and D1 binding config
+
+### How to get production D1 credentials for a newly created DB
+
+1. Create the production database:
+
+```sh
+npx wrangler d1 create princess-production --env production --binding DB
+```
+
+This prints the production D1 binding block and the new database UUID.
+
+Optional:
+
+```sh
+npx wrangler d1 create princess-production --env production --binding DB --update-config
+```
+
+This lets Wrangler update the `env.production` D1 binding block in `wrangler.jsonc` automatically.
+
+2. Put the printed UUID into `wrangler.jsonc` under `env.production.d1_databases[0]`:
+
+- `database_id`
+- `preview_database_id`
+
+3. Get the Cloudflare Account ID.
+
+Official Cloudflare locations:
+
+- Workers & Pages -> Account details -> Account ID
+- or Account home -> Copy account ID
+
+4. Create an API token with D1 write access.
+
+For Drizzle D1 HTTP writes, use a token with `D1 Write` / `D1:Edit` permission.
+
+5. Fill `.dev.vars.production`:
+
+```dotenv
+CLOUDFLARE_ACCOUNT_ID="<your-account-id>"
+CLOUDFLARE_DATABASE_ID="<your-production-d1-uuid>"
+CLOUDFLARE_D1_TOKEN="<your-api-token>"
+```
+
+6. Run the production Drizzle migration:
+
+```sh
+npm run db:migrate:production
+```
+
+Why this needs `.dev.vars.production`:
+
+- Wrangler environments configure the Worker runtime and D1 bindings
+- Drizzle Kit is a separate CLI
+- Drizzle Kit does not read Wrangler environment bindings directly
+- so the production Drizzle command needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_D1_TOKEN` loaded from `.dev.vars.production`
+
+Create the real D1 database if needed:
+
+```sh
+npx wrangler d1 create princess-production --env production --binding DB
+```
+
+Then replace the placeholder `database_id` and `preview_database_id` in `wrangler.jsonc` under `env.production`.
+
+Apply schema migrations remotely:
+
+```sh
+npm run db:migrate:production
+```
+
+Inspect remote schema:
+
+```sh
+npm run db:query:production -- --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+```
+
+## Phase 4
+
+### What changed
+
+- Real Mongo backup validation added
+- Backup reader supports the actual `princess-db/` export format:
+  line-delimited JSON, not arrays
+- Import preparation script added:
+  `scripts/db/prepare-mongo-import.ts`
+- Import apply scripts added:
+  `db:import:local`
+  `db:import:production`
+- Import output files are generated under `.backups/`
+  `mongo-to-d1.sql`
+  `mongo-to-d1.report.json`
+
+### D1 safety rule used here
+
+Cloudflare D1 has a practical bound-parameter ceiling around `100` per statement.
+
+This repo avoids large import statements by:
+
+- generating chunked SQL batches
+- using conservative chunk sizes
+- validating the real backup before import
+
+Current chunk sizes:
+
+- players: `20`
+- channels: `20`
+- channel members: `10`
+
+### Real backup validation result
+
+Validated against local backup directory:
+
+- `princess-db/channels.json`: `225`
+- `princess-db/players.json`: `974`
+- `princess-db/scores.json`: `1040`
+- `princess-db/status.json`: `1040`
+
+Transform result:
+
+- channels: `225`
+- players: `974`
+- channel members: `1040`
+
+Validation report:
+
+- duplicate channels: `0`
+- duplicate players: `0`
+- duplicate channel members: `0`
+- missing player refs: `0`
+- missing score refs: `0`
+- missing status refs: `0`
+
+### Prepare import SQL from old Mongo backup
+
+The default input directory is the local-only `princess-db/` folder.
+
+Generate the import SQL and report:
+
+```sh
+npm run db:import:prepare
+```
+
+Generated outputs:
+
+- `.backups/mongo-to-d1.sql`
+- `.backups/mongo-to-d1.report.json`
+
+### Apply import locally
+
+Recommended clean local validation flow:
+
+```sh
+rm -rf .wrangler/state/v3/d1
+npm run db:migrate:local
+npm run db:import:local
+npm run db:query:local -- --command="SELECT (SELECT count(*) FROM channels) AS channels, (SELECT count(*) FROM players) AS players, (SELECT count(*) FROM channel_members) AS channel_members;"
+```
+
+Expected result after importing the current backup:
+
+- channels: `225`
+- players: `974`
+- channel_members: `1040`
+
+### Apply import in production
+
+Only after production schema migration is complete:
+
+```sh
+npm run db:import:production
+```
+
+Then verify:
+
+```sh
+npm run db:query:production -- --command="SELECT (SELECT count(*) FROM channels) AS channels, (SELECT count(*) FROM players) AS players, (SELECT count(*) FROM channel_members) AS channel_members;"
+```
+
+### Backup source rule
+
+`princess-db/` is local validation input only.
+
+- read from it
+- validate against it
+- generate import SQL from it
+- do not commit it
 
 ### Phase 5
 

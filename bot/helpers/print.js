@@ -33,11 +33,12 @@ module.exports = async (ctx, channel, list = 'top') => {
         return ctx.replyWithHTML(
             `<strong>${messages.players} (${activePlayers.length}):</strong>\n\n` +
                 activePlayers
-                    .sort((a, b) => (a.score.score < b.score.score ? 1 : -1))
-                    .map(
-                        ({ player: { name }, score: { score } }, index) =>
-                            `${index + 1}. ${name}: ${score}`
-                    )
+                    .sort((a, b) => {
+                        return a.score.score < b.score.score ? 1 : -1;
+                    })
+                    .map(({ player: { name }, score: { score } }, index) => {
+                        return `${index + 1}. ${name}: ${score}`;
+                    })
                     .join('\n')
         );
     }

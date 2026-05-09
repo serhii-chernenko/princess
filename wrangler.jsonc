@@ -1,7 +1,30 @@
 {
     "$schema": "./node_modules/wrangler/config-schema.json",
-    "name": "princess",
+    "name": "princess-local",
     "main": "src/worker/index.ts",
     "compatibility_date": "2026-05-09",
-    "compatibility_flags": ["nodejs_compat"]
+    "compatibility_flags": ["nodejs_compat"],
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "princess-local",
+            "database_id": "00000000-0000-0000-0000-000000000000",
+            "preview_database_id": "00000000-0000-0000-0000-000000000000",
+            "migrations_dir": "drizzle"
+        }
+    ],
+    "env": {
+        "production": {
+            "name": "princess",
+            "d1_databases": [
+                {
+                    "binding": "DB",
+                    "database_name": "princess-production",
+                    "database_id": "REPLACE_WITH_PRODUCTION_DATABASE_ID",
+                    "preview_database_id": "REPLACE_WITH_PRODUCTION_PREVIEW_DATABASE_ID",
+                    "migrations_dir": "drizzle"
+                }
+            ]
+        }
+    }
 }

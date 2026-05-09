@@ -14,9 +14,15 @@ if (process.env.NODE_ENV === 'dev') {
 
 bot.use(session());
 bot.use(stage.middleware());
-bot.catch(error => console.error(error));
+bot.catch(error => {
+    return console.error(error);
+});
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+    return bot.stop('SIGINT');
+});
+process.once('SIGTERM', () => {
+    return bot.stop('SIGTERM');
+});
 
 module.exports = bot;

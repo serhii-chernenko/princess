@@ -39,10 +39,9 @@ const ChannelSchema = new Schema({
 
 ChannelSchema.methods.addPlayer = async function (player, score, status) {
     const players = [...this.players];
-    const existingPlayer = players.find(
-        channelPlayer =>
-            channelPlayer.player_id.toString() === player._id.toString()
-    );
+    const existingPlayer = players.find(channelPlayer => {
+        return channelPlayer.player_id.toString() === player._id.toString();
+    });
 
     if (existingPlayer) {
         return this;

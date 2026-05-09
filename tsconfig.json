@@ -12,6 +12,9 @@
         "forceConsistentCasingInFileNames": true
     },
     "include": [
+        "drizzle.config.ts",
+        "drizzle.production.config.ts",
+        "scripts/**/*.ts",
         "types/**/*.d.ts",
         "src/**/*.ts",
         "test/**/*.ts",

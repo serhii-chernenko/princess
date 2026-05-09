@@ -55,11 +55,12 @@ bot.command('join', async ctx => {
         }
 
         const isPlayerExist = player
-            ? !!channel.players.find(
-                  channelPlayer =>
+            ? !!channel.players.find(channelPlayer => {
+                  return (
                       channelPlayer.player_id.toString() ===
                       player._id.toString()
-              )
+                  );
+              })
             : false;
 
         if (isPlayerExist && status?.status) {

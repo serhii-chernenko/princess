@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123456:TEST_TOKEN';
 process.env.ADMIN_ID = process.env.ADMIN_ID || '1';
@@ -63,4 +65,37 @@ test('bot modules load with a dummy environment', async () => {
     assert.ok(bot);
     assert.equal(Array.isArray(scenes), true);
     assert.ok(scenes.length > 0);
+});
+
+test('db layer files exist for the D1 migration path', async () => {
+    const dbFiles = [
+        '../src/db/index.ts',
+        '../src/db/client.ts',
+        '../src/db/schema.ts',
+        '../src/db/schemas/index.ts',
+        '../src/db/relations.ts',
+        '../src/db/service.ts',
+        '../src/db/repositories/index.ts',
+        '../scripts/db/migrate-local.ts',
+        '../scripts/db/prepare-mongo-import.ts',
+        '../drizzle.production.config.ts',
+        '../drizzle'
+    ];
+
+    for (const relativePath of dbFiles) {
+        const absolutePath = path.join(__dirname, relativePath);
+
+        assert.equal(fs.existsSync(absolutePath), true, absolutePath);
+    }
+
+    const drizzleDir = path.join(__dirname, '../drizzle');
+    const migrationFiles = fs
+        .readdirSync(drizzleDir, {
+            recursive: true
+        })
+        .filter(fileName => {
+            return fileName.endsWith('.sql');
+        });
+
+    assert.ok(migrationFiles.length > 0);
 });

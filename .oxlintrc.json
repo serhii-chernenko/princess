@@ -3,6 +3,7 @@
         "node": true
     },
     "rules": {
+        "arrow-body-style": ["error", "always"],
         "no-var": "error"
     }
 }

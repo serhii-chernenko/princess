@@ -1,4 +1,5 @@
 export interface WorkerBindings {
+    DB: D1Database;
     BOT_TOKEN?: string;
     TELEGRAM_WEBHOOK_PATH?: string;
     TELEGRAM_WEBHOOK_SECRET?: string;

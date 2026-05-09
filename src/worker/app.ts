@@ -9,14 +9,14 @@ export type WorkerApp = Hono<{ Bindings: WorkerBindings }>;
 export const createApp = () => {
     const app = new Hono<{ Bindings: WorkerBindings }>();
 
-    app.get('/', c =>
-        c.json({
+    app.get('/', c => {
+        return c.json({
             service: 'princess',
             runtime: 'cloudflare-workers',
             phase: 2,
             status: 'bootstrapped'
-        })
-    );
+        });
+    });
 
     registerHealthRoutes(app);
     registerTelegramRoutes(app);

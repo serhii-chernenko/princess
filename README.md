@@ -55,17 +55,17 @@ Also, at current step I recommend you to create second bot, 'cause you will have
 It includes different docker containers and different databases. In this case, better to have 2 different bots with different tokens to run them separately.<br/>
 Я маю на увазі різні докер контейнери та бази даних. В цьому випадку краще мати 2-х різних ботів з різними токенами, щоб запускати їх окремо.
 
-### Prepare .env file<br/>Підготуй .env файл
+### Prepare env vars files<br/>Підготуй файли зі змінними оточення
 
-In the new `princess` directory you can find the directory `env` with the file `.env.example`.<br/>
-В новій директорії `princess` ти можеш знайти ще одну директорію `env` з файлом `.env.example`.
+Use root-level Worker-style env files instead of the old `env/` directory files.<br/>
+Використовуй кореневі файли змінних оточення у стилі Workers замість старих файлів з директорії `env/`.
 
-First of all copy and rename this file to 2 different files such as: `.env.dev` and `.env.production`.<br/>
-Для початку, зроби 2 копії цього файлу та перейменуй його в `.env.dev` та `.env.production`.
+First of all copy the examples to `.dev.vars` and `.dev.vars.production`.<br/>
+Для початку, скопіюй приклади у `.dev.vars` та `.dev.vars.production`.
 
 ```shell
-cp env/.env.example env/.env.dev
-cp env/.env.example env/.env.production
+cp .dev.vars.example .dev.vars
+cp .dev.vars.production.example .dev.vars.production
 ```
 
 ### Set the token<br/>Вказати токен
@@ -111,8 +111,8 @@ Go back to the terminal, and you have to see telegram logs. There has to be a JS
 }
 ```
 
-Copy the ID and open both `.env.dev` and `.env.production` files again. Replace the value of the `ADMIN_ID` with your real ID.<br/>
-Скопіюй ID та відкрий обидва файли знову: `.env.dev` та `.env.production`. Заміни значення змінної `ADMIN_ID` на твій реальний ID.
+Copy the ID and open both `.dev.vars` and `.dev.vars.production` files again. Replace the value of the `ADMIN_ID` with your real ID.<br/>
+Скопіюй ID та відкрий обидва файли знову: `.dev.vars` та `.dev.vars.production`. Заміни значення змінної `ADMIN_ID` на твій реальний ID.
 
 ```dotenv
 ADMIN_ID=123456789

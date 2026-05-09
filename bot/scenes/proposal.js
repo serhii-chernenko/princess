@@ -8,7 +8,9 @@ const isForwarded = require('../helpers/forward');
 
 const proposalScene = new BaseScene('proposal');
 
-proposalScene.enter(async ctx => await ctx.sendMessage(messages.proposalEnter));
+proposalScene.enter(async ctx => {
+    return await ctx.sendMessage(messages.proposalEnter);
+});
 proposalScene.leave(async ctx => {
     return await ctx.sendMessage(messages.proposalLeave);
 });
