@@ -6,6 +6,7 @@
 !/.github/workflows/main.yml
 !.dev.vars.example
 !.dev.vars.production.example
+!.dev.vars.beta.example
 !.typesafe-i18n.json
 !.changeset
 !.changeset/*
@@ -93,10 +94,14 @@
 !/src/i18n/uk
 !/src/i18n/uk/*.ts
 !/scripts
+!/scripts/cloudflare
+!/scripts/cloudflare/*.ts
 !/scripts/db
 !/scripts/db/*.ts
 !/scripts/releases
 !/scripts/releases/*.ts
+!/scripts/telegram
+!/scripts/telegram/*.ts
 !/test
 !/test/*.cjs
 !/test/*.ts
@@ -107,3 +112,4 @@
 !/tools/**/*.mjs
 !/i18n
 !/i18n/**/*.ts
+!cloudflared.example.yml

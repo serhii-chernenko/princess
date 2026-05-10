@@ -226,8 +226,8 @@ type RootTranslation = {
 	}
 	lang: {
 		/**
-		 * /​l​a​n​g​ ​e​n​ ​-​ ​C​h​a​n​g​e​ ​g​r​o​u​p​ ​l​a​n​g​u​a​g​e​
-	​/​l​a​n​g​ ​u​a​ ​-​ ​З​м​і​н​и​т​и​ ​м​о​в​у​ ​с​п​і​л​ь​н​о​т​и
+		 * A​v​a​i​l​a​b​l​e​ ​l​a​n​g​u​a​g​e​s​:​ ​e​n​,​ ​u​a​
+	​Д​о​с​т​у​п​н​і​ ​м​о​в​и​:​ ​e​n​,​ ​u​a
 		 */
 		available: string
 		/**
@@ -633,8 +633,8 @@ Players: <strong>{players}</strong>
 	}
 	lang: {
 		/**
-		 * /lang en - Change group language
-	/lang ua - Змінити мову спільноти
+		 * Available languages: en, ua
+	Доступні мови: en, ua
 		 */
 		available: () => LocalizedString
 		/**

@@ -1,40 +1,57 @@
-name: Build Princess Bot on VPS
+name: Deploy Princess Worker
 
 on:
     push:
         branches:
-            - 'main'
+            - main
+    workflow_dispatch:
 
 concurrency:
     group: ${{ github.ref }}
     cancel-in-progress: true
 
+permissions:
+    contents: read
+
 jobs:
-    build:
+    deploy:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
 
-            - name: Run a build command
-              uses: dawidd6/action-ansible-playbook@v2
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
               with:
-                  playbook: .ansible/main.yml
-                  key: ${{secrets.SSH_PRIVATE_KEY}}
-                  inventory: |
-                      [all]
-                      ${{ secrets.VPS }} address=localhost
-                  options: |
-                      -e NODE_ENV=production
-                      -e GITHUB_REPO=${{github.repository}}
-                      -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
-                      -e MONGODB_URI=${{secrets.MONGODB_URI}}
-                      -e ADMIN_ID=${{secrets.ADMIN_ID}}
-                      -e AUTHOR_TWITTER_LINK=${{vars.AUTHOR_TWITTER_LINK}}
-                      -e WISHLIST_TG_URL=${{vars.WISHLIST_TG_URL}}
-                      -e CHATGPT_GITHUB_REPO_URL=${{vars.CHATGPT_GITHUB_REPO_URL}}
-                      -e TG_CHANNEL=${{vars.TG_CHANNEL}}
-                      -e TG_GROUP=${{vars.TG_GROUP}}
-                      -e YT_CHANNEL=${{vars.YT_CHANNEL}}
-                      -e MAIL=${{vars.MAIL}}
-                      -e ansible_port=${{ secrets.SSH_PORT }}
+                  version: 10.33.0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Prepare stable runtime secrets file
+              run: |
+                  cat <<'EOF' > .dev.vars.production
+                  BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+                  ADMIN_ID=${{ vars.ADMIN_ID }}
+                  TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+                  TELEGRAM_WEBHOOK_PATH=${{ vars.TELEGRAM_WEBHOOK_PATH }}
+                  WORKER_BASE_URL=${{ vars.WORKER_BASE_URL }}
+                  EOF
+
+            - name: Deploy production Worker
+              run: pnpm run deploy:production
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+                  CLOUDFLARE_DATABASE_ID: ${{ vars.CLOUDFLARE_DATABASE_ID }}
+                  CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
+                  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+                  TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+                  TELEGRAM_WEBHOOK_PATH: ${{ vars.TELEGRAM_WEBHOOK_PATH }}
+                  WORKER_BASE_URL: ${{ vars.WORKER_BASE_URL }}

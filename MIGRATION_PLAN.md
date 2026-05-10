@@ -467,7 +467,7 @@ Phase 6 intentional deferrals:
 
 ### Phase 7: Deployment Migration
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -487,6 +487,40 @@ Exit criteria:
 - Production deploy targets Cloudflare Workers.
 - Old deployment path is no longer required.
 
+Phase 7 implementation result:
+
+1. Replaced the GitHub Actions VPS/Ansible deploy workflow with a Cloudflare Worker deploy workflow in `.github/workflows/main.yml`
+2. Simplified deploy back to direct Wrangler commands with `--secrets-file`
+3. Added two production Workers in `wrangler.jsonc`:
+    - stable Worker: `princess-stable`
+    - beta Worker: `princess-beta`
+4. Attached distinct production custom domains:
+    - stable: `princess.chernenko.dev`
+    - beta: `princess-beta.chernenko.dev`
+5. Kept stable and beta on the same D1 binding
+6. Kept the cron trigger only on stable:
+    - `0 0 * * *`
+7. Added local tunnel-aware dev orchestration in `scripts/cloudflare/dev-with-tunnel.ts`
+8. Added local, stable, and beta webhook helpers in `scripts/telegram/webhook.ts`
+9. Added direct ops scripts for:
+    - stable deploy/tail/webhook
+    - beta deploy/tail/webhook
+    - local webhook registration and deletion
+10. Switched local public webhook guidance to a stable Cloudflare Tunnel hostname:
+    - `princess-dev.chernenko.dev`
+11. Replaced the outdated Docker-first README with a Worker/D1 deployment README and Cloudflare Tunnel runbook
+
+Verification notes:
+
+- `pnpm run worker:dev` now goes through the local tunnel/webhook orchestrator
+- production deploy is no longer hidden behind custom wrapper scripts
+- the GitHub workflow now writes `.dev.vars.production` and uses the same direct Wrangler path as local operators
+
+Phase 7 intentional deferrals:
+
+- The legacy Docker/Ansible files are still present as temporary fallback artifacts, but they are no longer the primary deploy path
+- Automatic proactive release broadcast to all groups is still not part of the production scheduled flow
+
 ### Phase 8: Final Repo Operations and Agent Docs
 
 Status: pending
@@ -497,7 +531,7 @@ Goals:
 
 Scope:
 
-- Add `AGENTS.md`.
+- Add `AGENT.md` final updates if still needed.
 - Install needed skills via `npx skills add`.
 - Update README and operating instructions.
 
@@ -620,6 +654,6 @@ For this bot, the practical setup is now:
 
 The next executable step is:
 
-`Phase 7: Deployment Migration`
+`Phase 8: Final Repo Operations and Agent Docs`
 
-Do not begin Phase 8 until Phase 7 is implemented, reviewed, and accepted.
+Do not begin Phase 8 until Phase 7 is reviewed and accepted.

@@ -1,10 +1,5 @@
 import type { WorkerBindings } from '../../worker/env';
-import {
-    getAvailableLanguageCodes,
-    getDefaultAppLocale,
-    getTranslator,
-    type AppLocale
-} from '../i18n';
+import { getDefaultAppLocale, getTranslator, type AppLocale } from '../i18n';
 
 export const getMessages = (locale: AppLocale = getDefaultAppLocale()) => {
     return getTranslator(locale);

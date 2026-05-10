@@ -1,5 +1,15 @@
-import 'dotenv/config';
+import fs from 'node:fs';
+import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
+
+const dotenvPath = process.env.DOTENV_CONFIG_PATH ?? '.dev.vars.production';
+
+if (fs.existsSync(dotenvPath)) {
+    config({
+        path: dotenvPath,
+        override: false
+    });
+}
 
 export default defineConfig({
     out: './drizzle',

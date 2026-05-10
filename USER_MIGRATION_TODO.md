@@ -78,19 +78,19 @@ Current Worker routes:
 Worker-first local dev:
 
 ```sh
-npm run dev
+pnpm run dev
 ```
 
 Equivalent explicit command:
 
 ```sh
-npm run worker:dev
+pnpm run worker:dev
 ```
 
 Old polling fallback:
 
 ```sh
-npm run legacy:dev
+pnpm run legacy:dev
 ```
 
 ### Local setup
@@ -107,14 +107,17 @@ Required values for the Worker path:
 BOT_TOKEN="123456:telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
 TELEGRAM_WEBHOOK_PATH="/telegram"
-AUTHOR_TWITTER_LINK="https://twitter.com/giraffender"
-WISHLIST_TG_URL="https://t.me/wishlist_ua_bot"
-CHATGPT_GITHUB_REPO_URL="https://github.com/serhii-chernenko/chatgpt-telegram-bot"
-TG_CHANNEL="https://t.me/serhii_chernenko"
-TG_GROUP="https://t.me/serhii_chernenko_chat"
-YT_CHANNEL="https://youtube.com/@serhii.chernenko"
-MAIL="contact@chernenko.digital"
 ```
+
+These public links are now hardcoded in `wrangler.jsonc` as Worker `vars`:
+
+- `AUTHOR_TWITTER_LINK`
+- `WISHLIST_TG_URL`
+- `CHATGPT_GITHUB_REPO_URL`
+- `TG_CHANNEL`
+- `TG_GROUP`
+- `YT_CHANNEL`
+- `MAIL`
 
 ### Local smoke tests that do not require Telegram delivery
 
@@ -183,7 +186,7 @@ So:
 1. Deploy a temporary or production Worker:
 
 ```sh
-npm run worker:deploy:production
+pnpm run worker:deploy:stable
 ```
 
 2. Register the webhook:
@@ -302,7 +305,7 @@ TELEGRAM_WEBHOOK_PATH="/telegram"
 Start the Worker:
 
 ```sh
-npm run worker:dev
+pnpm run worker:dev
 ```
 
 ### Local tests
@@ -399,8 +402,8 @@ BotFather does not manage:
 These values are ours to define:
 
 - `TELEGRAM_WEBHOOK_PATH`
-    - for example: `/telegram`
-    - or `/telegram/princess-prod`
+    - for example: `/telegram/princess-dev`
+    - or `/telegram/princess-stable`
 
 - `TELEGRAM_WEBHOOK_SECRET`
     - any secret token string we generate
@@ -413,8 +416,8 @@ Example production values:
 
 ```dotenv
 BOT_TOKEN="123456:ABCDEF_REAL_TOKEN"
-TELEGRAM_WEBHOOK_PATH="/telegram/princess-prod"
-TELEGRAM_WEBHOOK_SECRET="princess-prod-secret-2026"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-stable"
+TELEGRAM_WEBHOOK_SECRET="princess-stable-secret-2026"
 ```
 
 ### How Telegram webhook registration works
@@ -433,8 +436,8 @@ Example:
 
 ```sh
 curl -X POST "https://api.telegram.org/bot123456:ABCDEF_REAL_TOKEN/setWebhook" \
-  -d "url=https://princess.example.workers.dev/telegram/princess-prod" \
-  -d "secret_token=princess-prod-secret-2026"
+  -d "url=https://princess.chernenko.dev/telegram/princess-stable" \
+  -d "secret_token=princess-stable-secret-2026"
 ```
 
 ### Check webhook status
@@ -586,23 +589,23 @@ Reason:
 - `env.production`
   real production Worker deployment
   real production D1 binding
-  Worker name: `princess`
+  Worker name: `princess-stable`
 
 Use:
 
-- `npm run worker:dev`
+- `pnpm run worker:dev`
   for local root config
-- `npm run worker:dev:production`
+- `pnpm run worker:dev:production`
   if you need to emulate the production Worker config locally
-- `npm run worker:deploy:production`
-  for the real deploy target
+- `pnpm run worker:deploy:stable`
+  for the real stable deploy target
 
 ### Local schema workflow
 
 Generate schema migrations:
 
 ```sh
-npm run db:generate
+pnpm run db:generate
 ```
 
 Apply schema migrations to local D1:
@@ -1002,9 +1005,266 @@ pnpm run changeset:version
 
 ### Phase 7
 
-- production Worker deployment flow
-- final webhook registration flow
-- production rollback steps
+### What changed
+
+- Production deployment now targets Cloudflare Workers directly
+- The old GitHub Actions VPS deploy was replaced with a Worker deploy workflow
+- Direct Wrangler deploy is now the primary production path again
+- Production is now split into 2 Workers that share the same D1 DB:
+    - stable
+    - beta
+- Stable and beta have separate bot tokens, webhook paths, webhook secrets, and domains
+- Only stable owns the daily cron trigger for scheduled cleanup:
+    - `0 0 * * *`
+- Local `pnpm run worker:dev` now integrates with a stable `cloudflared` tunnel if `cloudflared.yml` exists
+- Local tunnel webhook registration and deletion are now automated
+- `README.md` is now Worker-first and no longer documents Docker/VPS as the main path
+
+### Local dev tunnel prep
+
+Copy the tunnel example:
+
+```sh
+cp cloudflared.example.yml cloudflared.yml
+```
+
+Configure it for your real tunnel credentials, then make sure this hostname resolves through your tunnel:
+
+- `princess-dev.chernenko.dev`
+
+Your local `.dev.vars` should include:
+
+```dotenv
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-dev"
+WORKER_BASE_URL="https://princess-dev.chernenko.dev"
+```
+
+Run local dev:
+
+```sh
+pnpm run worker:dev
+```
+
+That command now:
+
+1. starts `wrangler dev`
+2. starts `cloudflared` if `cloudflared.yml` exists
+3. runs `telegram:webhook:set:local` when the Worker is ready
+4. runs `telegram:webhook:delete:local` when the process shuts down
+
+If you want the raw Worker only:
+
+```sh
+pnpm run worker:dev:raw
+```
+
+Manual local webhook commands:
+
+```sh
+pnpm run telegram:webhook:set:local
+pnpm run telegram:webhook:info:local
+pnpm run telegram:webhook:delete:local
+```
+
+### Stable and beta env prep
+
+```sh
+cp .dev.vars.production.example .dev.vars.production
+cp .dev.vars.beta.example .dev.vars.beta
+```
+
+Fill `.dev.vars.production`:
+
+```dotenv
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-stable"
+WORKER_BASE_URL="https://princess.chernenko.dev"
+```
+
+Fill `.dev.vars.beta`:
+
+```dotenv
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-beta"
+WORKER_BASE_URL="https://princess-beta.chernenko.dev"
+```
+
+### Cloudflare control-plane auth
+
+Keep Cloudflare CLI auth in your shell or CI env:
+
+```sh
+export CLOUDFLARE_API_TOKEN=""
+export CLOUDFLARE_ACCOUNT_ID=""
+export CLOUDFLARE_DATABASE_ID=""
+export CLOUDFLARE_D1_TOKEN=""
+```
+
+### Stable commands
+
+Apply production migrations:
+
+```sh
+pnpm run db:migrate:production
+```
+
+Deploy stable:
+
+```sh
+pnpm run worker:deploy:stable
+```
+
+Set stable webhook:
+
+```sh
+pnpm run telegram:webhook:set:stable
+```
+
+Inspect stable webhook:
+
+```sh
+pnpm run telegram:webhook:info:stable
+```
+
+Delete stable webhook:
+
+```sh
+pnpm run telegram:webhook:delete:stable
+```
+
+Tail stable logs:
+
+```sh
+pnpm run worker:tail:stable
+```
+
+Full stable flow:
+
+```sh
+pnpm run deploy:stable
+```
+
+### Beta commands
+
+Deploy beta against the same D1:
+
+```sh
+pnpm run deploy:beta
+```
+
+Separate beta commands:
+
+```sh
+pnpm run worker:deploy:beta
+pnpm run telegram:webhook:set:beta
+pnpm run telegram:webhook:info:beta
+pnpm run telegram:webhook:delete:beta
+pnpm run worker:tail:beta
+```
+
+### Real production checklist
+
+1. Create the production D1 DB:
+
+```sh
+pnpm exec wrangler d1 create princess-production --env production --binding DB
+```
+
+2. Put the real D1 ids into:
+    - `env.production.d1_databases[0]`
+    - `env.beta.d1_databases[0]`
+3. Fill `.dev.vars.production`
+4. Fill `.dev.vars.beta`
+5. Export Cloudflare control-plane auth in your shell
+6. Run stable:
+
+```sh
+pnpm run deploy:stable
+```
+
+7. Run beta when needed:
+
+```sh
+pnpm run deploy:beta
+```
+
+8. Verify stable webhook:
+
+```sh
+pnpm run telegram:webhook:info:stable
+```
+
+9. Verify beta webhook:
+
+```sh
+pnpm run telegram:webhook:info:beta
+```
+
+10. In Telegram, verify:
+    - `/start`
+    - `/lang`
+    - `/join`
+    - `/run`
+    - `/releases`
+
+### GitHub Actions stable setup
+
+The main workflow now deploys stable directly on push to `main`.
+
+Required GitHub repository secrets:
+
+- `BOT_TOKEN`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_D1_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+
+Required GitHub repository variables:
+
+- `ADMIN_ID`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_DATABASE_ID`
+- `TELEGRAM_WEBHOOK_PATH`
+- `WORKER_BASE_URL`
+
+### Manual Telegram API equivalents
+
+Set stable webhook manually:
+
+```sh
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://princess.chernenko.dev/telegram/princess-stable" \
+  -d "secret_token=replace-with-a-secret-token"
+```
+
+Set beta webhook manually:
+
+```sh
+curl -X POST "https://api.telegram.org/bot<YOUR_BETA_BOT_TOKEN>/setWebhook" \
+  -d "url=https://princess-beta.chernenko.dev/telegram/princess-beta" \
+  -d "secret_token=replace-with-a-secret-token"
+```
+
+Inspect webhook manually:
+
+```sh
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
+```
+
+Delete webhook manually:
+
+```sh
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/deleteWebhook"
+```
+
+### Rollback note
+
+- The legacy Docker/VPS files are still in the repo as fallback artifacts
+- They are no longer the primary production runbook
+- If a rollback is needed, treat that as an explicit manual fallback, not the default deploy path
 
 ### Phase 8
 

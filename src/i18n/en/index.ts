@@ -52,8 +52,7 @@ const en: BaseTranslation = {
         lang: '/lang - Show or change the group language'
     },
     lang: {
-        available:
-            '/lang en - Change group language\n/lang ua - Змінити мову спільноти',
+        available: 'Available languages: en, ua\nДоступні мови: en, ua',
         updated: 'Group language changed to {language:string}.',
         invalid:
             'Unknown language code: {language:string}.\n\nAvailable languages: {languages:string}\nДоступні мови: {languages:string}'

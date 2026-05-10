@@ -52,8 +52,7 @@ const uk: Translation = {
         lang: '/lang - Показати або змінити мову спільноти'
     },
     lang: {
-        available:
-            '/lang en - Change group language\n/lang ua - Змінити мову спільноти',
+        available: 'Available languages: en, ua\nДоступні мови: en, ua',
         updated: 'Мову спільноти змінено на {language}.',
         invalid:
             'Невідомий код мови: {language}.\n\nAvailable languages: {languages}\nДоступні мови: {languages}'

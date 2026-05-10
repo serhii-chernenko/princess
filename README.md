@@ -1,436 +1,286 @@
-# Princess of the Day<br/>Принцеска дня
+# Princess of the Day
 
-Telegram bot / Телеграм бот
+Telegram bot for friend groups. The runtime is now:
 
-Example:<br/>
-Приклад:<br/>
-https://t.me/ixPrincessBot
+- `Cloudflare Workers`
+- `Hono`
+- `Telegraf` via webhooks
+- `Cloudflare D1`
+- `Drizzle ORM`
 
-## Prepare to use<br/>Підготуй до використання
+The old `Docker + Mongo + Ansible + VPS` path is kept in the repo only as a temporary migration fallback. It is no longer the primary operating model.
 
-There's only one thing that you need in your OS is Docker.<br/>Єдине, що тобі потрібно встановити до ОС - це Docker.
+## Requirements
 
-Open the link below and follow instructions:<br/>
-Відкрий посилання та слідуй інструкціям:
-https://docs.docker.com/get-docker/
+- `Node.js >= 22`
+- `pnpm >= 10.33.0`
+- a Telegram bot token from `@BotFather`
+- a Cloudflare account with Workers + D1 enabled
 
-## How to run<br/>Як запустити
+## Local setup
 
-### Clone current repo<br/>Клонувати поточну репу
+1. Install dependencies:
 
-Run the command in your terminal.<br/>
-Виконай команду в терміналі.
-
-```shell
-cd /path/to/directory/with/projects
-git clone git@github.com:Inevix/princess.git
-cd princess
+```sh
+pnpm install
 ```
 
-### Create your own bot in Telegram<br>Створити власного бота в Телеграмі
+2. Create local env files:
 
-Now you have to create a new bot to get an API bot token.<br/>
-Зараз тобі потрібно буде створити нового бота, щоб отримати АПІ токен боту.
-
-Open the chat:<br/>
-Відкрий чат:<br/>
-https://t.me/BotFather
-
-Send the command message to the bot:<br/>
-Відправ боту команду:
-
-```shell
-/newbot
-```
-
-And follow instructions<br/>
-Та слідуй інструкціям.
-
-Also, at current step I recommend you to create second bot, 'cause you will have 2 environments:<br/>
-Також на цьому етапі я хотів би порадити тобі створити ще одного бота, бо в тебе буде 2 оточення:
-
-- `dev`
-- `production`
-
-It includes different docker containers and different databases. In this case, better to have 2 different bots with different tokens to run them separately.<br/>
-Я маю на увазі різні докер контейнери та бази даних. В цьому випадку краще мати 2-х різних ботів з різними токенами, щоб запускати їх окремо.
-
-### Prepare env vars files<br/>Підготуй файли зі змінними оточення
-
-Use root-level Worker-style env files instead of the old `env/` directory files.<br/>
-Використовуй кореневі файли змінних оточення у стилі Workers замість старих файлів з директорії `env/`.
-
-First of all copy the examples to `.dev.vars` and `.dev.vars.production`.<br/>
-Для початку, скопіюй приклади у `.dev.vars` та `.dev.vars.production`.
-
-```shell
+```sh
 cp .dev.vars.example .dev.vars
 cp .dev.vars.production.example .dev.vars.production
+cp .dev.vars.beta.example .dev.vars.beta
 ```
 
-### Set the token<br/>Вказати токен
-
-Open both files and set the tokens as values of the `BOT_TOKEN` variable.<br/>
-Відкрий обидва файли та вкажи отримані токени, як значення для змінної `BOT_TOKEN`.
+3. Fill at least these local values:
 
 ```dotenv
-BOT_TOKEN="xxxxx:xxxxx..."
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-dev"
+WORKER_BASE_URL="https://princess-dev.chernenko.dev"
 ```
 
-Don't forget that better to use different bots with different tokens for `dev` and `production` modes.<br/>
-Не забудь, що краще використовувати різних ботів з різними токенами для `dev` та `production` режимів.
+4. If you want real Telegram delivery into local `wrangler dev`, copy and configure the tunnel file:
 
-### Run docker containers in the developer mode<br/>Запусти докер контейнери в режимі розробника
-
-```shell
-npm run docker:dev
+```sh
+cp cloudflared.example.yml cloudflared.yml
 ```
 
-The command `docker:dev` and other you can find in the `package.json` file.<br/>
-Команду `docker:dev` та інші ти можеш знайти у файлі `package.json`.
+5. Start the Worker locally:
 
-### Get and set your Telegram ID<br/>Отримай та вкажи твій Телеграм ID
-
-When the bot is run, try to have chat with it. Send the message:<br/>
-Коли бот запущений, спробуй написати йому. Відправ наступне повідомлення:
-
-```shell
-/start
+```sh
+pnpm run dev
 ```
 
-Go back to the terminal, and you have to see telegram logs. There has to be a JSON object that has to contain sender data. Get your ID from there.<br/>
-Повернись до терміналу, зараз ти повинен побачити телеграм логи. Там повинен бути JSON обʼєкт, в якому буде знаходитися інформація по відправнику. Знайти свій ID.
+This now starts:
 
-```json
-{
-    "message": {
-        "from": {
-            "id": 123456789
-        }
-    }
-}
+- `wrangler dev`
+- `cloudflared` if `cloudflared.yml` exists
+- automatic local `setWebhook` once `wrangler dev` is ready
+- automatic local `deleteWebhook` on shutdown
+
+If you want plain local Worker dev without tunnel/webhook automation:
+
+```sh
+pnpm run worker:dev:raw
 ```
 
-Copy the ID and open both `.dev.vars` and `.dev.vars.production` files again. Replace the value of the `ADMIN_ID` with your real ID.<br/>
-Скопіюй ID та відкрий обидва файли знову: `.dev.vars` та `.dev.vars.production`. Заміни значення змінної `ADMIN_ID` на твій реальний ID.
+6. Run repo validation:
+
+```sh
+pnpm run check
+```
+
+## Local D1 workflow
+
+Generate migrations:
+
+```sh
+pnpm run db:generate
+```
+
+Apply local migrations:
+
+```sh
+pnpm run db:migrate:local
+```
+
+Query local D1:
+
+```sh
+pnpm run db:query:local -- --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+```
+
+Import the old Mongo backup into local D1:
+
+```sh
+pnpm run db:import:local
+```
+
+## Local Worker checks
+
+Health:
+
+```sh
+curl http://127.0.0.1:8787/health
+```
+
+Webhook smoke test:
+
+```sh
+set -a
+source .dev.vars
+curl -X POST "http://127.0.0.1:8787${TELEGRAM_WEBHOOK_PATH}" \
+  -H 'Content-Type: application/json' \
+  -H "X-Telegram-Bot-Api-Secret-Token: ${TELEGRAM_WEBHOOK_SECRET}" \
+  -d '{"update_id":42}'
+```
+
+## Cloudflare auth for CLI
+
+Keep Cloudflare control-plane credentials in your shell or CI, not in `.dev.vars.*`:
+
+```sh
+export CLOUDFLARE_API_TOKEN=""
+export CLOUDFLARE_ACCOUNT_ID=""
+export CLOUDFLARE_DATABASE_ID=""
+export CLOUDFLARE_D1_TOKEN=""
+```
+
+## Production D1 setup
+
+Create the production database:
+
+```sh
+pnpm exec wrangler d1 create princess-production --env production --binding DB
+```
+
+Put the printed `database_id` and `preview_database_id` into both Worker environments in [wrangler.jsonc](./wrangler.jsonc):
+
+- `env.production.d1_databases[0]`
+- `env.beta.d1_databases[0]`
+
+Stable and beta share the same production D1 database.
+
+Only stable owns the cron trigger. Beta does not.
+
+Fill `.dev.vars.production` for the stable bot:
 
 ```dotenv
-ADMIN_ID=123456789
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-stable"
+WORKER_BASE_URL="https://princess.chernenko.dev"
 ```
 
-There's required to have feedbacks from users to your chat with the bot!<br/>
-Це обовʼязково, щоб відгуки від користувачів потрапляли саме до тебе!
+Fill `.dev.vars.beta` for the beta bot:
 
-After that re-run the bot.<br/>
-Після цього перезапусти бота.
-
-Interrupt the process by hotkey `Ctrl/CMD + C` or `Shift + Ctrl/CMD + C` (that depends on terminal preferences).<br/>
-Перерви поточний процес за допомогою горячих клавіш `Ctrl/CMD + C` чи `Shift + Ctrl/CMD + C` (це залежить від налаштувань терміналу).
-
-Run the command again:<br/>
-Запусти команду знову:
-
-```shell
-npm run docker:dev
+```dotenv
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess-beta"
+WORKER_BASE_URL="https://princess-beta.chernenko.dev"
 ```
 
-### Run the bot in the production mode<br/>Запусти бота в продакшн режимі
+Apply production migrations:
 
-When you run the bot in the developer mode you can't run docker containers in a background, and you see a lot of logs from telegram updates. You can prevent this. Feel free to run the bot in background mode without any logs of telegram updates by the command:<br/>
-Коли ти запускаєш бота в режимі розробника, ти не можеш запустити докер контейнери у фоні, а також ти бачиш багато логів після кожного оновлення в чаті з ботом. Ти можеш цьому зарадити. Запустити бота у фоні без логів можна за допомогою команди:
-
-```shell
-npm run docker:start
+```sh
+pnpm run db:migrate:production
 ```
 
-Additional commands:<br/>
-Додаткові команди:
+Query production D1:
 
-```shell
-npm run docker:start
-npm run docker:stop
-npm run docker:restart
+```sh
+pnpm run db:query:production -- --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 ```
 
-## Connect to database<br/>Підключитися до бази даних
+Import the migrated Mongo dataset into production D1:
 
-Make sure that docker containers are active.<br/>
-Переконайся, що контейнери запущені.
-
-Run the command to check:<br/>
-Введи команду, щоб перевірити:
-
-```shell
-docker ps
+```sh
+pnpm run db:import:production
 ```
 
-You have to see 2 containers.<br/>
-Ти маєш побачити 2 контейнери
+## Stable production deploy
 
-1. For the developer mode<br/>Для режиму розробника<br/>`docker:dev`:
-    1. `princess_db_dev`
-    2. `princess_app_dev`
-2. For the production mode<br/>Для продакшн режиму<br/>`docker:start`:
-    1. `princess_db_production`
-    2. `princess_app_production`
+One-step stable deploy:
 
-You always will have 2 different databases for developer and production mode to not have a bad habit to work with an actual (production) DB in the developer mode.<br/>
-Ти завжди будеш мати 2 різні бази даних для режимів розробника та продакшену, щоб не мати поганої звички розробляти на основі реальної бази даних в режимі розробника.
-
-### Via Terminal<br/>В терміналі
-
-Connect to a docker container (depends on chosen mode):<br/>
-Підключись до докер контейнеру (залежить від обраного режиму):
-
-```shell
-# Developer mode
-# Режим розробника
-docker exec -ti princess_db_dev bash
-# Production mode
-# Продакшн режим
-docker exec -ti princess_db_production bash
+```sh
+pnpm run deploy:stable
 ```
 
-Connect to MongoDB:<br/>
-Підключись до MongoDB:
+That command runs:
 
-```shell
-mongosh
+1. repo validation
+2. Drizzle production migrations
+3. stable Worker deploy to Cloudflare
+4. Telegram `setWebhook`
+
+If you need the stable pieces separately:
+
+```sh
+pnpm run worker:deploy:stable
+pnpm run telegram:webhook:set:stable
+pnpm run telegram:webhook:info:stable
+pnpm run telegram:webhook:delete:stable
+pnpm run worker:tail:stable
 ```
 
-Run some commands there:<br/>
-Виконай деякі команди:
+## Beta production deploy
 
-```shell
-# See all databases
-# Показати всі бази
-show dbs
-# Choose a DB of the developer mode
-# Обрати базу даних в режимі розробника
-use princess_dev
-# Choose a DB of the production mode
-# Обрати базу даних в продакшн режимі
-use princess_production
-# Show collections
-# Показати колекції
-show collections
-# Show all groups
-# Показати всі спільноти
-db.channels.find()
-# Show all players and make the output prettier
-# Показати всіх гравців в зручному для ока форматі
-db.players.find().pretty()
-# Count users
-# Порахувати кількість гравців
-db.players.find().count()
+Beta uses the same D1 DB, but a separate Worker, bot token, webhook secret, webhook path, and domain:
+
+```sh
+pnpm run deploy:beta
 ```
 
-More commands see there:<br/>
-Більше команд дивись тут:
-https://www.mongodb.com/docs/manual/reference/method/
+If you need the beta pieces separately:
 
-To exit from the DB close the terminal tab or run commands below:<br/>
-Щоб вийти з бази, закрий термінал чи виконай наступні команди:
-
-```shell
-# Exit from the mongosh service
-# Вийти з сервісу mongosh
-exit
-# Exit from the docker container
-# Вийти з докер контейнеру
-exit
+```sh
+pnpm run worker:deploy:beta
+pnpm run telegram:webhook:set:beta
+pnpm run telegram:webhook:info:beta
+pnpm run telegram:webhook:delete:beta
+pnpm run worker:tail:beta
 ```
 
-### Via GUI tools<br/>В десктопному застосунку
+## GitHub Actions production deploy
 
-I prefer to use [TablePlus](https://tableplus.com/) but feel free to use any known tools.<br/>
-Я переважно використовую [TablePlus](https://tableplus.com/), але ти можеш використовувати будь-який відомий тобі застосунок.
+Push to `main` for the stable deploy.
 
-1. Create a new connection to MongoDB.<br/>Створи нове з'єднання до MongoDB.
-2. Use the URL connection:<br/>Використай зʼєднання по URL:
-    - mongodb://localhost:27027
+Required GitHub repository secrets:
 
-### Synchronization<br/>Синхронізація
+- `BOT_TOKEN`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_D1_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
 
-Files from the docker container of DB will be duplicated on local side. When containers will be run, you will be able to see new directories:<br/>
-Файли з докер контейнеру бази даних будуть дубльовані в твоїй системі. Коли контейнери запущені, ти побачиш наступні директорії:
+Required GitHub repository variables:
 
-1. `.mongo/dev`<br/>- for a container in developer mode<br/>- для контейнеру в режимі розробника
-2. `.mongo/production`<br/>- for a container in production mode<br/>- для контейнеру в продакшн режимі
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_DATABASE_ID`
+- `TELEGRAM_WEBHOOK_PATH`
+- `WORKER_BASE_URL`
 
-### Import/Export DB<br/>Імпорт та експорт бази даних
+The workflow now lives in [`.github/workflows/main.yml`](./.github/workflows/main.yml).
 
-#### Export database<br/>Експорт бази даних
+## Telegram webhook notes
 
-Disclaimer<br/>Дисклеймер
+- `BotFather` gives you the bot token.
+- `setWebhook` is done through the Telegram Bot API, not BotFather.
+- `TELEGRAM_WEBHOOK_PATH` is your route path.
+- `TELEGRAM_WEBHOOK_SECRET` becomes the expected `X-Telegram-Bot-Api-Secret-Token` header.
 
-There will be some examples with a files naming as:<br/>
-Далі будуть деякі приклади з найменуванням файлів:
+Stable example:
 
-```shell
-princess_dev_`date "+%Y-%m-%d"`.gz
+```sh
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://princess.chernenko.dev/telegram/princess-stable" \
+  -d "secret_token=replace-with-a-secret-token"
 ```
 
-The file will have a name as:<br/>
-В результаті отримаємо файл:
+Local tunnel helpers:
 
-```shell
-princess_dev_2023_01_01.gz
+```sh
+pnpm run telegram:webhook:set:local
+pnpm run telegram:webhook:info:local
+pnpm run telegram:webhook:delete:local
 ```
 
-Because that's a useful way to give name with a current date. But feel free to replace the name with any other, such as:<br/>
-Тому що зручно мати дамп з датою створення у назві. Але ти можеш змінити формат в наступних командах на будь який зручний для тебе, наприклад:
+## Legacy fallback
 
-```shell
-princess.gz
-princess_dev.gz
-princess_production.gz
-princess_dev_2022_12_31.gz
-princess_production_2022_12_31.gz
-```
+The following remain only for comparison or rollback during migration:
 
-Developer mode:<br/>
-Режим розробника:
+- `pnpm run legacy:dev`
+- `pnpm run legacy:start`
+- `pnpm run docker:dev`
+- `pnpm run docker:start`
 
-```shell
-# Create a dump
-# Створити дамп
-docker exec -ti princess_db_dev mongodump -d princess_dev --gzip --archive=princess_dev_`date "+%Y-%m-%d"`.gz
-# Copy the dump from the container to local files
-# Скопіювати дамп з контейнеру до системи
-docker cp princess_db_dev:/princess_dev_`date "+%Y-%m-%d"`.gz .backups/princess_dev_`date "+%Y-%m-%d"`.gz
-# Remove the dump from the container
-# Видалити дамп всередині контейнеру
-docker exec -ti princess_db_dev rm /princess_dev_`date "+%Y-%m-%d"`.gz
-```
+Do not use them as the primary production path anymore.
 
-Production mode:<br/>
-Продакшн режим:
+## Additional runbooks
 
-```shell
-# Create a dump
-# Створити дамп
-docker exec -ti princess_db_production mongodump -d princess_production --gzip --archive=princess_production_`date "+%Y-%m-%d"`.gz
-# Copy the dump from the container to local files
-# Скопіювати дамп з контейнеру до системи
-docker cp princess_db_production:/princess_production_`date "+%Y-%m-%d"`.gz .backups/princess_production_`date "+%Y-%m-%d"`.gz
-# Remove the dump from the container
-# Видалити дамп всередині контейнеру
-docker exec -ti princess_db_production rm /princess_production_`date "+%Y-%m-%d"`.gz
-```
-
-#### Import database<br/>Імпортувати базу даних
-
-Developer mode:<br/>
-Режим розробника:
-
-```shell
-# Copy a local dump to the container
-# Скопіювати локальний дамп в контейнер
-docker cp .backups/princess_dev_`date "+%Y-%m-%d"`.gz princess_db_dev:/princess_dev_`date "+%Y-%m-%d"`.gz``
-# Import dump
-# Імпортувати дамп
-docker exec -ti princess_db_dev mongorestore -d princess_dev --gzip --archive=princess_dev_`date "+%Y-%m-%d"`.gz
-# Remove the dump from the container
-# Видалити дамп всередині контейнеру
-docker exec -ti princess_db_dev rm /princess_dev_`date "+%Y-%m-%d"`.gz
-```
-
-Production mode:<br/>
-Продакшн режим:
-
-```shell
-# Copy a local dump to the container
-# Скопіювати локальний дамп в контейнер
-docker cp .backups/princess_production_`date "+%Y-%m-%d"`.gz princess_db_production:/princess_production_`date "+%Y-%m-%d"`.gz``
-# Import dump
-# Імпортувати дамп
-docker exec -ti princess_db_production mongorestore -d princess_production --gzip --archive=princess_production_`date "+%Y-%m-%d"`.gz
-# Remove the dump from the container
-# Видалити дамп всередині контейнеру
-docker exec -ti princess_db_production rm /princess_production_`date "+%Y-%m-%d"`.gz
-```
-
-#### Drop database<br/>Видалити базу даних
-
-```shell
-# Developer mode
-# Режим розробника
-docker exec -ti princess_db_dev mongosh princess_dev --eval "db.dropDatabase()"
-# Production mode
-# Продакшн режим
-docker exec -ti princess_db_production mongosh princess_production --eval "db.dropDatabase()"
-```
-
-## Time to make changes<br/>Час вносити зміни
-
-### Editing<br/>Редагування
-
-Run the bot in the developer mode:<br/>
-Запусти бот в режимі розробника:
-
-```shell
-npm run docker:dev
-```
-
-Next feel free to edit any files in the `bot` directory.<br/>
-Далі зміни будь який файл в директорії `bot`.
-
-### Local NPM packages<br/>Локальні NPM пакети
-
-Before go next steps, you have to install NPM packages to your local machine too.<br/>
-Перед тим, як рухатися далі, ти маєш встановити NPM пакети локально також.
-
-If you don't have Node.js locally, please visit the [site](https://nodejs.org/en/).<br/>
-Якщо в тебе немає Node.js локально, відвідай цей [сайт](https://nodejs.org/uk/).
-
-Next just install NPM packages to the project directory.<br/>
-Далі просто встанови NPM пакети в директорію проєкту.
-
-```shell
-npm i
-```
-
-### Code inspecting<br/>Перевірка коду
-
-There is the `.eslintrc.js` file in the project to present rules for [ESLint](https://eslint.org/).<br/>
-В проєкті є `.eslintrc.js` файл з правилами для [ESLint](https://eslint.org/).
-
-Configure your code editor to follow rules:<br/>
-Налаштуй свій редактор коду під вказані правила:
-
-- [VSCode](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- [PHPStorm](https://www.jetbrains.com/help/phpstorm/eslint.html)
-
-### Code formatting<br/>Форматування коду
-
-There is the `.prettierrc.js` file in the project to preset rules for [Prettier](https://prettier.io/).<br/>
-В проєкті є `.prettierrc.js` файл з правилами для [Prettier](https://prettier.io/).
-
-Configure your code editor to follow rules:<br/>
-Налаштуй свій редактор коду під вказані правила:
-
-- [VSCode](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-- PHPStorm:
-    - [Plugin / Плагін](https://plugins.jetbrains.com/plugin/10456-prettier)
-    - [Configuration / Налаштування](https://www.jetbrains.com/help/phpstorm/prettier.html)
-
-## Contributing<br/>Долучитися до проєкту
-
-I'm really excited if you are interested in the improving of my project. Thanks so much!<br/>
-Я дійсно в захваті, що ти зацікавився покращенням мого проєкту. Дуже тобі вдячний!
-
-There are some steps how you can do that:<br/>
-Тут декілька кроків, що потрібно зробити для цього:
-
-1. Fork my repository.<br/>Зроби форк мого репозиторію.
-2. Deploy the project locally (follow instructions above).<br/>Розгорни проєкт локально, слідуючи інструкціям вище.
-3. Make your changes.<br/>Внеси свої зміни.
-4. Make sure that your changes have been self-checked by you.<br/>Обовʼязково перевір свої зміни власноруч.
-5. Make sure that you followed rules of ESLint and Prettier. I can't merge your changes if you'll ignore this point.<br/>Переконайся, що в тебе налаштовані ESLint та Prettier. Без них я не прийму твій код.
-6. Create a new PR (Pull Request) from your repo to mine.<br/>Зроби новий ПР (запит на внесення коду) з твоєї репи до моєї.
-7. Wait while I'll check that.<br/>Очікуй, поки я не перевірю.
-8. If I don't agree with your changes, be absolutely sure that I'll write a comment why I think so.<br/>Якщо я не згодний зі змінами, будь певний, я обовʼязково відпишу чому.
-9. If I want to see your changes in the project:<br/>Якщо мені подобаються твої зміни:
-    - I'll merge the PR if everything is fine.<br/>Я внесу їх, якщо все добре.
-    - I'll ask you to do some fixes if something will be wrong.<br/>Я попрошу тебе зробити певні правки, якщо щось буде не так.
+- [MIGRATION_PLAN.md](./MIGRATION_PLAN.md)
+- [USER_MIGRATION_TODO.md](./USER_MIGRATION_TODO.md)
+- [AGENT.md](./AGENT.md)
