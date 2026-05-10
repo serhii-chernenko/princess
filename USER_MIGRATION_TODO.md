@@ -1,6 +1,6 @@
 # User Migration Todo
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 This file is the user-facing companion to `MIGRATION_PLAN.md`.
 
@@ -16,35 +16,200 @@ This file should be updated after every significant migration phase.
 
 There are currently 2 runnable paths:
 
-1. Legacy bot runtime
+1. Worker runtime
     - Real Telegram bot behavior
-    - Node.js + polling
-    - Uses `.dev.vars`
+    - Cloudflare Worker + Hono + Telegraf webhook handling
+    - Uses `.dev.vars` locally and `.dev.vars.production` for production-oriented CLI flows
+    - This is now the primary path
 
-2. Worker scaffold runtime
-    - Cloudflare Worker + Hono skeleton
-    - Has route scaffolding only
-    - Does not yet execute the actual bot game logic
+2. Legacy bot runtime
+    - Old Node.js + polling path
+    - Kept only as a fallback while migration continues
+    - Use `legacy:dev` or `legacy:start` if you need to compare old behavior
 
 ## Route Status
 
 Current Worker routes:
 
 - `GET /`
-    - simple service metadata response
+    - service metadata response
 - `GET /health`
     - readiness/health response
 - `POST /telegram`
-    - Telegram webhook scaffold
+    - Telegram webhook endpoint
     - validates path and optional secret
-    - currently accepts the payload but does not yet run bot logic
+    - now dispatches the real Telegraf bot runtime
 
-Why only `/health` as a "real" endpoint right now:
+## Phase 5
 
-- This phase was intentionally only the Worker scaffold phase.
-- `/telegram` exists already, but it is still a stub.
-- The actual bot behavior behind `/telegram` will be wired in later phases when the data layer and command flow are migrated.
-- So this was not forgotten. It is intentionally staged.
+### What changed
+
+- The Worker runtime is now the real bot runtime
+- The new TypeScript bot path lives under `src/bot/`
+- The webhook route now calls the actual Telegraf bot instead of returning a scaffold note
+- The D1-backed runtime now handles:
+    - `/start`
+    - `/help`
+    - `/join`
+    - `/leave`
+    - `/run`
+    - `/sudorun`
+    - `/list`
+    - `/top`
+    - `/reset`
+    - `/stop`
+    - `/stats`
+    - `/releases`
+    - the message-triggered automatic daily run flow
+- Scheduled cleanup now uses the new D1 service layer
+- `dev` and `start` now point to the Worker path
+- `legacy:dev` and `legacy:start` keep the old polling path available for comparison
+- Active env examples no longer include `MONGODB_URI`
+
+### Primary local commands now
+
+Worker-first local dev:
+
+```sh
+npm run dev
+```
+
+Equivalent explicit command:
+
+```sh
+npm run worker:dev
+```
+
+Old polling fallback:
+
+```sh
+npm run legacy:dev
+```
+
+### Local setup
+
+Create `.dev.vars` from the example if you have not done that yet:
+
+```sh
+cp .dev.vars.example .dev.vars
+```
+
+Required values for the Worker path:
+
+```dotenv
+BOT_TOKEN="123456:telegram-bot-token"
+TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
+TELEGRAM_WEBHOOK_PATH="/telegram"
+AUTHOR_TWITTER_LINK="https://twitter.com/giraffender"
+WISHLIST_TG_URL="https://t.me/wishlist_ua_bot"
+CHATGPT_GITHUB_REPO_URL="https://github.com/serhii-chernenko/chatgpt-telegram-bot"
+TG_CHANNEL="https://t.me/serhii_chernenko"
+TG_GROUP="https://t.me/serhii_chernenko_chat"
+YT_CHANNEL="https://youtube.com/@serhii.chernenko"
+MAIL="contact@chernenko.digital"
+```
+
+### Local smoke tests that do not require Telegram delivery
+
+Health:
+
+```sh
+curl http://127.0.0.1:8787/health
+```
+
+Expected:
+
+```json
+{ "service": "princess", "runtime": "cloudflare-workers", "ready": true }
+```
+
+Invalid secret:
+
+```sh
+curl -X POST http://127.0.0.1:8787/telegram \
+  -H 'Content-Type: application/json' \
+  -H 'X-Telegram-Bot-Api-Secret-Token: wrong-secret' \
+  -d '{"update_id":42}'
+```
+
+Expected:
+
+- HTTP `401`
+
+Synthetic accepted update with your local secret:
+
+```sh
+set -a
+source .dev.vars
+curl -X POST "http://127.0.0.1:8787${TELEGRAM_WEBHOOK_PATH}" \
+  -H 'Content-Type: application/json' \
+  -H "X-Telegram-Bot-Api-Secret-Token: ${TELEGRAM_WEBHOOK_SECRET}" \
+  -d '{"update_id":42}'
+```
+
+Expected:
+
+```json
+{ "accepted": true, "updateId": 42 }
+```
+
+### Important limit of local webhook testing
+
+The bot now performs real Telegram API calls for:
+
+- `getChatMember`
+- replies and messages
+
+That means a full end-to-end command test requires:
+
+1. a real bot token
+2. a real Telegram group/chat and user ids
+3. a public HTTPS webhook URL reachable by Telegram
+
+So:
+
+- local `curl` smoke tests prove the Worker route and secret handling
+- real bot behavior should be verified through a deployed temporary or production Worker URL with `setWebhook`
+
+### Real Telegram verification flow
+
+1. Deploy a temporary or production Worker:
+
+```sh
+npm run worker:deploy:production
+```
+
+2. Register the webhook:
+
+```sh
+set -a
+source .dev.vars.production
+curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
+  -d "url=https://<your-worker-domain>${TELEGRAM_WEBHOOK_PATH}" \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}"
+```
+
+3. Verify webhook status:
+
+```sh
+set -a
+source .dev.vars.production
+curl "https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo"
+```
+
+4. In the Telegram group:
+    - add the bot
+    - run `/start`
+    - run `/join` from several users
+    - run `/run`
+    - wait until the next 24h window and send a normal text message to verify the auto-run path
+
+### Production implications later
+
+- Production is now expected to use the Worker webhook path, not polling
+- `setWebhook` is now a real deployment step, not a future placeholder
+- The old Node polling path is now fallback-only
+- Startup release fanout from the legacy polling bootstrap is still not moved yet
 
 ## Phase 1
 

@@ -1,11 +1,9 @@
 import type { Context } from 'hono';
+import type { Update } from 'telegraf/types';
 
+import { createPrincessBot } from '../../bot';
 import type { WorkerApp } from '../app';
 import { getTelegramWebhookPath } from '../env';
-
-interface TelegramUpdateShape {
-    update_id?: number;
-}
 
 const hasExpectedSecret = (c: Context) => {
     const expectedSecret = c.env.TELEGRAM_WEBHOOK_SECRET;
@@ -38,19 +36,26 @@ export const registerTelegramRoutes = (app: WorkerApp) => {
             );
         }
 
-        const update = (await c.req.json()) as TelegramUpdateShape;
+        if (!c.env.BOT_TOKEN) {
+            return c.json(
+                {
+                    error: 'BOT_TOKEN is not configured'
+                },
+                500
+            );
+        }
 
-        console.log('telegram webhook scaffold received update', {
-            updateId: update.update_id
-        });
+        const update = (await c.req.json()) as Update;
+        const bot = createPrincessBot(c.env);
+
+        await bot.handleUpdate(update);
 
         return c.json(
             {
                 accepted: true,
-                updateId: update.update_id ?? null,
-                note: 'Webhook scaffold only. Telegram bot logic will be wired in Phase 5.'
+                updateId: update.update_id ?? null
             },
-            202
+            200
         );
     });
 };

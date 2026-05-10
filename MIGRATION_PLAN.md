@@ -1,6 +1,6 @@
 # Princess Bot Migration Plan
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 Repo: `/Users/inevix/dev/main/princess`
 
 ## Purpose
@@ -228,7 +228,7 @@ Phase 2 implementation result:
 7. Added Worker scripts:
     - `worker:dev`
     - `worker:deploy`
-    - `worker:types`
+    - `cf-typegen`
 
 Verification notes:
 
@@ -341,7 +341,7 @@ Phase 4 implementation result:
 
 ### Phase 5: Feature Port to Strict TypeScript
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -366,6 +366,47 @@ Exit criteria:
 
 - Old bot behavior is reproduced in the new architecture.
 - No JavaScript runtime files remain in the primary app path.
+
+Phase 5 implementation result:
+
+1. Added the real Worker-side Telegram runtime under `src/bot/`
+2. Ported the runtime behavior to strict TypeScript:
+    - `/start`
+    - `/help`
+    - `/join`
+    - `/leave`
+    - `/run`
+    - `/sudorun`
+    - `/list`
+    - `/top`
+    - `/reset`
+    - `/stop`
+    - `/stats`
+    - `/releases`
+3. Ported the message-triggered auto-run listener
+4. Replaced the `/telegram` scaffold response with real `Telegraf.handleUpdate(...)`
+5. Added a typed content layer for the existing UA messages and changelog rendering
+6. Wired scheduled cleanup to the new D1-backed service layer
+7. Switched the primary local scripts to the Worker path:
+    - `dev`
+    - `start`
+    - kept `legacy:dev` and `legacy:start` as fallback aliases
+8. Removed `MONGODB_URI` from the active Worker env examples
+9. Switched tests to `tsx --test` and added TypeScript runtime smoke coverage
+
+Verification notes:
+
+- `npm run format` passes and still enforces the wrapped-arrow explicit-return policy
+- `npm run check` passes
+- `npm run worker:dev` served:
+    - `GET /health -> 200`
+    - `POST /telegram` with wrong secret -> `401`
+    - `POST /telegram` with the correct secret and a synthetic update payload -> `200`
+
+Phase 5 intentional deferrals:
+
+- The old dead `/propose` scene remains out of the new runtime because it is not registered in the legacy command index either
+- Startup release fanout from the old polling bootstrap is still not ported; it remains a later release/deployment concern
 
 ### Phase 6: i18n and Release Workflow Modernization
 

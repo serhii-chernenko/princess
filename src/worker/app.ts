@@ -13,8 +13,8 @@ export const createApp = () => {
         return c.json({
             service: 'princess',
             runtime: 'cloudflare-workers',
-            phase: 2,
-            status: 'bootstrapped'
+            phase: 5,
+            status: 'runtime-ready'
         });
     });
 

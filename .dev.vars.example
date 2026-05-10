@@ -1,5 +1,4 @@
 BOT_TOKEN="123456:telegram-bot-token"
-MONGODB_URI="mongodb://127.0.0.1:27017/princess"
 ADMIN_ID=""
 AUTHOR_TWITTER_LINK="https://twitter.com/giraffender"
 WISHLIST_TG_URL="https://t.me/wishlist_ua_bot"
