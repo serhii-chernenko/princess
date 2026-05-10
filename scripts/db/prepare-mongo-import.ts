@@ -54,6 +54,7 @@ interface PlayerRow {
 
 interface ChannelRow {
     telegramChatId: number;
+    language: string;
     releaseVersion: string;
     lastVoteAt: number | null;
     createdAt: number;
@@ -182,13 +183,14 @@ const formatPlayerInsertStatement = (rows: PlayerRow[]): string => {
 
 const formatChannelInsertStatement = (rows: ChannelRow[]): string => {
     const values = rows.map(row => {
-        return `(${row.telegramChatId}, ${quoteString(row.releaseVersion)}, ${quoteNullableNumber(row.lastVoteAt)}, ${row.createdAt})`;
+        return `(${row.telegramChatId}, ${quoteString(row.language)}, ${quoteString(row.releaseVersion)}, ${quoteNullableNumber(row.lastVoteAt)}, ${row.createdAt})`;
     });
 
     return [
-        'INSERT INTO "channels" ("telegram_chat_id", "release_version", "last_vote_at", "created_at")',
+        'INSERT INTO "channels" ("telegram_chat_id", "language", "release_version", "last_vote_at", "created_at")',
         `VALUES ${values.join(',\n')}`,
         'ON CONFLICT("telegram_chat_id") DO UPDATE SET',
+        '"language" = excluded."language",',
         '"release_version" = excluded."release_version",',
         '"last_vote_at" = excluded."last_vote_at";'
     ].join('\n');
@@ -293,6 +295,7 @@ const run = async () => {
 
         uniqueChannels.set(channel.entity_id, {
             telegramChatId: channel.entity_id,
+            language: 'ua',
             releaseVersion: channel.release,
             lastVoteAt: formatDateAsTimestampMs(channel.updated_at),
             createdAt: importTimestamp

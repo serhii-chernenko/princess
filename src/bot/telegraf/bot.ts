@@ -4,12 +4,23 @@ import type { Context } from 'telegraf';
 
 import { createGameService } from '../services/game-service';
 import { BotUserError, isBotUserError } from '../errors';
-import { messages } from '../content/messages';
 import {
-    getLatestReleaseVersion,
+    getAvailableLanguagesMessage,
+    getCommandList,
+    getCongratsMessages,
+    getHelpEntries,
+    getMessages
+} from '../content/messages';
+import {
+    getLatestReleaseVersion as getReleaseVersion,
     renderReleaseNotes
 } from '../content/releases';
-import { replaceTemplate } from '../utils/strings';
+import {
+    getDefaultAppLocale,
+    getAvailableLanguageCodes,
+    normalizeAppLocale,
+    type AppLocale
+} from '../i18n';
 import {
     formatUserName,
     getTelegramDate,
@@ -33,7 +44,11 @@ type ChatMemberReader = {
     >;
 };
 
-const handleCommandError = async (ctx: Context, error: unknown) => {
+const handleCommandError = async (
+    ctx: Context,
+    error: unknown,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
     if (isBotUserError(error)) {
         if (error.silent) {
             return;
@@ -49,33 +64,23 @@ const handleCommandError = async (ctx: Context, error: unknown) => {
     }
 
     console.error('princess bot command failure', error);
-    await ctx.sendMessage(messages.error);
+    await ctx.sendMessage(getMessages(locale).error());
 };
 
-const handleListenerError = async (ctx: Context, error: unknown) => {
+const handleListenerError = async (
+    ctx: Context,
+    error: unknown,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
     if (isBotUserError(error) && error.silent) {
         return;
     }
 
-    await handleCommandError(ctx, error);
+    await handleCommandError(ctx, error, locale);
 };
 
 const isPrivateChatStart = (ctx: Context) => {
     return ctx.from?.id === ctx.chat?.id;
-};
-
-const getEnvValue = (value: string | undefined, fallback = '') => {
-    return value || fallback;
-};
-
-const formatHelpAnswer = (answer: string, env: WorkerBindings) => {
-    return replaceTemplate(answer, {
-        '%youtube': getEnvValue(env.YT_CHANNEL),
-        '%tgChannel': getEnvValue(env.TG_CHANNEL),
-        '%tgGroup': getEnvValue(env.TG_GROUP),
-        '%wishlistUrlTg': getEnvValue(env.WISHLIST_TG_URL),
-        '%chatGPTUrlGH': getEnvValue(env.CHATGPT_GITHUB_REPO_URL)
-    });
 };
 
 const formatTopList = (
@@ -127,17 +132,20 @@ const postPrintablePlayers = async (
             score: number;
         };
     }>,
-    list: 'all' | 'top'
+    list: 'all' | 'top',
+    locale: AppLocale
 ) => {
+    const LL = getMessages(locale);
+
     if (list === 'top') {
         await ctx.replyWithHTML(
-            `<strong>${messages.top} (${Math.min(players.length, 10)}):</strong>\n\n${formatTopList(players)}`
+            `<strong>${LL.top()} (${Math.min(players.length, 10)}):</strong>\n\n${formatTopList(players)}`
         );
         return;
     }
 
     await ctx.replyWithHTML(
-        `<strong>${messages.players} (${players.length}):</strong>\n\n${formatAllPlayersList(players)}`
+        `<strong>${LL.players()} (${players.length}):</strong>\n\n${formatAllPlayersList(players)}`
     );
 };
 
@@ -174,6 +182,44 @@ const createChatMemberReader = (ctx: Context): ChatMemberReader => {
     };
 };
 
+const renderWinnerMessage = (ctxUser: Context['from'], locale: AppLocale) => {
+    if (!ctxUser) {
+        throw new Error('Missing Telegram user context');
+    }
+
+    const congratsMessages = getCongratsMessages(
+        `<strong>${formatUserName(ctxUser)}</strong>`,
+        locale
+    );
+    const congratsIndex = randomInt(0, congratsMessages.length - 1);
+    const congratsMessage = congratsMessages[congratsIndex];
+
+    if (!congratsMessage) {
+        throw new Error('Missing congratulation message');
+    }
+
+    return congratsMessage;
+};
+
+const getRequestedLanguage = (ctx: Context) => {
+    const messagePayload = ctx.message;
+
+    if (!messagePayload || !('text' in messagePayload)) {
+        return {
+            raw: '',
+            normalized: null
+        };
+    }
+
+    const parts = messagePayload.text.trim().split(/\s+/);
+    const raw = parts[1] || '';
+
+    return {
+        raw,
+        normalized: normalizeAppLocale(raw)
+    };
+};
+
 let cachedBot: PrincessBot | null = null;
 let cachedToken = '';
 
@@ -194,19 +240,22 @@ export const createPrincessBot = (env: WorkerBindings) => {
     });
 
     bot.start(async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
 
             if (isPrivateChatStart(ctx)) {
                 await ctx.replyWithHTML(
-                    messages.greetings.replace(
-                        '%s',
-                        formatUserName(actor.user, 'name')
-                    ) + `\n\n${messages.greetingsError}`
+                    `${LL.greetings({
+                        name: formatUserName(actor.user, 'name')
+                    })}\n\n${LL.greetingsError()}`
                 );
                 return;
             }
@@ -215,136 +264,117 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             if (actorMember.user.is_bot) {
                 await ctx.sendMessage(
-                    messages.accessDenied.replace(
-                        '%s',
-                        formatUserName(actorMember.user)
-                    )
+                    LL.accessDenied({
+                        name: formatUserName(actorMember.user)
+                    })
                 );
                 return;
             }
 
             await game.ensureChannel(actor.chatId);
             await ctx.replyWithHTML(
-                messages.greetings.replace(
-                    '%s',
-                    formatUserName(actor.user, 'name')
-                ) +
-                    `\n\n<strong>${messages.commandsLabel}:</strong>\n${messages.commands.join('\n')}`
+                `${LL.greetings({
+                    name: formatUserName(actor.user, 'name')
+                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}`
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.help(async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
-            const faq = messages.help.map(({ question, answer }) => {
-                return `<strong>${question}</strong>\n${formatHelpAnswer(answer, env)}`;
-            });
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const faq = getHelpEntries(env, locale).map(
+                ({ question, answer }) => {
+                    return `<strong>${question}</strong>\n${answer}`;
+                }
+            );
 
             await ctx.replyWithHTML(
-                replaceTemplate(messages.faq, {
-                    '%faq': faq.join('\n\n'),
-                    '%twitter': getEnvValue(env.AUTHOR_TWITTER_LINK),
-                    '%tgGroup': getEnvValue(env.TG_GROUP),
-                    '%mail': getEnvValue(env.MAIL)
+                LL.faq({
+                    faq: faq.join('\n\n'),
+                    mail: env.MAIL || ''
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('join', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
-            const result = await game.joinChannel(actor.chatId, actor.user);
-            const message =
-                result.state === 'already-active'
-                    ? messages.alreadyJoin
-                    : messages.successJoin;
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const result = await game.joinChannel(
+                actor.chatId,
+                actor.user,
+                locale
+            );
 
             await ctx.sendMessage(
-                message.replace('%s', formatUserName(actor.user))
+                result.state === 'already-active'
+                    ? LL.alreadyJoin({
+                          name: formatUserName(actor.user)
+                      })
+                    : LL.successJoin({
+                          name: formatUserName(actor.user)
+                      })
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('leave', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
-            await game.leaveChannel(actor.chatId, actor.user);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            await game.leaveChannel(actor.chatId, actor.user, locale);
 
             await ctx.sendMessage(
-                messages.successLeave.replace('%s', formatUserName(actor.user))
+                LL.successLeave({
+                    name: formatUserName(actor.user)
+                })
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('run', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
-            const telegramDate = getTelegramDate(ctx.message?.date);
-            const result = await game.runVote(
-                actor.chatId,
-                actor.user.id,
-                telegramDate,
-                createChatMemberReader(ctx),
-                'manual'
-            );
-            const congratsIndex = randomInt(0, messages.congrats.length - 1);
-            const congratsMessage = messages.congrats[congratsIndex];
-
-            if (!congratsMessage) {
-                throw new Error('Missing congratulation message');
-            }
-
-            await ctx.replyWithHTML(
-                messages.winner.replace(
-                    '%name',
-                    formatUserName(result.winner.telegramMember.user, 'name')
-                ) +
-                    `<em>${congratsMessage.replace(
-                        '%nick',
-                        `<strong>${formatUserName(result.winner.telegramMember.user)}</strong>`
-                    )} ❤️</em>`
-            );
-            await postPrintablePlayers(ctx, result.printablePlayers, 'top');
-            await game.cleanupInactiveChannels(
-                new Date(Date.now() - 30 * 24 * 3600 * 1000)
-            );
-        } catch (error) {
-            await handleCommandError(ctx, error);
-        }
-    });
-
-    bot.command('sudorun', async ctx => {
-        try {
-            if (isForwardedReply(ctx.message)) {
-                return;
-            }
-
-            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
             const telegramDate = getTelegramDate(ctx.message?.date);
             const result = await game.runVote(
                 actor.chatId,
@@ -352,103 +382,167 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 telegramDate,
                 createChatMemberReader(ctx),
                 'manual',
-                true
+                false,
+                locale
             );
-            const congratsIndex = randomInt(0, messages.congrats.length - 1);
-            const congratsMessage = messages.congrats[congratsIndex];
-
-            if (!congratsMessage) {
-                throw new Error('Missing congratulation message');
-            }
+            const congratsMessage = renderWinnerMessage(
+                result.winner.telegramMember.user,
+                locale
+            );
 
             await ctx.replyWithHTML(
-                messages.winner.replace(
-                    '%name',
-                    formatUserName(result.winner.telegramMember.user, 'name')
-                ) +
-                    `<em>${congratsMessage.replace(
-                        '%nick',
-                        `<strong>${formatUserName(result.winner.telegramMember.user)}</strong>`
-                    )} ❤️</em>`
+                `${LL.winner({
+                    name: formatUserName(
+                        result.winner.telegramMember.user,
+                        'name'
+                    )
+                })}<em>${congratsMessage} ❤️</em>`
             );
-            await postPrintablePlayers(ctx, result.printablePlayers, 'top');
+            await postPrintablePlayers(
+                ctx,
+                result.printablePlayers,
+                'top',
+                locale
+            );
             await game.cleanupInactiveChannels(
                 new Date(Date.now() - 30 * 24 * 3600 * 1000)
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
+        }
+    });
+
+    bot.command('sudorun', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const telegramDate = getTelegramDate(ctx.message?.date);
+            const result = await game.runVote(
+                actor.chatId,
+                actor.user.id,
+                telegramDate,
+                createChatMemberReader(ctx),
+                'manual',
+                true,
+                locale
+            );
+            const congratsMessage = renderWinnerMessage(
+                result.winner.telegramMember.user,
+                locale
+            );
+
+            await ctx.replyWithHTML(
+                `${LL.winner({
+                    name: formatUserName(
+                        result.winner.telegramMember.user,
+                        'name'
+                    )
+                })}<em>${congratsMessage} ❤️</em>`
+            );
+            await postPrintablePlayers(
+                ctx,
+                result.printablePlayers,
+                'top',
+                locale
+            );
+            await game.cleanupInactiveChannels(
+                new Date(Date.now() - 30 * 24 * 3600 * 1000)
+            );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('list', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
             const { channel } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
                 createChatMemberReader(ctx),
-                'command'
+                'command',
+                locale
             );
 
             if (!channel) {
-                throw new BotUserError(messages.hasNotData);
+                throw new BotUserError(getMessages(locale).hasNotData());
             }
 
             const printablePlayers = await game.getPrintablePlayers(
                 actor.chatId,
                 channel.id,
                 createChatMemberReader(ctx),
-                'all'
+                'all',
+                locale
             );
 
-            await postPrintablePlayers(ctx, printablePlayers, 'all');
+            await postPrintablePlayers(ctx, printablePlayers, 'all', locale);
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('top', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
             const { channel } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
                 createChatMemberReader(ctx),
-                'command'
+                'command',
+                locale
             );
 
             if (!channel) {
-                throw new BotUserError(messages.hasNotData);
+                throw new BotUserError(getMessages(locale).hasNotData());
             }
 
             const printablePlayers = await game.getPrintablePlayers(
                 actor.chatId,
                 channel.id,
                 createChatMemberReader(ctx),
-                'top'
+                'top',
+                locale
             );
 
-            await postPrintablePlayers(ctx, printablePlayers, 'top');
+            await postPrintablePlayers(ctx, printablePlayers, 'top', locale);
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('reset', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
             const actorMember = await ctx.getChatMember(actor.user.id);
 
             if (
@@ -456,27 +550,30 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 actorMember.status !== 'administrator'
             ) {
                 throw new BotUserError(
-                    messages.accessDenied.replace(
-                        '%s',
-                        formatUserName(actorMember.user)
-                    )
+                    LL.accessDenied({
+                        name: formatUserName(actorMember.user)
+                    })
                 );
             }
 
-            await game.resetScores(actor.chatId);
-            await ctx.sendMessage(messages.successReset);
+            await game.resetScores(actor.chatId, locale);
+            await ctx.sendMessage(LL.successReset());
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('stop', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
             const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
             const actorMember = await ctx.getChatMember(actor.user.id);
 
             if (
@@ -484,26 +581,30 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 actorMember.status !== 'administrator'
             ) {
                 throw new BotUserError(
-                    messages.accessDenied.replace(
-                        '%s',
-                        formatUserName(actorMember.user)
-                    )
+                    LL.accessDenied({
+                        name: formatUserName(actorMember.user)
+                    })
                 );
             }
 
-            await game.stopChannel(actor.chatId);
-            await ctx.sendMessage(messages.successStop);
+            await game.stopChannel(actor.chatId, locale);
+            await ctx.sendMessage(LL.successStop());
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('stats', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
             await game.cleanupInactiveChannels(
                 new Date(Date.now() - 30 * 24 * 3600 * 1000)
             );
@@ -511,29 +612,72 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const { channelsCount, playersCount } = await game.getStats();
 
             await ctx.replyWithHTML(
-                replaceTemplate(messages.stats, {
-                    '%groups': channelsCount.toString(),
-                    '%players': playersCount.toString(),
-                    '%youtube': getEnvValue(env.YT_CHANNEL),
-                    '%twitter': getEnvValue(env.AUTHOR_TWITTER_LINK),
-                    '%tgChannel': getEnvValue(env.TG_CHANNEL),
-                    '%mail': getEnvValue(env.MAIL)
+                LL.stats({
+                    groups: channelsCount,
+                    players: playersCount,
+                    youtube: env.YT_CHANNEL || '',
+                    mail: env.MAIL || ''
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
         }
     });
 
     bot.command('releases', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (isForwardedReply(ctx.message)) {
                 return;
             }
 
-            await ctx.replyWithHTML(renderReleaseNotes());
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            await ctx.replyWithHTML(renderReleaseNotes(0, locale));
         } catch (error) {
-            await handleCommandError(ctx, error);
+            await handleCommandError(ctx, error, locale);
+        }
+    });
+
+    bot.command('lang', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const { raw, normalized } = getRequestedLanguage(ctx);
+
+            if (!raw) {
+                await ctx.sendMessage(getAvailableLanguagesMessage(locale));
+                return;
+            }
+
+            if (!normalized) {
+                await ctx.sendMessage(
+                    LL.lang.invalid({
+                        language: raw,
+                        languages: getAvailableLanguageCodes().join(', ')
+                    })
+                );
+                return;
+            }
+
+            await game.setChannelLocale(actor.chatId, normalized);
+            const nextLL = getMessages(normalized);
+
+            await ctx.sendMessage(
+                nextLL.lang.updated({
+                    language: normalized
+                })
+            );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale);
         }
     });
 
@@ -542,6 +686,8 @@ export const createPrincessBot = (env: WorkerBindings) => {
     });
 
     bot.on(message('text'), async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
         try {
             if (shouldSkipMessage(ctx)) {
                 return;
@@ -551,33 +697,38 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 return;
             }
 
+            locale = await game.getChannelLocale(ctx.chat.id);
+            const LL = getMessages(locale);
             const result = await game.runVote(
                 ctx.chat.id,
                 ctx.from.id,
                 getTelegramDate(ctx.message.date),
                 createChatMemberReader(ctx),
-                'auto'
+                'auto',
+                false,
+                locale
             );
-            const congratsIndex = randomInt(0, messages.congrats.length - 1);
-            const congratsMessage = messages.congrats[congratsIndex];
-
-            if (!congratsMessage) {
-                throw new Error('Missing congratulation message');
-            }
+            const congratsMessage = renderWinnerMessage(
+                result.winner.telegramMember.user,
+                locale
+            );
 
             await ctx.replyWithHTML(
-                messages.winner.replace(
-                    '%name',
-                    formatUserName(result.winner.telegramMember.user, 'name')
-                ) +
-                    `<em>${congratsMessage.replace(
-                        '%nick',
-                        `<strong>${formatUserName(result.winner.telegramMember.user)}</strong>`
-                    )} ❤️</em>`
+                `${LL.winner({
+                    name: formatUserName(
+                        result.winner.telegramMember.user,
+                        'name'
+                    )
+                })}<em>${congratsMessage} ❤️</em>`
             );
-            await postPrintablePlayers(ctx, result.printablePlayers, 'top');
+            await postPrintablePlayers(
+                ctx,
+                result.printablePlayers,
+                'top',
+                locale
+            );
         } catch (error) {
-            await handleListenerError(ctx, error);
+            await handleListenerError(ctx, error, locale);
         }
     });
 
@@ -588,5 +739,5 @@ export const createPrincessBot = (env: WorkerBindings) => {
 };
 
 export const getCurrentReleaseVersion = () => {
-    return getLatestReleaseVersion();
+    return getReleaseVersion();
 };

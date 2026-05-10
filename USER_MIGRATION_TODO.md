@@ -60,7 +60,14 @@ Current Worker routes:
     - `/stop`
     - `/stats`
     - `/releases`
+    - `/lang`
     - the message-triggered automatic daily run flow
+- Channel language is now stored in D1 in `channels.language`
+- Default language for every channel is `ua`
+- User-facing locale codes are now:
+    - `ua`
+    - `en`
+- Internal `typesafe-i18n` still uses `uk` behind the scenes only
 - Scheduled cleanup now uses the new D1 service layer
 - `dev` and `start` now point to the Worker path
 - `legacy:dev` and `legacy:start` keep the old polling path available for comparison
@@ -200,9 +207,27 @@ curl "https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo"
 4. In the Telegram group:
     - add the bot
     - run `/start`
+    - run `/lang`
+    - run `/lang en`
+    - run `/lang ua`
     - run `/join` from several users
     - run `/run`
     - wait until the next 24h window and send a normal text message to verify the auto-run path
+
+### Channel language behavior
+
+- New channels default to `ua`
+- `/lang` shows the available languages list:
+
+```text
+Available languages: en, ua
+Доступні мови: en, ua
+```
+
+- `/lang en` switches the current group to English
+- `/lang ua` switches the current group back to Ukrainian
+- `uk` is accepted as an alias in the command parser, but it is normalized and stored as `ua`
+- Only `ua` and `en` should be shown to users or stored in DB docs
 
 ### Production implications later
 
@@ -832,9 +857,148 @@ npm run db:query:production -- --command="SELECT (SELECT count(*) FROM channels)
 
 ### Phase 6
 
-- i18n workflow
-- Changesets usage for this repo
-- how release notes become Telegram release posts
+### What changed
+
+- Manual `%placeholder` message mutation is replaced with `typesafe-i18n`
+- Authored bot copy now lives in:
+    - `src/i18n/en/index.ts`
+- Generated i18n files live in:
+    - `src/i18n/i18n-types.ts`
+    - `src/i18n/i18n-util.ts`
+    - `src/i18n/i18n-util.sync.ts`
+    - `src/i18n/i18n-util.async.ts`
+- Runtime Ukrainian locale mirror lives in:
+    - `src/i18n/uk/index.ts`
+- `CHANGELOG.md` is now the human release source of truth
+- `releases.generated.json` is now the generated runtime release manifest for:
+    - Worker `/releases`
+    - legacy `/releases`
+- `changelog.json` is retired from the runtime path
+- `Changesets` is configured for future version/changelog maintenance
+
+### Important editing rule for translations
+
+Edit:
+
+- `src/i18n/en/index.ts`
+
+Do not hand-edit:
+
+- generated files in `src/i18n/`
+- `src/i18n/uk/index.ts`
+
+Then regenerate:
+
+```sh
+pnpm run i18n:generate
+```
+
+### Local validation for i18n changes
+
+After editing translation copy:
+
+```sh
+pnpm run i18n:generate
+pnpm run check
+```
+
+Expected:
+
+- i18n generated files stay in sync
+- typecheck passes
+- `/releases` tests still pass
+- Worker runtime tests still pass
+
+### Release data flow now
+
+The new release pipeline is:
+
+1. You add or update release notes through Changesets
+2. `changeset version` updates `package.json` and `CHANGELOG.md`
+3. The repo stamps the top changelog entry with the release date
+4. The repo regenerates `releases.generated.json`
+5. The bot renders Telegram `/releases` output from `releases.generated.json`
+
+### How to add a changeset
+
+Run:
+
+```sh
+pnpm run changeset:add
+```
+
+In the body of the generated Markdown file, use Ukrainian tagged bullets only:
+
+```md
+- [added] ...
+- [updated] ...
+- [fixed] ...
+- [removed] ...
+- [notes] ...
+```
+
+Validate the format:
+
+```sh
+pnpm run changeset:validate
+```
+
+### How to prepare a release
+
+Run:
+
+```sh
+pnpm run changeset:version
+```
+
+This will:
+
+- validate the pending changesets
+- update `package.json` version
+- update `CHANGELOG.md`
+- stamp the newest changelog entry with today’s date
+- regenerate `releases.generated.json`
+- refresh the lockfile metadata
+
+After that, review and commit:
+
+- `package.json`
+- `CHANGELOG.md`
+- `releases.generated.json`
+- lockfiles if changed
+
+### How to test Telegram release rendering locally
+
+Regenerate the release manifest:
+
+```sh
+pnpm run releases:sync
+```
+
+Then run the repo tests:
+
+```sh
+pnpm test
+```
+
+What this proves:
+
+- the generated manifest is readable by both runtimes
+- the latest release is still exposed consistently
+- the Worker `/releases` renderer still includes the expected headings
+
+### Production implications later
+
+- Before a production deploy that should expose a new version, run:
+
+```sh
+pnpm run changeset:version
+```
+
+- Commit the updated release files before deploying the Worker
+- After deployment, `/releases` will reflect the new release immediately because it reads `releases.generated.json`
+- Automatic proactive release broadcast to all groups is still not scheduled yet
+- Manual `/releases` already works against the new source of truth
 
 ### Phase 7
 

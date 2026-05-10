@@ -1,1 +1,1 @@
-module.exports = () => require('../../changelog.json');
+module.exports = () => require('../../releases.generated.json');

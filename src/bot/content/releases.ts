@@ -1,45 +1,44 @@
-import changelog from '../../../changelog.json';
+import releaseManifest from '../../../releases.generated.json';
 
-import { messages } from './messages';
-
-type ReleaseGroup = keyof typeof messages.releases.labels;
+import { getDefaultAppLocale, type AppLocale } from '../i18n';
+import {
+    getReleaseLabels,
+    releaseGroupOrder,
+    type ReleaseGroup
+} from './messages';
 
 type ReleaseRecord = {
+    version: string;
     date: string;
-    list: Partial<Record<ReleaseGroup, string[]>>;
+    groups: Partial<Record<ReleaseGroup, string[]>>;
 };
 
-const releaseEntries = changelog as Record<string, ReleaseRecord>;
+const releases = releaseManifest as ReleaseRecord[];
 
 export const getReleases = () => {
-    return releaseEntries;
+    return releases;
 };
 
 export const getLatestReleaseVersion = () => {
-    return Object.keys(releaseEntries)[0] ?? '0.0.0';
+    return releases[0]?.version ?? '0.0.0';
 };
 
-export const renderReleaseNotes = (spliceIndex = 0) => {
-    const releases = getReleases();
-    const versions = Object.keys(releases);
-    const unreleasedChanges =
-        spliceIndex <= 0 ? versions : versions.slice(0, spliceIndex);
-    const { labels, order } = messages.releases;
+export const renderReleaseNotes = (
+    spliceIndex = 0,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
+    const releaseEntries =
+        spliceIndex <= 0 ? releases : releases.slice(0, spliceIndex);
+    const labels = getReleaseLabels(locale);
 
-    return unreleasedChanges
+    return releaseEntries
         .map(release => {
-            const releaseEntry = releases[release];
+            let result = `🎉 <strong>${release.version} - ${release.date}</strong>\n`;
 
-            if (!releaseEntry) {
-                return '';
-            }
+            for (const group of releaseGroupOrder) {
+                const features = release.groups[group];
 
-            let result = `🎉 <strong>${release} - ${releaseEntry.date}</strong>\n`;
-
-            for (const group of order) {
-                const features = releaseEntry.list[group];
-
-                if (!features) {
+                if (!features?.length) {
                     continue;
                 }
 
@@ -52,6 +51,5 @@ export const renderReleaseNotes = (spliceIndex = 0) => {
 
             return result;
         })
-        .filter(Boolean)
         .join('\n');
 };

@@ -1,0 +1,1 @@
+ALTER TABLE `channels` ADD `language` text DEFAULT 'ua' NOT NULL;

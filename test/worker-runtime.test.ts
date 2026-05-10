@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { renderReleaseNotes } from '../src/bot/content/releases';
-import { messages } from '../src/bot/content/messages';
+import {
+    getAvailableLanguagesMessage,
+    getCommandList
+} from '../src/bot/content/messages';
+import { mapAppLocaleToI18nLocale, normalizeAppLocale } from '../src/bot/i18n';
 import { getTelegramWebhookPath } from '../src/worker/env';
 import { formatUserName, isForwardedReply } from '../src/bot/utils/telegram';
 
@@ -67,6 +71,23 @@ test('forwarded reply guard only blocks the legacy forwarded-reply shape', () =>
 });
 
 test('typed message catalog still exposes the command list', () => {
-    assert.equal(messages.commands.length > 0, true);
-    assert.match(messages.commands.join('\n'), /\/run/);
+    const commands = getCommandList();
+
+    assert.equal(commands.length > 0, true);
+    assert.match(commands.join('\n'), /\/run/);
+    assert.match(commands.join('\n'), /\/lang/);
+});
+
+test('ua locale aliases to uk internally', () => {
+    assert.equal(normalizeAppLocale('ua'), 'ua');
+    assert.equal(normalizeAppLocale('uk'), 'ua');
+    assert.equal(mapAppLocaleToI18nLocale('ua'), 'uk');
+});
+
+test('available languages message mentions ua externally', () => {
+    assert.match(
+        getAvailableLanguagesMessage('ua'),
+        /Available languages: en, ua/
+    );
+    assert.match(getAvailableLanguagesMessage('ua'), /Доступні мови: en, ua/);
 });

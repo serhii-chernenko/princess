@@ -5,7 +5,7 @@ WORKDIR /princess
 
 COPY ./package.json ./
 COPY ./package-lock.json ./
-COPY ./changelog.json ./
+COPY ./releases.generated.json ./
 COPY ./bot ./bot/
 
 RUN npm ci

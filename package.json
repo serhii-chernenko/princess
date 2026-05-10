@@ -31,15 +31,22 @@
         "worker:deploy": "pnpm run worker:deploy:production",
         "worker:deploy:production": "wrangler deploy --env production",
         "cf-typegen": "wrangler types",
+        "i18n:generate": "typesafe-i18n --no-watch",
+        "releases:sync": "tsx scripts/releases/sync-release-manifest.ts",
+        "changeset:add": "changeset",
+        "changeset:status": "changeset status",
+        "changeset:validate": "tsx scripts/releases/validate-changesets.ts",
+        "changeset:version": "pnpm run changeset:validate && changeset version && tsx scripts/releases/stamp-changelog.ts && pnpm run releases:sync && pnpm install --lockfile-only",
         "docker:dev": "NODE_ENV=dev docker compose -f .docker/compose.yaml up --force-recreate --build",
         "lint": "oxlint .",
         "lint:fix": "oxlint . --fix",
         "format": "oxfmt . && oxlint . --fix && oxfmt .",
         "format:check": "oxfmt --check .",
-        "typecheck": "tsgo -p tsconfig.json --noEmit",
+        "typecheck": "pnpm run i18n:generate && tsgo -p tsconfig.json --noEmit",
         "typecheck:legacy": "tsc --noEmit",
         "test": "tsx --test test/**/*.test.ts test/**/*.test.cjs",
-        "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm test"
+        "check": "pnpm run changeset:validate && pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run releases:sync && pnpm test",
+        "typesafe-i18n": "typesafe-i18n --no-watch"
     },
     "dependencies": {
         "dotenv": "^16.6.1",
@@ -47,9 +54,11 @@
         "effect": "4.0.0-beta.58",
         "hono": "4.12.10",
         "mongoose": "^6.13.9",
-        "telegraf": "^4.16.3"
+        "telegraf": "^4.16.3",
+        "typesafe-i18n": "^5.27.1"
     },
     "devDependencies": {
+        "@changesets/cli": "^2.31.0",
         "@typescript/native-preview": "^7.0.0-dev.20260510.1",
         "drizzle-kit": "1.0.0-rc.1",
         "nodemon": "^3.1.14",
@@ -57,6 +66,6 @@
         "oxlint": "^1.62.0",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
-        "wrangler": "4.50.0"
+        "wrangler": "4.90.0"
     }
 }

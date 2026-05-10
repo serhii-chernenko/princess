@@ -34,8 +34,8 @@ require('./connect-db')()
         }
 
         for await (const channel of channels) {
-            const releaseIndex = Object.keys(getVersions()).findIndex(
-                version => version === channel.release
+            const releaseIndex = getVersions().findIndex(
+                release => release.version === channel.release
             );
 
             try {

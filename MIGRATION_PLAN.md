@@ -410,7 +410,7 @@ Phase 5 intentional deferrals:
 
 ### Phase 6: i18n and Release Workflow Modernization
 
-Status: pending
+Status: complete
 
 Goals:
 
@@ -428,6 +428,42 @@ Exit criteria:
 - Messages are typed.
 - Release/version flow has one clear source of truth.
 - Telegram release post generation is deterministic.
+
+Phase 6 implementation result:
+
+1. Replaced the manual `%placeholder` message layer with `typesafe-i18n`
+2. Moved the authored bot copy into `src/i18n/en/index.ts` and generated the typed translator surface under `src/i18n/`
+3. Added a Ukrainian runtime locale mirror in `src/i18n/uk/index.ts` and a cached Worker translator wrapper in `src/bot/i18n.ts`
+4. Rewired the Worker bot and game service to typed translation calls instead of string mutation
+5. Introduced `CHANGELOG.md` as the human-owned release source and `releases.generated.json` as the generated runtime manifest
+6. Replaced `changelog.json` object-order semantics with deterministic release-array rendering
+7. Added `Changesets` config and validation:
+    - `.changeset/config.json`
+    - `.changeset/README.md`
+    - `scripts/releases/validate-changesets.ts`
+8. Added release maintenance scripts:
+    - `i18n:generate`
+    - `releases:sync`
+    - `changeset:add`
+    - `changeset:status`
+    - `changeset:validate`
+    - `changeset:version`
+9. Kept the legacy JS `/releases` path compatible by switching it to `releases.generated.json`
+10. Added channel-level language persistence with default `ua`
+11. Added `/lang` to show or change the current channel language
+12. Standardized the user-facing locale codes to `ua` and `en`
+13. Kept `uk` only as the internal `typesafe-i18n` locale id to avoid generator/runtime breakage
+
+Verification notes:
+
+- `pnpm run i18n:generate` regenerates the typed i18n surface cleanly
+- `pnpm run releases:sync` regenerates the release manifest from `CHANGELOG.md`
+- `pnpm run check` passes after the migration
+
+Phase 6 intentional deferrals:
+
+- Startup release fanout is still not scheduled in the Worker runtime yet
+- The legacy `/propose` scene remains outside the primary runtime path
 
 ### Phase 7: Deployment Migration
 
@@ -524,53 +560,66 @@ When making a user-visible or package-visible change:
 1. Run:
 
 ```sh
-npx changeset
+pnpm run changeset:add
 ```
 
 2. Answer the prompts:
     - which package changed
     - what kind of version bump applies
-    - what release note should be recorded
 
-3. Commit the generated file under `.changeset/`.
+3. Write Ukrainian tagged bullets in the body:
+    - `[added] ...`
+    - `[updated] ...`
+    - `[fixed] ...`
+    - `[removed] ...`
+    - `[notes] ...`
 
-4. Later, when preparing a release, run:
+4. Commit the generated file under `.changeset/`.
 
-```sh
-npx changeset version
-```
-
-This updates version fields and changelog files based on accumulated changesets.
-
-5. After release publication or deployment, run:
+5. Validate the format at any time with:
 
 ```sh
-npx changeset status
+pnpm run changeset:validate
 ```
 
-or, depending on the final workflow, a publish/release command if needed.
+6. Later, when preparing a release, run:
+
+```sh
+pnpm run changeset:version
+```
+
+This now does 4 things in one flow:
+
+- validates the tagged changeset format
+- runs `changeset version`
+- stamps the top changelog entry with the release date
+- regenerates `releases.generated.json`
+
+7. To inspect pending changesets, run:
+
+```sh
+pnpm run changeset:status
+```
 
 ### How this project should use it
 
-For this bot, the most practical setup is:
+For this bot, the practical setup is now:
 
-- use `Changesets` as the source of release metadata
-- keep Telegram-specific release broadcast rendering as a separate formatter
-- generate Telegram release messages from structured release notes instead of relying on JSON object key order
+- `CHANGELOG.md` is the human release source of truth
+- `releases.generated.json` is the deterministic runtime artifact for Telegram release posts
+- Telegram release messages are generated from the release manifest, not JSON object key order
 
-### What will be documented later
+### Repo-specific notes
 
-When Phase 6 is implemented, add concrete repo-specific instructions for:
-
-- how to write a good changeset for this bot
-- how Telegram release post text is derived
-- how to cut a release
-- how to deploy after a release
+- edit bot copy in `src/i18n/en/index.ts`
+- regenerate i18n files with `pnpm run i18n:generate`
+- do not edit `releases.generated.json` by hand
+- regenerate the release manifest from `CHANGELOG.md` with `pnpm run releases:sync`
 
 ## Next Step
 
 The next executable step is:
 
-`Phase 1: Baseline Safety Net and Tooling`
+`Phase 7: Deployment Migration`
 
-Do not begin Phase 2 until Phase 1 is implemented, reviewed, and accepted.
+Do not begin Phase 8 until Phase 7 is implemented, reviewed, and accepted.

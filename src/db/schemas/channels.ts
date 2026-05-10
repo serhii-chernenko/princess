@@ -5,6 +5,7 @@ export const channels = snakeCase.table(
     {
         id: integer().primaryKey({ autoIncrement: true }),
         telegramChatId: integer().notNull(),
+        language: text().notNull().default('ua'),
         releaseVersion: text().notNull(),
         lastVoteAt: integer({ mode: 'timestamp_ms' }),
         createdAt: integer({ mode: 'timestamp_ms' })

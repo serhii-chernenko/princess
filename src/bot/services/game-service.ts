@@ -3,7 +3,12 @@ import type { ChatMember, User } from 'telegraf/types';
 
 import { BotUserError } from '../errors';
 import { getLatestReleaseVersion } from '../content/releases';
-import { messages } from '../content/messages';
+import { getHourLabel, getMessages } from '../content/messages';
+import {
+    getDefaultAppLocale,
+    normalizeAppLocale,
+    type AppLocale
+} from '../i18n';
 import {
     formatUserName,
     isInactiveTelegramMember,
@@ -37,17 +42,6 @@ const isAdmin = (member: ChatMember) => {
     return member.status === 'creator' || member.status === 'administrator';
 };
 
-const findHourLabel = (eta: number) => {
-    return (
-        (
-            messages.hours as ReadonlyArray<{
-                hours: number[];
-                label: string;
-            }>
-        ).find(item => item.hours.includes(eta))?.label ?? 'годин'
-    );
-};
-
 export const createGameService = (env: WorkerBindings) => {
     const db = createDb(env);
     const repositories = createRepositories(db);
@@ -56,6 +50,16 @@ export const createGameService = (env: WorkerBindings) => {
         return runEffect(
             repositories.channels.findChannelByTelegramChatId(telegramChatId)
         );
+    };
+
+    const getChannelLocale = async (
+        telegramChatId: number,
+        fallbackLocale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const channel = await findChannel(telegramChatId);
+        const locale = normalizeAppLocale(channel?.language || fallbackLocale);
+
+        return locale ?? fallbackLocale;
     };
 
     const findOrCreatePlayer = async (user: User) => {
@@ -100,8 +104,10 @@ export const createGameService = (env: WorkerBindings) => {
         telegramChatId: number,
         actorUserId: number,
         telegram: ChatMemberReader,
-        mode: RunType | 'command'
+        mode: RunType | 'command',
+        locale: AppLocale = getDefaultAppLocale()
     ) => {
+        const LL = getMessages(locale);
         const actorMember = await telegram.getChatMember(
             telegramChatId,
             actorUserId
@@ -109,10 +115,9 @@ export const createGameService = (env: WorkerBindings) => {
 
         if (actorMember.user.is_bot) {
             throw new BotUserError(
-                messages.accessDenied.replace(
-                    '%s',
-                    formatUserName(actorMember.user)
-                )
+                LL.accessDenied({
+                    name: formatUserName(actorMember.user)
+                })
             );
         }
 
@@ -126,7 +131,7 @@ export const createGameService = (env: WorkerBindings) => {
                 };
             }
 
-            throw new BotUserError(messages.hasNotData);
+            throw new BotUserError(LL.hasNotData());
         }
 
         return {
@@ -136,6 +141,7 @@ export const createGameService = (env: WorkerBindings) => {
     };
 
     const ensureChannel = async (telegramChatId: number) => {
+        const locale = getDefaultAppLocale();
         const currentRelease = getLatestReleaseVersion();
         const existingChannel = await findChannel(telegramChatId);
 
@@ -151,7 +157,11 @@ export const createGameService = (env: WorkerBindings) => {
         }
 
         const createdChannel = await runEffect(
-            repositories.channels.createChannel(telegramChatId, currentRelease)
+            repositories.channels.createChannel(
+                telegramChatId,
+                currentRelease,
+                locale
+            )
         );
 
         if (!createdChannel) {
@@ -161,11 +171,16 @@ export const createGameService = (env: WorkerBindings) => {
         return createdChannel;
     };
 
-    const joinChannel = async (telegramChatId: number, user: User) => {
+    const joinChannel = async (
+        telegramChatId: number,
+        user: User,
+        locale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
-            throw new BotUserError(messages.hasNotData);
+            throw new BotUserError(LL.hasNotData());
         }
 
         const player = await findOrCreatePlayer(user);
@@ -208,11 +223,16 @@ export const createGameService = (env: WorkerBindings) => {
         };
     };
 
-    const leaveChannel = async (telegramChatId: number, user: User) => {
+    const leaveChannel = async (
+        telegramChatId: number,
+        user: User,
+        locale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
-            throw new BotUserError(messages.hasNotData);
+            throw new BotUserError(LL.hasNotData());
         }
 
         const player = await runEffect(
@@ -220,7 +240,7 @@ export const createGameService = (env: WorkerBindings) => {
         );
 
         if (!player) {
-            throw new BotUserError(messages.hasNotData);
+            throw new BotUserError(LL.hasNotData());
         }
 
         const member = await runEffect(
@@ -229,7 +249,9 @@ export const createGameService = (env: WorkerBindings) => {
 
         if (!member?.isActive) {
             throw new BotUserError(
-                messages.alreadyLeave.replace('%s', formatUserName(user))
+                LL.alreadyLeave({
+                    name: formatUserName(user)
+                })
             );
         }
 
@@ -334,8 +356,10 @@ export const createGameService = (env: WorkerBindings) => {
         telegramChatId: number,
         channelId: number,
         telegram: ChatMemberReader,
-        list: 'all' | 'top'
+        list: 'all' | 'top',
+        locale: AppLocale = getDefaultAppLocale()
     ) => {
+        const LL = getMessages(locale);
         const activePlayers = await reconcileActivePlayers(
             telegramChatId,
             channelId,
@@ -344,7 +368,7 @@ export const createGameService = (env: WorkerBindings) => {
         );
 
         if (!activePlayers.length) {
-            throw new BotUserError(messages.playersWithScoresNotFound);
+            throw new BotUserError(LL.playersWithScoresNotFound());
         }
 
         return activePlayers.sort((left, right) => {
@@ -371,17 +395,20 @@ export const createGameService = (env: WorkerBindings) => {
         runDate: Date,
         telegram: ChatMemberReader,
         type: RunType,
-        sudo = false
+        sudo = false,
+        locale: AppLocale = getDefaultAppLocale()
     ) => {
+        const LL = getMessages(locale);
         const { channel, actorMember } = await getChannelAndActor(
             telegramChatId,
             actorUserId,
             telegram,
-            type
+            type,
+            locale
         );
 
         if (!channel) {
-            throw new BotUserError(messages.hasNotData, { silent: true });
+            throw new BotUserError(LL.hasNotData(), { silent: true });
         }
 
         const channelMembers = await runEffect(
@@ -389,16 +416,18 @@ export const createGameService = (env: WorkerBindings) => {
         );
 
         if (!channelMembers.length && type === 'manual') {
-            throw new BotUserError(messages.playersNotFound);
+            throw new BotUserError(LL.playersNotFound());
         }
 
         if (type === 'auto' && !channel.lastVoteAt) {
-            throw new BotUserError(messages.hasNotData, { silent: true });
+            throw new BotUserError(LL.hasNotData(), { silent: true });
         }
 
         if (type === 'manual' && sudo && !isAdmin(actorMember)) {
             throw new BotUserError(
-                messages.sudoRun.replace('%s', formatUserName(actorMember.user))
+                LL.sudoRun({
+                    name: formatUserName(actorMember.user)
+                })
             );
         }
 
@@ -406,15 +435,16 @@ export const createGameService = (env: WorkerBindings) => {
 
         if (type === 'manual' && eta > 0 && !sudo) {
             throw new BotUserError(
-                messages.errorRunEta
-                    .replace('%hours', eta.toString())
-                    .replace('%label', findHourLabel(eta)),
+                LL.errorRunEta({
+                    hours: eta,
+                    label: getHourLabel(eta, locale)
+                }),
                 { html: true }
             );
         }
 
         if (type === 'auto' && eta > 0) {
-            throw new BotUserError(messages.hasNotData, { silent: true });
+            throw new BotUserError(LL.hasNotData(), { silent: true });
         }
 
         const activePlayers = await reconcileActivePlayers(
@@ -428,20 +458,20 @@ export const createGameService = (env: WorkerBindings) => {
             await resetChannelRun(channel.id);
 
             if (type === 'manual') {
-                throw new BotUserError(messages.playersNotFound);
+                throw new BotUserError(LL.playersNotFound());
             }
 
-            throw new BotUserError(messages.hasNotData, { silent: true });
+            throw new BotUserError(LL.hasNotData(), { silent: true });
         }
 
         if (activePlayers.length < 2) {
             await resetChannelRun(channel.id);
 
             if (type === 'auto') {
-                throw new BotUserError(messages.hasNotData, { silent: true });
+                throw new BotUserError(LL.hasNotData(), { silent: true });
             }
 
-            throw new BotUserError(messages.playersNotEnough);
+            throw new BotUserError(LL.playersNotEnough());
         }
 
         const winner =
@@ -465,7 +495,8 @@ export const createGameService = (env: WorkerBindings) => {
             telegramChatId,
             channel.id,
             telegram,
-            'top'
+            'top',
+            locale
         );
 
         return {
@@ -475,11 +506,15 @@ export const createGameService = (env: WorkerBindings) => {
         };
     };
 
-    const resetScores = async (telegramChatId: number) => {
+    const resetScores = async (
+        telegramChatId: number,
+        locale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
-            throw new BotUserError(messages.hasNotData);
+            throw new BotUserError(LL.hasNotData());
         }
 
         const memberships = await runEffect(
@@ -487,7 +522,7 @@ export const createGameService = (env: WorkerBindings) => {
         );
 
         if (!memberships.length) {
-            throw new BotUserError(messages.playersNotFound);
+            throw new BotUserError(LL.playersNotFound());
         }
 
         await runEffect(
@@ -515,11 +550,15 @@ export const createGameService = (env: WorkerBindings) => {
         }
     };
 
-    const stopChannel = async (telegramChatId: number) => {
+    const stopChannel = async (
+        telegramChatId: number,
+        locale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
-            throw new BotUserError(messages.alreadyStop);
+            throw new BotUserError(LL.alreadyStop());
         }
 
         const memberships = await runEffect(
@@ -527,7 +566,7 @@ export const createGameService = (env: WorkerBindings) => {
         );
 
         if (!memberships.length) {
-            throw new BotUserError(messages.alreadyStop);
+            throw new BotUserError(LL.alreadyStop());
         }
 
         await deleteChannelAndOrphans(channel.id);
@@ -557,8 +596,28 @@ export const createGameService = (env: WorkerBindings) => {
         };
     };
 
+    const setChannelLocale = async (
+        telegramChatId: number,
+        locale: AppLocale
+    ) => {
+        const channel = await ensureChannel(telegramChatId);
+
+        await runEffect(
+            repositories.channels.updateChannelLanguage(telegramChatId, locale)
+        );
+
+        return (
+            (await findChannel(telegramChatId)) ?? {
+                ...channel,
+                language: locale
+            }
+        );
+    };
+
     return {
         ensureChannel,
+        getChannelLocale,
+        setChannelLocale,
         getChannelAndActor,
         joinChannel,
         leaveChannel,

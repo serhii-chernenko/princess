@@ -6,7 +6,11 @@
 !/.github/workflows/main.yml
 !.dev.vars.example
 !.dev.vars.production.example
-!changelog.json
+!.typesafe-i18n.json
+!.changeset
+!.changeset/*
+!CHANGELOG.md
+!releases.generated.json
 !drizzle.config.ts
 !drizzle.production.config.ts
 !/drizzle
@@ -82,9 +86,17 @@
 !/src/bot/telegraf/*.ts
 !/src/bot/utils
 !/src/bot/utils/*.ts
+!/src/i18n
+!/src/i18n/*.ts
+!/src/i18n/en
+!/src/i18n/en/*.ts
+!/src/i18n/uk
+!/src/i18n/uk/*.ts
 !/scripts
 !/scripts/db
 !/scripts/db/*.ts
+!/scripts/releases
+!/scripts/releases/*.ts
 !/test
 !/test/*.cjs
 !/test/*.ts
@@ -93,3 +105,5 @@
 !/tools
 !/tools/oxlint
 !/tools/**/*.mjs
+!/i18n
+!/i18n/**/*.ts

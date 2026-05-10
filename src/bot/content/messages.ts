@@ -1,111 +1,152 @@
-const numbersArray = (length = 1, start = 0) => {
-    return Array.from({ length }, (_value, index) => start + index);
+import type { WorkerBindings } from '../../worker/env';
+import {
+    getAvailableLanguageCodes,
+    getDefaultAppLocale,
+    getTranslator,
+    type AppLocale
+} from '../i18n';
+
+export const getMessages = (locale: AppLocale = getDefaultAppLocale()) => {
+    return getTranslator(locale);
 };
 
-export const messages = {
-    donationGeneral: '',
-    donationLocal: '',
-    proposalEnter: 'Запропонуйте ваш варіант!',
-    proposalWrong: 'Не можна запропонувати команду! Спробуй ще раз 🤷‍♀',
-    proposalLeave: 'Ваш варіант буде розглянуто!',
-    from: 'Автор: %s',
-    error: `Ой лишенько, щось сталось...\nСпробуй ще раз 🤷‍♀️`,
-    errorRunEta: `Можна запускати детектор принцесок тільки раз на добу.\nПочекай ще <strong>%hours</strong> %label! 🙅‍♀️`,
-    hours: [
-        {
-            hours: [1, 21],
-            label: 'годину'
-        },
-        {
-            hours: numbersArray(16, 5),
-            label: 'годин'
-        },
-        {
-            hours: [...numbersArray(3, 2), ...numbersArray(3, 22)],
-            label: 'години'
-        }
-    ],
-    successJoin: `Тепер у тебе є можливість бути принцескою, %s! 🙋‍♀️`,
-    alreadyJoin: `Ти вже береш участь, %s! 🙅‍♀️`,
-    successBack: `Як добре, що ти повернулась, %s! 🙋‍♀️`,
-    successLeave: `Тепер ти не будеш принцескою, %s! 🙍‍♀️`,
-    alreadyLeave: `Ти вже скасувала участь у грі, %s! 🙅‍♀️`,
-    successReset: `Здобутки принцесок успішно видалені! 💇‍♀️`,
-    successStop: `Уся інформація про спільноту була видалена! 💇‍♀️\nЩоб знову грати, виконайте команду /start.`,
-    alreadyStop: `Я не маю жодної інформації про цю спільноту.\nВиконайте команду /start! 🙅‍♀️`,
-    playersWithScoresNotFound: `Детектор принцесок не виявив учасниць із рахунком! 🤷‍♀️️`,
-    playersNotFound: `У цій спільноті ще ніхто не захотів бути принцескою! 🤷‍♀️`,
-    playersNotEnough: `У цій спільноті недостатньо охочих бути принцескою. Треба більше 2-х! 🤷‍♀️`,
-    accessDenied: `Вибач, люба, але в тебе нема доступу, %s! 🙅‍♀️`,
-    sudoRun: `Уявила себе програмісткою, %s? ахах 🙅‍♀`,
-    hasNotData: `У детектора принцесок нема жодної інформації про цей чат! 🤷‍♀️`,
-    greetings: `Ваша Високосте, <strong>%s</strong>! 🙋‍♀️`,
-    greetingsError: `Будь ласка, додайте бота до спільноти та виконайте команду:\n/start`,
-    winner: `Принцеска дня:\n\n👸 <strong>%name</strong>\n\n`,
-    top: `ТОП-10 принцесок цієї спільноти 👸`,
-    players: `Список учасниць 👸`,
-    stats: `<strong>Статистика використання боту:</strong>\n\nСпільноти: <strong>%groups</strong>\nГравці: <strong>%players</strong>\n\n<strong>Автор боту:</strong>\n- %youtube\n- Пошта: %mail`,
-    commandsLabel: 'Команди для керування ботом',
-    commands: [
-        '/start - Ініціалізація у спільноті та команди',
-        '/help - Запитання та відповіді',
-        '/propose - Запропонувати своє привітання для принцес',
-        '/join - Долучитися до гри',
-        '/leave - Скасувати участь у грі',
-        '/run - Запуск першого голосування',
-        '/list - Список усіх гравців',
-        '/top - ТОП-10 гравців',
-        '/reset - Видалити досягнення гравців',
-        '/stop - Зупинити гру та видалити всю інформацію про спільноту',
-        '/stats - Показати статистику використання боту',
-        '/releases - Показати всі версії боту та зміни у них'
-    ],
-    congrats: [
-        '%nick, ти сьогодні найгарніша квітка на всій планеті!',
-        `%nick, сьогодні ти просто зобов'язана піти в редакцію Космополітен, бо вони ніяк не можуть знайти модель на обкладинку`,
-        'Сьогодні ти солодкий пиріжечок, %nick!',
-        'Сьогодні твоя черга спати на горошині, %nick, моя принцеса!',
-        'Так приємно побачити принцесу не на малюнках, а в реальному житті, %nick!',
-        '%nick, твоя краса вартує золотої корони!',
-        'Така як ти буває раз на все життя, %nick!',
-        'Не для кожного, %nick, твоя паляниця!',
-        'Сьогодні ти, %nick, гарна, як писанка!',
-        'Люба моя, %nick, корона сьогодні твоя',
-        'Ой, не зоря на небі запалала. То на землі %nick розквітала!',
-        'Закохався в тебе, %nick, як чорт в суху вербу!',
-        'Не така, як інші, %nick, дівчина з іншого життя!',
-        '%nick, ти саме та вовчиця, про яку співав Вінник!',
-        '%nick, сьогодні ти киця-тигриця!',
-        '%nick, шайн брайт лайк е даймонд!',
-        '%nick, ти солоденька жопка!',
-        '%nick, із тобою навіть зима стає весною!',
-        '%nick, без тебе холодна ніч і літо немов зима!'
-    ],
-    faq: '<strong>Питання та відповіді:</strong>\n\n%faq\n\n<strong>Якщо у Вас виникли питання, можете звертатися до автора боту:</strong>\n- Пошта: %mail',
-    help: [
-        {
-            question: 'Як розпочати гру?',
-            answer: '- Додати бота до спільноти.\n- Виконати команду /start.\n- Усі охочі повинні виконати команду /join.\n- Коли всі охочі долучилися, треба виконати команду /run.\n- Далі бот автоматично буде запускати голосування кожні 24 години.'
-        },
-        {
-            question: `Що станеться, якщо я зміню нік чи ім'я?`,
-            answer: 'Інформація по кожному гравцю оновлюється завдяки унікальному ідентифікатору користувача.\nПід час кожного голосування чи формування списку здобутків за допомогою команд:\n/list та /top\nоновлена інформація користувача записується до бази даних боту.\nНе хвилюйтеся :)'
-        },
-        {
-            question: `Існують інші проєкти автору?`,
-            answer: 'Так існують! Дякую за цікавість :)\n\n<i>Ютуб канал</i>:\n- %youtube\n- %tgChannel\n- %tgGroup\n\n<i>Лист бажань</i>:\n- %wishlistUrlTg\n\n<i>ChatGPT Телеграм бот:</i>:\n- %chatGPTUrlGH'
-        }
-    ],
-    releases: {
-        labels: {
-            added: 'Додано',
-            updated: 'Змінено',
-            fixed: 'Виправлено',
-            removed: 'Видалено',
-            notes: 'Нотатки'
-        },
-        order: ['added', 'updated', 'fixed', 'removed', 'notes']
-    }
-} as const;
+export const LL = getMessages();
+export const messages = LL;
 
-export type Messages = typeof messages;
+const commandOrder = [
+    'start',
+    'help',
+    'propose',
+    'join',
+    'leave',
+    'run',
+    'list',
+    'top',
+    'reset',
+    'stop',
+    'stats',
+    'releases',
+    'lang'
+] as const;
+
+const congratsOrder = [
+    'line01',
+    'line02',
+    'line03',
+    'line04',
+    'line05',
+    'line06',
+    'line07',
+    'line08',
+    'line09',
+    'line10',
+    'line11',
+    'line12',
+    'line13',
+    'line14',
+    'line15',
+    'line16',
+    'line17',
+    'line18',
+    'line19'
+] as const;
+
+export const releaseGroupOrder = [
+    'added',
+    'updated',
+    'fixed',
+    'removed',
+    'notes'
+] as const;
+
+export type ReleaseGroup = (typeof releaseGroupOrder)[number];
+
+const getHourLabelKey = (hours: number) => {
+    if (hours === 1 || hours === 21) {
+        return 'one';
+    }
+
+    if ([2, 3, 4, 22, 23, 24].includes(hours)) {
+        return 'few';
+    }
+
+    return 'many';
+};
+
+export const getHourLabel = (
+    hours: number,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
+    const LL = getMessages(locale);
+
+    return LL.hours[getHourLabelKey(hours)]();
+};
+
+export const getCommandList = (locale: AppLocale = getDefaultAppLocale()) => {
+    const LL = getMessages(locale);
+
+    return commandOrder.map(command => LL.commands[command]());
+};
+
+export const getCongratsMessages = (
+    nick: string,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
+    const LL = getMessages(locale);
+
+    return congratsOrder.map(line => {
+        return LL.congrats[line]({
+            nick
+        });
+    });
+};
+
+export const getHelpEntries = (
+    env: WorkerBindings,
+    locale: AppLocale = getDefaultAppLocale()
+) => {
+    const LL = getMessages(locale);
+
+    return [
+        {
+            question: LL.help.items.howToStart.question(),
+            answer: LL.help.items.howToStart.answer()
+        },
+        {
+            question: LL.help.items.rename.question(),
+            answer: LL.help.items.rename.answer()
+        },
+        {
+            question: LL.help.items.projects.question(),
+            answer: LL.help.items.projects.answer({
+                youtube: env.YT_CHANNEL || '',
+                tgChannel: env.TG_CHANNEL || '',
+                tgGroup: env.TG_GROUP || '',
+                wishlistUrlTg: env.WISHLIST_TG_URL || '',
+                chatGPTUrlGH: env.CHATGPT_GITHUB_REPO_URL || ''
+            })
+        }
+    ];
+};
+
+export const getReleaseLabels = (
+    locale: AppLocale = getDefaultAppLocale()
+): Record<ReleaseGroup, string> => {
+    const LL = getMessages(locale);
+
+    return {
+        added: LL.releases.labels.added(),
+        updated: LL.releases.labels.updated(),
+        fixed: LL.releases.labels.fixed(),
+        removed: LL.releases.labels.removed(),
+        notes: LL.releases.labels.notes()
+    };
+};
+
+export const getAvailableLanguagesMessage = (
+    locale: AppLocale = getDefaultAppLocale()
+) => {
+    const LL = getMessages(locale);
+
+    return LL.lang.available();
+};

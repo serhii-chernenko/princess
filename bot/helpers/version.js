@@ -1,1 +1,1 @@
-module.exports = () => Object.keys(require('../../changelog.json'))[0];
+module.exports = () => require('../../releases.generated.json')[0]?.version;

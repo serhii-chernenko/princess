@@ -14,12 +14,17 @@ const try_db = <A>(execute: () => Promise<A>) => {
 };
 export const createChannelRepository = (db: AppDb) => {
     return {
-        createChannel(telegramChatId: number, releaseVersion: string) {
+        createChannel(
+            telegramChatId: number,
+            releaseVersion: string,
+            language = 'ua'
+        ) {
             return try_db(async () => {
                 const [channel] = await db
                     .insert(channels)
                     .values({
                         telegramChatId,
+                        language,
                         releaseVersion
                     })
                     .returning();
@@ -52,6 +57,16 @@ export const createChannelRepository = (db: AppDb) => {
                     .update(channels)
                     .set({
                         releaseVersion
+                    })
+                    .where(eq(channels.telegramChatId, telegramChatId));
+            });
+        },
+        updateChannelLanguage(telegramChatId: number, language: string) {
+            return try_db(() => {
+                return db
+                    .update(channels)
+                    .set({
+                        language
                     })
                     .where(eq(channels.telegramChatId, telegramChatId));
             });
