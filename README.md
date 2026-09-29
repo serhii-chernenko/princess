@@ -304,8 +304,8 @@ pnpm run worker:tail:beta
 Cloudflare Workers Builds is connected to `serhii-chernenko/princess`:
 
 - `princess` builds from `main` (build command `pnpm run i18n:generate`, deploy
-  command `pnpm exec wrangler deploy --env production`)
-- `princess-beta` builds from `feat/migration-to-v5` until the merge, then from `main`
+  command `pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`)
+- `princess-beta` builds from the `beta` branch (push any commit there to test it)
 
 Runtime secrets (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`) are
 set on each Worker, not in GitHub. Builds do not apply D1 migrations or change

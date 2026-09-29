@@ -28,7 +28,10 @@ Remaining follow-ups (none block traffic):
 2. Decide on Mongo Atlas retirement after the observation window.
 3. Enable scheduled cleanup only after reviewing the deletion set.
 4. Configure the GitHub `beta` environment secrets/variables for the copy workflow.
-5. Switch the `princess-beta` Workers Build branch to `main` after the merge.
+5. Investigate Cron Triggers: the schedules are registered (the dashboard shows
+   `*/10 * * * *` with a next run) but Cloudflare has not invoked them; Workers
+   Observability shows no `scheduled` events. Release announcements do not depend
+   on the cron, but the daily ledger prune does.
 6. Add Cloudflare edge rate limiting for the webhook and `/health` paths.
 
 Workers Paid is enabled (verified). The exact-parity design requires it: for a vote
@@ -76,10 +79,18 @@ All times UTC, 2026-09-29.
   The 404s seen are internet scanners.
 - **CD.** Cloudflare Workers Builds is connected to `serhii-chernenko/princess`.
   `princess` builds from `main` (build `pnpm run i18n:generate`, deploy
-  `pnpm exec wrangler deploy --env production`). `princess-beta` currently builds
-  from `feat/migration-to-v5` and is switched to `main` after the merge. The build
-  token is the account's generic "Workers Builds" token. The GitHub repo
-  secrets/variables of the old VPS deploy were deleted; GitHub CI only validates.
+  `pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`,
+  with build variables `WORKER_BASE_URL` and secret `TELEGRAM_WEBHOOK_SECRET`).
+  `princess-beta` builds from the `beta` branch. The build token is the account's
+  generic "Workers Builds" token. The GitHub repo secrets/variables of the old VPS
+  deploy were deleted; GitHub CI only validates.
+- **Go-live of 5.0.0.** Migration `20260929183002_mysterious_freak` was applied to
+  `princess-production` before the merge. The production queue was paused, PR #1
+  merged into `main` at 19:45:50Z as `24a17c6`, and the Workers Build deployed and
+  enqueued 217 announcements. Delivery was resumed at 19:47:30Z and drained by
+  19:51:38Z: 90 sent, 125 skipped with 400 (chat gone), 2 skipped with 403, 0
+  ambiguous, 0 failed. `feat/migration-to-v5` was deleted; a `beta` branch was
+  created from `main`.
 
 ### Finding: legacy winners were limited to resolvable members
 
@@ -94,14 +105,9 @@ treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 
 ## Repository and Branch Evidence
 
-- Current branch: `feat/migration-to-v5`.
-- Local `main` and `origin/main`: `243967c`.
-- Checked-in rewrite baseline at `HEAD`: `be567a8`, a WIP commit titled
-  "chore: in progress" that records Phase 8 on top of Phase 7 (`076c2bd`). It needs
-  a proper message or a squash before the PR; that is the owner's call.
-- The 2026-09-29 follow-up work (review fixes, D1 integration tests, beta isolation
-  tooling, webhook helper changes) is the current uncommitted worktree on top of
-  `be567a8`.
+- The rewrite was merged into `main` by PR #1 as merge commit `24a17c6`, keeping
+  the per-phase history (including the WIP commit `be567a8`).
+- `main` deploys production; `beta` deploys the beta Worker.
 - The cutover itself is recorded in the [Cutover record](#cutover-record).
 
 ## Main Compared with the Rewrite

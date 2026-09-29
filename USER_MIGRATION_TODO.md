@@ -90,11 +90,12 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 ## Open Follow-ups
 
-- [ ] Before merging to `main`, apply migration `20260929183002_mysterious_freak`
-      to `princess-production` with `pnpm db:migrate:prod`; Workers Builds
-      deploys code but does not run migrations.
-- [ ] Review and commit the current worktree, merge to `main`, then switch the
-      `princess-beta` Workers Build branch from `feat/migration-to-v5` to `main`.
+- [x] Apply migration `20260929183002_mysterious_freak` to `princess-production`
+      before merging (Workers Builds deploys code but does not run migrations).
+- [x] Merge to `main` (PR #1), announce 5.0.0 (90 sent, 127 skipped, 0 failed),
+      and move the `princess-beta` Workers Build to the `beta` branch.
+- [ ] Investigate why registered Cron Triggers are not invoked (no `scheduled`
+      events in Workers Observability); the daily ledger prune depends on them.
 - [ ] Rotate the production and beta bot tokens if desired (shared in chat).
 - [ ] Configure the GitHub `beta` environment secrets/variables and protections
       (required reviewers, `main` deployment-branch rule, D1-scoped token) for the
