@@ -1,4 +1,6 @@
 import { createApp } from './app';
+import type { ReleaseAnnouncementJob } from './queues/release-announcement-job';
+import { handleReleaseAnnouncementQueue } from './queues/release-announcements-handler';
 import { runScheduledTasks } from './scheduled/tasks';
 
 const app = createApp();
@@ -9,5 +11,8 @@ export default {
     },
     scheduled(controller, env, ctx) {
         return runScheduledTasks(controller, env, ctx);
+    },
+    queue(batch, env) {
+        return handleReleaseAnnouncementQueue(batch, env);
     }
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env, ReleaseAnnouncementJob>;

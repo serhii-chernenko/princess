@@ -20,6 +20,7 @@
     "vars": {
         "BOT_ENVIRONMENT": "local",
         "ENABLE_SCHEDULED_CLEANUP": "true",
+        "ENABLE_RELEASE_BROADCAST": "false",
         "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
         "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
         "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -33,6 +34,14 @@
             "BOT_TOKEN",
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_WEBHOOK_PATH"
+        ]
+    },
+    "queues": {
+        "producers": [
+            {
+                "binding": "RELEASE_QUEUE",
+                "queue": "princess-local-release-announcements"
+            }
         ]
     },
     "d1_databases": [
@@ -51,6 +60,7 @@
             "vars": {
                 "BOT_ENVIRONMENT": "stable",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
+                "ENABLE_RELEASE_BROADCAST": "true",
                 "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -73,7 +83,26 @@
                 }
             ],
             "triggers": {
-                "crons": ["0 0 * * *"]
+                "crons": ["0 0 * * *", "*/10 * * * *"]
+            },
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "RELEASE_QUEUE",
+                        "queue": "princess-release-announcements"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "princess-release-announcements",
+                        "max_batch_size": 10,
+                        "max_batch_timeout": 5,
+                        "max_retries": 5,
+                        "retry_delay": 30,
+                        "max_concurrency": 1,
+                        "dead_letter_queue": "princess-release-announcements-dlq"
+                    }
+                ]
             },
             "d1_databases": [
                 {
@@ -90,6 +119,7 @@
             "vars": {
                 "BOT_ENVIRONMENT": "beta",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
+                "ENABLE_RELEASE_BROADCAST": "true",
                 "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -111,6 +141,28 @@
                     "custom_domain": true
                 }
             ],
+            "triggers": {
+                "crons": ["*/10 * * * *"]
+            },
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "RELEASE_QUEUE",
+                        "queue": "princess-beta-release-announcements"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "princess-beta-release-announcements",
+                        "max_batch_size": 10,
+                        "max_batch_timeout": 5,
+                        "max_retries": 5,
+                        "retry_delay": 30,
+                        "max_concurrency": 1,
+                        "dead_letter_queue": "princess-beta-release-announcements-dlq"
+                    }
+                ]
+            },
             "d1_databases": [
                 {
                     "binding": "DB",

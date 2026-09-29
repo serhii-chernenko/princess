@@ -20,7 +20,9 @@ module.exports = (spliceIndex = 0, releasesToPost = []) => {
             result += `\n<strong>${labels[group]}</strong>\n\n`;
 
             for (const feature of features) {
-                result += `${features.length > 1 ? '- ' : ''}${feature}\n`;
+                const text = typeof feature === 'string' ? feature : feature.uk;
+
+                result += `${features.length > 1 ? '- ' : ''}${text}\n`;
             }
         }
 

@@ -1,5 +1,20 @@
 # princess
 
+## 5.0.0 - 29.09.2026
+
+### Major Changes
+
+- [updated] Бот переїхав на нову хмарну інфраструктуру та нову базу даних. Усі спільноти, учасниці та їхні очки збережені.
+    - en: The bot has moved to a new cloud infrastructure and a new database. All communities, players and their points are preserved.
+- [updated] Бот працює швидше та стабільніше.
+    - en: The bot is now faster and more reliable.
+- [added] Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Use /lang to switch the bot to English.
+    - en: New /lang command: community admins can choose the bot language (Ukrainian or English).
+- [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Жодних додаткових прав не потрібно.
+    - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. No extra permissions are needed.
+- [updated] Повідомлення про нові версії бота тепер надходять надійніше. Усі зміни завжди можна переглянути командою /releases.
+    - en: New version announcements are now delivered more reliably. All changes are always available via /releases.
+
 ## 4.0.1 - 17.08.2024
 
 ### Patch Changes

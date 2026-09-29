@@ -1,14 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { validateChangesetBody } from './changeset-validator';
+
 const changesetDir = '.changeset';
-const allowedGroups = new Set([
-    'added',
-    'updated',
-    'fixed',
-    'removed',
-    'notes'
-]);
 
 if (!fs.existsSync(changesetDir)) {
     process.exit(0);
@@ -29,43 +24,5 @@ for (const fileName of changesetFiles) {
         );
     }
 
-    const body = parts.slice(2).join('---').trim();
-
-    if (!body) {
-        throw new Error(`${fileName} must include at least one tagged bullet`);
-    }
-
-    const bodyLines = body.split('\n');
-    let expectingContinuation = false;
-
-    for (const line of bodyLines) {
-        if (!line.trim()) {
-            continue;
-        }
-
-        const bulletMatch = line.match(
-            /^- \[(added|updated|fixed|removed|notes)\] .+$/
-        );
-
-        if (bulletMatch) {
-            const group = bulletMatch[1];
-
-            if (!group || !allowedGroups.has(group)) {
-                throw new Error(
-                    `${fileName} uses unsupported release group ${group}`
-                );
-            }
-
-            expectingContinuation = true;
-            continue;
-        }
-
-        if (expectingContinuation) {
-            continue;
-        }
-
-        throw new Error(
-            `${fileName} has an invalid line. Use '- [added|updated|fixed|removed|notes] ...' bullets.`
-        );
-    }
+    validateChangesetBody(fileName, parts.slice(2).join('---'));
 }

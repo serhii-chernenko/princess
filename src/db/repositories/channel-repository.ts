@@ -56,6 +56,17 @@ export const createChannelRepository = (db: AppDb) => {
                 return channel ?? null;
             });
         },
+        findChannelById(channelId: number) {
+            return try_db(async () => {
+                const [channel] = await db
+                    .select()
+                    .from(channels)
+                    .where(eq(channels.id, channelId))
+                    .limit(1);
+
+                return channel ?? null;
+            });
+        },
         listChannelsWithOutdatedRelease(currentReleaseVersion: string) {
             return try_db(() => {
                 return db

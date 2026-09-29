@@ -89,6 +89,8 @@ const createBindings = (
         DB,
         BOT_ENVIRONMENT: botEnvironment,
         ENABLE_SCHEDULED_CLEANUP: botEnvironment === 'local' ? 'true' : 'false',
+        ENABLE_RELEASE_BROADCAST: botEnvironment === 'local' ? 'false' : 'true',
+        RELEASE_QUEUE: {} as WorkerBindings['RELEASE_QUEUE'],
         AUTHOR_TWITTER_LINK: 'https://twitter.com/giraffender',
         WISHLIST_TG_URL: 'https://t.me/wishlist_ua_bot',
         CHATGPT_GITHUB_REPO_URL:

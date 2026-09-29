@@ -1,4 +1,8 @@
-export type WorkerBindings = Env;
+import type { ReleaseAnnouncementJob } from './queues/release-announcement-job';
+
+export type WorkerBindings = Omit<Env, 'RELEASE_QUEUE'> & {
+    RELEASE_QUEUE: Queue<ReleaseAnnouncementJob>;
+};
 
 const requiredStringBindings = [
     'BOT_TOKEN',

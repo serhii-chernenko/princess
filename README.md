@@ -394,6 +394,30 @@ Use them like this:
 
 Do not edit `releases.generated.json` by hand. `changelog.json` is retired and removed.
 
+### Bilingual release notes
+
+Changeset bullets are written in Ukrainian and may carry an optional nested English line:
+
+```md
+- [added] Нова команда /lang.
+    - en: New /lang command.
+```
+
+`pnpm run changeset:validate` requires the Ukrainian text and accepts at most one nested `en:` line per bullet. The generated manifest stores each item as `{ "uk": "...", "en": "..." }`; `en` is optional and falls back to the Ukrainian text, so older Ukrainian-only history keeps working. `/releases` and the announcement pick the text from the community language (`ua` or `en`). `pnpm run changeset:version` prefixes bullets with the commit hash in `CHANGELOG.md`; the manifest parser understands both that shape and plain `- [group]` bullets.
+
+### Release announcements
+
+Every new release is announced to each community once, through Cloudflare Queues:
+
+- A `*/10 * * * *` cron (stable and beta) compares the newest manifest version with every channel's `release_version`. Channels on a lower version get one `release_announcements` row (unique per version and channel) and one queue job.
+- The queue consumer sends the announcement in the community language and then stores the version on the channel. `/start` also stores the current version, so new communities never receive old announcements.
+- Delivery is at-most-once on ambiguity: a duplicate announcement is worse than a missed one. The consumer first moves the row `queued` to `sending` (compare-and-set), then calls Telegram. A network error or timeout with no Telegram response, or a redelivery of a row still in `sending`, is marked `skipped` (no error code) and never resent. If the post-send state write still fails after three tries, the message is acknowledged and logged (`release_announcement_state_write_failed`), never resent.
+- Chats that block or remove the bot (403, or 400 with a permanent description such as `chat not found`) are marked `skipped` and the channel is kept; channels are never deleted. A 400 with `migrate_to_chat_id` updates the channel's chat id and sends once more, or is skipped (`release_announcement_chat_migrated_conflict`) when another channel already has that id. Any other 400 marks the row `failed` without bumping the channel version. 429 re-enqueues a fresh job after `retry_after + 1` seconds, so it never counts toward `max_retries`. 5xx returns the row to `queued` and retries with backoff; the final delivery marks it `failed` and the job lands in the dead-letter queue.
+- Kill switch: when `ENABLE_RELEASE_BROADCAST` is not `"true"`, the consumer sends nothing and changes no state; every message is retried after 600 seconds. Jobs with a malformed body or a version that is not the latest release are acknowledged and logged.
+- Stale recovery: each cron run re-enqueues `queued` rows for the current version untouched for over 3 hours (longer than the retry chain) and marks `sending` rows stuck over 3 hours as `skipped` (ambiguous).
+- Queues: stable `princess-release-announcements` with DLQ `princess-release-announcements-dlq`; beta `princess-beta-release-announcements` with DLQ `princess-beta-release-announcements-dlq`. Local development uses `princess-local-release-announcements` with the broadcast switched off.
+- `ENABLE_RELEASE_BROADCAST` (`"true"` on stable and beta, `"false"` locally) gates the producer. Beta holds production user data after a copy, so only enable it on beta when the beta bot is not sitting in real production groups.
+
 ## Legacy fallback
 
 The following remain only for behavior comparison while beta is being validated:

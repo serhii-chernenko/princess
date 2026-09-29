@@ -106,7 +106,7 @@ treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 | Runtime           | Long-running Node.js process on a VPS             | Cloudflare Worker with Hono and strict TypeScript                       |
 | Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                  |
 | Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories               |
-| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; proactive release fanout deliberately absent        |
+| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; release announcements via Cloudflare Queues         |
 | Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy stable/beta   |
 | Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest |
 
@@ -198,14 +198,14 @@ verification:
   the manual GitHub deploy job was removed because Cloudflare Workers Builds now
   deploys stable and beta. D1 migrations and Telegram webhook changes remain
   separate operator actions.
-- **Release migration.** A major v5 Changeset exists. `CHANGELOG.md` remains the
-  human history and `releases.generated.json` remains generated; it is not edited
-  by hand.
+- **Release migration.** The v5.0.0 release is cut with bilingual (Ukrainian and
+  English) notes. `CHANGELOG.md` remains the human history and
+  `releases.generated.json` remains generated; it is not edited by hand.
 - **Legacy recovery loader.** The polling runtime again reads ignored
   `env/.env.dev` or `env/.env.production`, including `MONGODB_URI`, rather than
   Worker `.dev.vars*` files.
 
-The full `pnpm test` suite passes (122 tests, including the integration tests), with
+The full `pnpm test` suite passes (190 tests, including the integration tests), with
 fresh generated Wrangler bindings and successful local, stable, and beta
 deployment dry-runs. The test script quotes its globs so nested test directories
 run. Rerun these gates after any further code or configuration change.
@@ -234,9 +234,10 @@ Intentional remaining differences from legacy:
 
 - `/run` answers a lost compare-and-set race with its own reply.
 - Cron cleanup stays off on stable until the deletion set is reviewed.
-- Proactive release broadcast is retired; `/lang` is new; names are HTML-escaped.
-- Chats the bot was kicked from are no longer auto-removed (a side effect of the
-  retired broadcast).
+- Release broadcast is restored through Cloudflare Queues; `/lang` is new; names are
+  HTML-escaped.
+- Chats that block or remove the bot are marked `skipped` on the announcement row
+  and are not deleted (legacy deleted the channel on 403).
 - A crashed dispatch can be re-run after the five-minute stale reclaim:
   at-least-once for crashes. The vote is guarded by compare-and-set; `/stop` and
   `/reset` are not.
@@ -281,14 +282,43 @@ design should use a durable inbox, idempotent mutation-effect keys, and an outbo
 Telegram send methods still provide no application idempotency key. See
 [Telegram `setWebhook`](https://core.telegram.org/bots/api#setwebhook).
 
-### 3. Proactive Release Broadcast — Retired for v5 Cutover
+### 3. Release Broadcast — Restored with Cloudflare Queues
 
-Do not recreate the legacy startup loop as inline cron fanout. `/releases` remains
-available, but automatic proactive broadcasting is retired for the v5 cutover.
-If it returns later, use a Cloudflare
-[Queue](https://developers.cloudflare.com/queues/) or
-[Workflow](https://developers.cloudflare.com/workflows/) with per-channel durable
-progress, bounded concurrency, retries, and idempotent release markers.
+The legacy startup loop is replaced by a queue-based announcement pipeline.
+
+- **Producer.** A `*/10 * * * *` cron on stable and beta runs when
+  `ENABLE_RELEASE_BROADCAST` is `"true"` (`"false"` locally). It selects channels
+  whose `release_version` is semver-lower than the newest manifest version and that
+  have no `release_announcements` row for it, inserts rows with insert-or-ignore
+  (chunked at 16 rows, 96 bound parameters), and enqueues only the rows that run
+  inserted, in batches of at most 100.
+- **Consumer.** Sequential, at least 50 ms between sends. Delivery is at-most-once
+  on ambiguity: the row moves `queued` to `sending` by compare-and-set before the
+  Telegram call. Success marks it `sent` (state write retried three times, never
+  resent) and stores the version on the channel. No Telegram response, or a
+  redelivery of a `sending` row, marks it `skipped` with no error code
+  (`release_announcement_ambiguous`). 403 and permanent 400 mark it `skipped` with
+  the code. 400 with `migrate_to_chat_id` updates the chat id and sends once more,
+  or skips on a chat id conflict. Other 400 marks it `failed` without bumping the
+  version. 429 re-enqueues a fresh job after `retry_after + 1` seconds (never
+  counts toward `max_retries`). 5xx returns the row to `queued` and retries with
+  30 s doubling backoff capped at one hour; the last delivery (`max_retries` 5, so
+  delivery six) marks it `failed` and the message goes to the DLQ. With
+  `ENABLE_RELEASE_BROADCAST` not `"true"` the consumer retries every message after
+  600 s without sending. Invalid or non-latest-version jobs are acknowledged.
+- **Stale recovery.** The cron re-enqueues `queued` rows older than 3 hours and marks
+  `sending` rows older than 3 hours `skipped`.
+- **Queues.** Stable: `princess-release-announcements`, DLQ
+  `princess-release-announcements-dlq`. Beta: `princess-beta-release-announcements`,
+  DLQ `princess-beta-release-announcements-dlq`. Local:
+  `princess-local-release-announcements`. Consumers use batch size 10, batch timeout
+  5 s, `max_concurrency` 1.
+- **Deviation from legacy.** Channels are never deleted on 403 or 400; the row is
+  marked `skipped` so members and scores survive a bot re-add.
+- **Not copied to beta.** `release_announcements` is excluded from
+  `db:copy:production-to-beta`, like `telegram_updates`.
+- **Known gap.** A crash between the row insert and `sendBatch` leaves a `queued` row
+  without a job; a failed `sendBatch` is rolled back, a hard crash is not.
 
 ### 4. Workers Paid — Enabled
 

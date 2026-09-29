@@ -67,6 +67,8 @@
 !/src/worker/routes/*.ts
 !/src/worker/scheduled
 !/src/worker/scheduled/*.ts
+!/src/worker/queues
+!/src/worker/queues/*.ts
 !/src/bot
 !/src/bot/*.ts
 !/src/bot/content

@@ -38,7 +38,8 @@ describe('D1 migrations', () => {
             'channels',
             'players',
             'channel_members',
-            'telegram_updates'
+            'telegram_updates',
+            'release_announcements'
         ]) {
             assert.equal(findObject(tableName)?.type, 'table', tableName);
         }
@@ -47,7 +48,8 @@ describe('D1 migrations', () => {
             'channels_telegram_chat_id_unique',
             'players_telegram_user_id_unique',
             'channel_members_channel_player_unique',
-            'telegram_updates_bot_update_unique'
+            'telegram_updates_bot_update_unique',
+            'release_announcements_version_channel_unique'
         ]) {
             assert.match(findObject(indexName)?.sql ?? '', /UNIQUE INDEX/);
         }
@@ -60,6 +62,10 @@ describe('D1 migrations', () => {
             findObject('telegram_updates')?.sql ?? '',
             /telegram_updates_status_check[^)]*CHECK\("status" in \('processing', 'processed'\)\)/
         );
+        assert.match(
+            findObject('release_announcements')?.sql ?? '',
+            /release_announcements_status_check[^)]*CHECK\("status" in \('queued', 'sending', 'sent', 'skipped', 'failed'\)\)/
+        );
         assert.match(findObject('channels')?.sql ?? '', /`language` text/);
     });
 
@@ -69,7 +75,7 @@ describe('D1 migrations', () => {
 
         await harness.applyMigrations();
 
-        assert.equal(appliedBefore, 3);
+        assert.equal(appliedBefore, 4);
         assert.equal(
             await countRows(harness, '__drizzle_migrations'),
             appliedBefore
@@ -94,7 +100,7 @@ describe('D1 migrations', () => {
         assert.equal(table?.name, migrationsTableName);
         assert.ok(columns.some(column => column.name === 'hash'));
         assert.ok(columns.some(column => column.name === 'id'));
-        assert.equal(hashes.length, 3);
+        assert.equal(hashes.length, 4);
         assert.ok(hashes.every(row => row.hash.length > 0));
     });
 

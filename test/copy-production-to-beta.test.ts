@@ -33,6 +33,7 @@ const allProductionTables = [
     'channel_members',
     'channels',
     'players',
+    'release_announcements',
     'sqlite_sequence',
     'telegram_updates'
 ];
@@ -187,6 +188,7 @@ test('export and import commands are hard-wired production to beta', () => {
         copiedTablesInInsertOrder
     );
     assert.equal(exportArguments.includes('telegram_updates'), false);
+    assert.equal(exportArguments.includes('release_announcements'), false);
     assert.deepEqual(getBetaImportArguments(configPath, '/tmp/out.sql'), [
         'exec',
         'wrangler',

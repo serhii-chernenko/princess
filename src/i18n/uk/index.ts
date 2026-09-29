@@ -102,6 +102,10 @@ const uk: Translation = {
             fixed: 'Виправлено',
             removed: 'Видалено',
             notes: 'Нотатки'
+        },
+        announcement: {
+            title: 'Бот оновлено до версії {version} 🎉',
+            footer: 'Усі зміни та попередні версії: /releases'
         }
     }
 };

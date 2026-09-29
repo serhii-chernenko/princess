@@ -102,6 +102,10 @@ const en: BaseTranslation = {
             fixed: 'Fixed',
             removed: 'Removed',
             notes: 'Notes'
+        },
+        announcement: {
+            title: 'The bot has been updated to version {version:string} 🎉',
+            footer: 'All changes and previous versions: /releases'
         }
     }
 };

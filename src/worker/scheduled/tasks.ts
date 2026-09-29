@@ -8,15 +8,22 @@ import {
     telegramUpdateRetentionMilliseconds
 } from '../../db/repositories/telegram-update-repository';
 import type { WorkerBindings } from '../env';
+import { runReleaseBroadcast } from './release-broadcast';
 
 const TASKS = {
     cleanup: 'maintenance:cleanup',
-    releases: 'maintenance:releases'
+    releases: 'maintenance:releases',
+    releaseBroadcast: 'release:broadcast'
 } as const;
 
 const DAILY_CRON = '0 0 * * *';
+export const RELEASE_BROADCAST_CRON = '*/10 * * * *';
 
-const getScheduledTaskNames = (cron: string) => {
+const getScheduledTaskNames = (cron: string): string[] => {
+    if (cron === RELEASE_BROADCAST_CRON) {
+        return [TASKS.releaseBroadcast];
+    }
+
     if (cron === DAILY_CRON) {
         return [TASKS.cleanup, TASKS.releases];
     }
@@ -25,6 +32,7 @@ const getScheduledTaskNames = (cron: string) => {
 };
 
 interface ScheduledTaskDependencies {
+    broadcastRelease?: (env: WorkerBindings) => Promise<unknown>;
     cleanupInactiveChannels?: (
         env: WorkerBindings,
         inactiveSince: Date
@@ -80,7 +88,29 @@ export const runScheduledTasks = async (
 ) => {
     const taskNames = getScheduledTaskNames(controller.cron);
 
-    if (env.BOT_ENVIRONMENT === 'stable') {
+    if (taskNames.includes(TASKS.releaseBroadcast)) {
+        const broadcastRelease =
+            dependencies.broadcastRelease ?? runReleaseBroadcast;
+
+        try {
+            await broadcastRelease(env);
+        } catch (error) {
+            console.error(
+                JSON.stringify({
+                    event: 'release_broadcast_failed',
+                    botEnvironment: env.BOT_ENVIRONMENT,
+                    cron: controller.cron,
+                    errorType: getErrorType(error)
+                })
+            );
+            throw error;
+        }
+    }
+
+    if (
+        env.BOT_ENVIRONMENT === 'stable' &&
+        !taskNames.includes(TASKS.releaseBroadcast)
+    ) {
         const pruneProcessed =
             dependencies.pruneProcessedTelegramUpdates ??
             pruneProcessedTelegramUpdates;

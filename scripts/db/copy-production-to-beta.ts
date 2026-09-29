@@ -25,7 +25,11 @@ export type WranglerRunner = (arguments_: string[]) => WranglerRunResult;
 
 export const confirmOverwriteBetaFlag = '--confirm-overwrite-beta';
 export const migrationsTableName = '__drizzle_migrations';
-export const excludedTableNames = [migrationsTableName, 'telegram_updates'];
+export const excludedTableNames = [
+    migrationsTableName,
+    'telegram_updates',
+    'release_announcements'
+];
 export const copiedTablesInInsertOrder = [
     'players',
     'channels',

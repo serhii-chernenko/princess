@@ -434,6 +434,17 @@ type RootTranslation = {
 			 */
 			notes: string
 		}
+		announcement: {
+			/**
+			 * T​h​e​ ​b​o​t​ ​h​a​s​ ​b​e​e​n​ ​u​p​d​a​t​e​d​ ​t​o​ ​v​e​r​s​i​o​n​ ​{​v​e​r​s​i​o​n​}​ ​�​�
+			 * @param {string} version
+			 */
+			title: RequiredParams<'version'>
+			/**
+			 * A​l​l​ ​c​h​a​n​g​e​s​ ​a​n​d​ ​p​r​e​v​i​o​u​s​ ​v​e​r​s​i​o​n​s​:​ ​/​r​e​l​e​a​s​e​s
+			 */
+			footer: string
+		}
 	}
 }
 
@@ -811,6 +822,16 @@ Players: <strong>{players}</strong>
 			 * Notes
 			 */
 			notes: () => LocalizedString
+		}
+		announcement: {
+			/**
+			 * The bot has been updated to version {version} 🎉
+			 */
+			title: (arg: { version: string }) => LocalizedString
+			/**
+			 * All changes and previous versions: /releases
+			 */
+			footer: () => LocalizedString
 		}
 	}
 }

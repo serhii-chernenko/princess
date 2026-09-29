@@ -24,10 +24,11 @@ test('core helpers expose the latest release consistently', async () => {
     const versions = getVersions();
     const rendered = renderReleases();
 
-    assert.equal(version, '4.0.1');
+    assert.equal(version, '5.0.0');
     assert.equal(Array.isArray(versions), true);
     assert.equal(versions[0].version, version);
-    assert.match(rendered, /4\.0\.1/);
+    assert.match(rendered, /5\.0\.0/);
+    assert.doesNotMatch(rendered, /\[object Object\]/);
     assert.match(rendered, /Нотатки/);
 });
 

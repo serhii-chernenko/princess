@@ -61,7 +61,7 @@ describe('wrangler-login migration bookkeeping', () => {
             migrationsFolder
         );
 
-        assert.equal(result.applied.length, 3);
+        assert.equal(result.applied.length, 4);
         assert.deepEqual(result.alreadyApplied, []);
         assert.deepEqual(
             await readRows(loginHarness, bookkeepingSql),
@@ -97,7 +97,7 @@ describe('wrangler-login migration bookkeeping', () => {
         );
 
         assert.deepEqual(result.applied, []);
-        assert.equal(result.alreadyApplied.length, 3);
+        assert.equal(result.alreadyApplied.length, 4);
     });
 
     it('resumes after drizzle applied only some migrations', async () => {
@@ -109,9 +109,11 @@ describe('wrangler-login migration bookkeeping', () => {
                 migrationsFolder
             );
             await partialHarness.env.DB.prepare(
-                'DELETE FROM "__drizzle_migrations" WHERE "id" = 3'
+                'DELETE FROM "__drizzle_migrations" WHERE "id" = 4'
             ).run();
-            await partialHarness.env.DB.exec('DROP TABLE "telegram_updates"');
+            await partialHarness.env.DB.exec(
+                'DROP TABLE "release_announcements"'
+            );
 
             const result = await applyDrizzleMigrations(
                 createHarnessExecutor(partialHarness),
