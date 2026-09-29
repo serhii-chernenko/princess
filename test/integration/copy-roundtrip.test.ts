@@ -8,7 +8,9 @@ import { after, before, describe, it } from 'node:test';
 import {
     buildChunkedDeleteSql,
     copiedTablesInInsertOrder,
+    countInsertStatements,
     getExportArguments,
+    getExportSqlFileName,
     getWipeOrder
 } from '../../scripts/db/copy-production-to-preview';
 import { createD1Harness, type D1Harness } from './d1-harness';
@@ -79,12 +81,14 @@ const createLocalDirectory = () => {
 
 type LocalDirectory = ReturnType<typeof createLocalDirectory>;
 
-const getLocalExportArguments = (local: LocalDirectory, outputPath: string) => {
-    const remoteArguments = getExportArguments(
-        local.configPath,
-        outputPath,
-        copiedTablesInInsertOrder
-    );
+const getLocalExportArguments = (
+    local: LocalDirectory,
+    outputPath: string,
+    table: string
+) => {
+    const remoteArguments = getExportArguments(local.configPath, outputPath, [
+        table
+    ]);
     const environmentIndex = remoteArguments.indexOf('--env');
     const withoutEnvironment = remoteArguments.filter((_, index) => {
         return index !== environmentIndex && index !== environmentIndex + 1;
@@ -209,7 +213,7 @@ describe('production to preview export and import round trip', () => {
     const localDirectories: LocalDirectory[] = [];
     let sourceSnapshot: Record<string, string>;
     let sourceCounts: Record<string, number>;
-    let exportedSqlPath: string;
+    let exportedSqlPaths: Record<string, string>;
     let destination: LocalDirectory;
 
     before(async () => {
@@ -245,8 +249,17 @@ describe('production to preview export and import round trip', () => {
             await destinationHarness.dispose();
         }
 
-        exportedSqlPath = path.join(source.directory, 'production-data.sql');
-        runChecked(getLocalExportArguments(source, exportedSqlPath));
+        exportedSqlPaths = {};
+
+        for (const table of copiedTablesInInsertOrder) {
+            const sqlPath = path.join(
+                source.directory,
+                getExportSqlFileName(table)
+            );
+
+            runChecked(getLocalExportArguments(source, sqlPath, table));
+            exportedSqlPaths[table] = sqlPath;
+        }
     });
 
     after(() => {
@@ -256,14 +269,23 @@ describe('production to preview export and import round trip', () => {
     });
 
     it(
-        'exports only INSERT statements without schema for the copied tables',
+        'exports one file per table with exactly the source row count and no schema',
         { skip: !wranglerRunnable },
         () => {
-            const exportedSql = fs.readFileSync(exportedSqlPath, 'utf8');
+            for (const table of copiedTablesInInsertOrder) {
+                const exportedSql = fs.readFileSync(
+                    exportedSqlPaths[table] ?? '',
+                    'utf8'
+                );
 
-            assert.doesNotMatch(exportedSql, /CREATE (TABLE|INDEX)/);
-            assert.doesNotMatch(exportedSql, /__drizzle_migrations/);
-            assert.match(exportedSql, /INSERT INTO "channel_members"/);
+                assert.doesNotMatch(exportedSql, /CREATE (TABLE|INDEX)/);
+                assert.doesNotMatch(exportedSql, /__drizzle_migrations/);
+                assert.equal(
+                    countInsertStatements(exportedSql, table),
+                    sourceCounts[table]
+                );
+            }
+
             assert.ok((sourceCounts.channel_members ?? 0) > 100);
         }
     );
@@ -274,7 +296,12 @@ describe('production to preview export and import round trip', () => {
         async () => {
             for (let attempt = 0; attempt < 2; attempt++) {
                 wipeApplicationTables(destination);
-                executeLocal(destination, { file: exportedSqlPath });
+
+                for (const table of copiedTablesInInsertOrder) {
+                    executeLocal(destination, {
+                        file: exportedSqlPaths[table] ?? ''
+                    });
+                }
 
                 const harness = await createD1Harness({
                     persistDirectory: destination.proxyPersistDirectory
