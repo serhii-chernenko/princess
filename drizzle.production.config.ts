@@ -1,15 +1,12 @@
-import fs from 'node:fs';
-import { config } from 'dotenv';
+import path from 'node:path';
 import { defineConfig } from 'drizzle-kit';
 
-const dotenvPath = process.env.DOTENV_CONFIG_PATH ?? '.dev.vars.production';
+import { resolveProductionD1DatabaseId } from './scripts/db/production-d1-target';
 
-if (fs.existsSync(dotenvPath)) {
-    config({
-        path: dotenvPath,
-        override: false
-    });
-}
+const productionDatabaseId = resolveProductionD1DatabaseId(
+    path.resolve(process.cwd(), 'wrangler.jsonc'),
+    process.env.CLOUDFLARE_DATABASE_ID
+);
 
 export default defineConfig({
     out: './drizzle',
@@ -18,7 +15,7 @@ export default defineConfig({
     driver: 'd1-http',
     dbCredentials: {
         accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
-        databaseId: process.env.CLOUDFLARE_DATABASE_ID ?? '',
+        databaseId: productionDatabaseId,
         token: process.env.CLOUDFLARE_D1_TOKEN ?? ''
     }
 });

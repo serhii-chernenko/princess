@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -12,6 +12,19 @@ const try_db = <A>(execute: () => Promise<A>) => {
         }
     });
 };
+
+const getInactiveChannelCondition = (cutoff: Date) => {
+    return and(isNotNull(channels.lastVoteAt), lt(channels.lastVoteAt, cutoff));
+};
+
+const getLastVoteAtCondition = (lastVoteAt: Date | null) => {
+    if (lastVoteAt === null) {
+        return isNull(channels.lastVoteAt);
+    }
+
+    return eq(channels.lastVoteAt, lastVoteAt);
+};
+
 export const createChannelRepository = (db: AppDb) => {
     return {
         createChannel(
@@ -81,6 +94,50 @@ export const createChannelRepository = (db: AppDb) => {
                     .where(eq(channels.id, channelId));
             });
         },
+        claimChannelRun(
+            channelId: number,
+            expectedLastVoteAt: Date | null,
+            claimedLastVoteAt: Date
+        ) {
+            return try_db(async () => {
+                const [channel] = await db
+                    .update(channels)
+                    .set({
+                        lastVoteAt: claimedLastVoteAt
+                    })
+                    .where(
+                        and(
+                            eq(channels.id, channelId),
+                            getLastVoteAtCondition(expectedLastVoteAt)
+                        )
+                    )
+                    .returning();
+
+                return channel ?? null;
+            });
+        },
+        restoreClaimedChannelRun(
+            channelId: number,
+            claimedLastVoteAt: Date,
+            previousLastVoteAt: Date | null
+        ) {
+            return try_db(async () => {
+                const [channel] = await db
+                    .update(channels)
+                    .set({
+                        lastVoteAt: previousLastVoteAt
+                    })
+                    .where(
+                        and(
+                            eq(channels.id, channelId),
+                            eq(channels.lastVoteAt, claimedLastVoteAt)
+                        )
+                    )
+                    .returning();
+
+                return channel ?? null;
+            });
+        },
         resetChannelRun(channelId: number) {
             return try_db(() => {
                 return db
@@ -102,17 +159,28 @@ export const createChannelRepository = (db: AppDb) => {
                 return Number(result?.count ?? 0);
             });
         },
-        findInactiveChannels(cutoff: Date) {
+        findInactiveChannelPlayerIds(cutoff: Date) {
             return try_db(() => {
                 return db
-                    .select()
-                    .from(channels)
-                    .where(
-                        and(
-                            isNotNull(channels.lastVoteAt),
-                            lt(channels.lastVoteAt, cutoff)
-                        )
-                    );
+                    .selectDistinct({
+                        playerId: channelMembers.playerId
+                    })
+                    .from(channelMembers)
+                    .innerJoin(
+                        channels,
+                        eq(channelMembers.channelId, channels.id)
+                    )
+                    .where(getInactiveChannelCondition(cutoff));
+            });
+        },
+        deleteInactiveChannels(cutoff: Date) {
+            return try_db(() => {
+                return db
+                    .delete(channels)
+                    .where(getInactiveChannelCondition(cutoff))
+                    .returning({
+                        id: channels.id
+                    });
             });
         },
         deleteChannel(channelId: number) {

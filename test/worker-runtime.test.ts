@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { renderReleaseNotes } from '../src/bot/content/releases';
@@ -8,6 +9,8 @@ import {
 } from '../src/bot/content/messages';
 import { mapAppLocaleToI18nLocale, normalizeAppLocale } from '../src/bot/i18n';
 import { getTelegramWebhookPath } from '../src/worker/env';
+import { getSortedPrintablePlayers } from '../src/bot/services/game-service';
+import { escapeHtml } from '../src/bot/utils/strings';
 import { formatUserName, isForwardedReply } from '../src/bot/utils/telegram';
 
 test('typed release renderer exposes the latest changelog', () => {
@@ -17,12 +20,10 @@ test('typed release renderer exposes the latest changelog', () => {
     assert.match(rendered, /Нотатки/);
 });
 
-test('worker webhook path falls back to the default route', () => {
-    const path = getTelegramWebhookPath({
-        DB: {} as D1Database
-    });
+test('worker webhook path fails closed when it is not configured', () => {
+    const path = getTelegramWebhookPath({});
 
-    assert.equal(path, '/telegram');
+    assert.equal(path, null);
 });
 
 test('telegram helpers preserve legacy username formatting rules', () => {
@@ -45,6 +46,80 @@ test('telegram helpers preserve legacy username formatting rules', () => {
             'name'
         ),
         'Test User'
+    );
+});
+
+test('Telegram-controlled HTML text escapes markup and quotes', () => {
+    assert.equal(
+        escapeHtml(`Princess & <Admin> "quoted" 'single'`),
+        'Princess &amp; &lt;Admin&gt; &quot;quoted&quot; &#39;single&#39;'
+    );
+});
+
+test('vote ranking reuses reconciled players and their incremented scores', async () => {
+    const winner = {
+        member: {
+            score: 3
+        },
+        player: {
+            displayName: 'Winner'
+        }
+    };
+    const printablePlayers = getSortedPrintablePlayers(
+        [
+            {
+                member: {
+                    score: 1
+                },
+                player: {
+                    displayName: 'Runner-up'
+                }
+            },
+            winner,
+            {
+                member: {
+                    score: 0
+                },
+                player: {
+                    displayName: 'No score'
+                }
+            }
+        ],
+        'top'
+    );
+
+    assert.deepEqual(
+        printablePlayers.map(player => player.player.displayName),
+        ['Winner', 'Runner-up']
+    );
+
+    const gameServiceSource = await readFile(
+        new URL('../src/bot/services/game-service.ts', import.meta.url),
+        'utf8'
+    );
+    const runVoteSource = gameServiceSource.slice(
+        gameServiceSource.indexOf('    const runVote = async ('),
+        gameServiceSource.indexOf('    const resetScores = async (')
+    );
+
+    assert.equal(runVoteSource.match(/reconcileActivePlayers\(/g)?.length, 1);
+    assert.doesNotMatch(runVoteSource, /getPrintablePlayers\(/);
+});
+
+test('ordinary bot commands cannot trigger global stale-data cleanup', async () => {
+    const botSource = await readFile(
+        new URL('../src/bot/telegraf/bot.ts', import.meta.url),
+        'utf8'
+    );
+    const stopHandlerSource = botSource.slice(
+        botSource.indexOf("    bot.command('stop'"),
+        botSource.indexOf("    bot.command('stats'")
+    );
+
+    assert.doesNotMatch(botSource, /game\.cleanupInactiveChannels\(/);
+    assert.match(
+        stopHandlerSource,
+        /game\.stopChannel\(actor\.chatId, locale\)/
     );
 });
 

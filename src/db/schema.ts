@@ -1,1 +1,7 @@
-export { channelMembers, channels, players } from './schemas';
+export {
+    channelMembers,
+    channels,
+    players,
+    telegramUpdates,
+    telegramUpdateStatuses
+} from './schemas';

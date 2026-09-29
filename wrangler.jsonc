@@ -5,7 +5,21 @@
     "compatibility_date": "2026-05-09",
     "compatibility_flags": ["nodejs_compat"],
     "workers_dev": true,
+    "observability": {
+        "enabled": true,
+        "logs": {
+            "enabled": true,
+            "head_sampling_rate": 1,
+            "invocation_logs": true
+        },
+        "traces": {
+            "enabled": true,
+            "head_sampling_rate": 0.05
+        }
+    },
     "vars": {
+        "BOT_ENVIRONMENT": "local",
+        "ENABLE_SCHEDULED_CLEANUP": "true",
         "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
         "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
         "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -33,8 +47,10 @@
     "env": {
         "production": {
             "name": "princess-stable",
-            "workers_dev": true,
+            "workers_dev": false,
             "vars": {
+                "BOT_ENVIRONMENT": "stable",
+                "ENABLE_SCHEDULED_CLEANUP": "false",
                 "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -42,6 +58,13 @@
                 "TG_GROUP": "https://t.me/serhii_chernenko_chat",
                 "YT_CHANNEL": "https://youtube.com/@serhii.chernenko",
                 "MAIL": "contact@chernenko.digital"
+            },
+            "secrets": {
+                "required": [
+                    "BOT_TOKEN",
+                    "TELEGRAM_WEBHOOK_SECRET",
+                    "TELEGRAM_WEBHOOK_PATH"
+                ]
             },
             "routes": [
                 {
@@ -64,8 +87,10 @@
         },
         "beta": {
             "name": "princess-beta",
-            "workers_dev": true,
+            "workers_dev": false,
             "vars": {
+                "BOT_ENVIRONMENT": "beta",
+                "ENABLE_SCHEDULED_CLEANUP": "false",
                 "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
@@ -73,6 +98,13 @@
                 "TG_GROUP": "https://t.me/serhii_chernenko_chat",
                 "YT_CHANNEL": "https://youtube.com/@serhii.chernenko",
                 "MAIL": "contact@chernenko.digital"
+            },
+            "secrets": {
+                "required": [
+                    "BOT_TOKEN",
+                    "TELEGRAM_WEBHOOK_SECRET",
+                    "TELEGRAM_WEBHOOK_PATH"
+                ]
             },
             "routes": [
                 {

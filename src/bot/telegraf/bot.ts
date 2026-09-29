@@ -27,12 +27,12 @@ import {
     isForwardedReply,
     randomInt
 } from '../utils/telegram';
+import { escapeHtml } from '../utils/strings';
 import type { WorkerBindings } from '../../worker/env';
 
 const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
 
-type PrincessBot = Telegraf<Context>;
 type ChatMemberReader = {
     getChatMember(
         chatId: number,
@@ -47,7 +47,7 @@ type ChatMemberReader = {
 const handleCommandError = async (
     ctx: Context,
     error: unknown,
-    locale: AppLocale = getDefaultAppLocale()
+    _locale: AppLocale = getDefaultAppLocale()
 ) => {
     if (isBotUserError(error)) {
         if (error.silent) {
@@ -63,8 +63,7 @@ const handleCommandError = async (
         return;
     }
 
-    console.error('princess bot command failure', error);
-    await ctx.sendMessage(getMessages(locale).error());
+    throw error;
 };
 
 const handleListenerError = async (
@@ -97,10 +96,10 @@ const formatTopList = (
         .slice(0, 10)
         .map((player, index) => {
             if (index === 0) {
-                return `${index + 1}. <strong>${player.player.displayName}</strong>: ${player.member.score} 👸`;
+                return `${index + 1}. <strong>${escapeHtml(player.player.displayName)}</strong>: ${player.member.score} 👸`;
             }
 
-            return `${index + 1}. ${player.player.displayName}: ${player.member.score}`;
+            return `${index + 1}. ${escapeHtml(player.player.displayName)}: ${player.member.score}`;
         })
         .join('\n');
 };
@@ -117,7 +116,7 @@ const formatAllPlayersList = (
 ) => {
     return players
         .map((player, index) => {
-            return `${index + 1}. ${player.player.displayName}: ${player.member.score}`;
+            return `${index + 1}. ${escapeHtml(player.player.displayName)}: ${player.member.score}`;
         })
         .join('\n');
 };
@@ -188,7 +187,7 @@ const renderWinnerMessage = (ctxUser: Context['from'], locale: AppLocale) => {
     }
 
     const congratsMessages = getCongratsMessages(
-        `<strong>${formatUserName(ctxUser)}</strong>`,
+        `<strong>${escapeHtml(formatUserName(ctxUser))}</strong>`,
         locale
     );
     const congratsIndex = randomInt(0, congratsMessages.length - 1);
@@ -220,23 +219,22 @@ const getRequestedLanguage = (ctx: Context) => {
     };
 };
 
-let cachedBot: PrincessBot | null = null;
-let cachedToken = '';
-
 export const createPrincessBot = (env: WorkerBindings) => {
     if (!env.BOT_TOKEN) {
         throw new Error('BOT_TOKEN is required to create the Telegram bot');
-    }
-
-    if (cachedBot && cachedToken === env.BOT_TOKEN) {
-        return cachedBot;
     }
 
     const bot = new Telegraf<Context>(env.BOT_TOKEN);
     const game = createGameService(env);
 
     bot.catch(error => {
-        console.error('telegraf middleware failure', error);
+        console.error(
+            JSON.stringify({
+                event: 'telegraf_middleware_failed',
+                errorType: error instanceof Error ? error.name : typeof error
+            })
+        );
+        throw error;
     });
 
     bot.start(async ctx => {
@@ -254,7 +252,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             if (isPrivateChatStart(ctx)) {
                 await ctx.replyWithHTML(
                     `${LL.greetings({
-                        name: formatUserName(actor.user, 'name')
+                        name: escapeHtml(formatUserName(actor.user, 'name'))
                     })}\n\n${LL.greetingsError()}`
                 );
                 return;
@@ -274,7 +272,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             await game.ensureChannel(actor.chatId);
             await ctx.replyWithHTML(
                 `${LL.greetings({
-                    name: formatUserName(actor.user, 'name')
+                    name: escapeHtml(formatUserName(actor.user, 'name'))
                 })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}`
             );
         } catch (error) {
@@ -392,9 +390,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             await ctx.replyWithHTML(
                 `${LL.winner({
-                    name: formatUserName(
-                        result.winner.telegramMember.user,
-                        'name'
+                    name: escapeHtml(
+                        formatUserName(
+                            result.winner.telegramMember.user,
+                            'name'
+                        )
                     )
                 })}<em>${congratsMessage} ❤️</em>`
             );
@@ -403,9 +403,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 result.printablePlayers,
                 'top',
                 locale
-            );
-            await game.cleanupInactiveChannels(
-                new Date(Date.now() - 30 * 24 * 3600 * 1000)
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale);
@@ -440,9 +437,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             await ctx.replyWithHTML(
                 `${LL.winner({
-                    name: formatUserName(
-                        result.winner.telegramMember.user,
-                        'name'
+                    name: escapeHtml(
+                        formatUserName(
+                            result.winner.telegramMember.user,
+                            'name'
+                        )
                     )
                 })}<em>${congratsMessage} ❤️</em>`
             );
@@ -451,9 +450,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 result.printablePlayers,
                 'top',
                 locale
-            );
-            await game.cleanupInactiveChannels(
-                new Date(Date.now() - 30 * 24 * 3600 * 1000)
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale);
@@ -605,10 +601,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
-            await game.cleanupInactiveChannels(
-                new Date(Date.now() - 30 * 24 * 3600 * 1000)
-            );
-
             const { channelsCount, playersCount } = await game.getStats();
 
             await ctx.replyWithHTML(
@@ -715,9 +707,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             await ctx.replyWithHTML(
                 `${LL.winner({
-                    name: formatUserName(
-                        result.winner.telegramMember.user,
-                        'name'
+                    name: escapeHtml(
+                        formatUserName(
+                            result.winner.telegramMember.user,
+                            'name'
+                        )
                     )
                 })}<em>${congratsMessage} ❤️</em>`
             );
@@ -731,9 +725,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
             await handleListenerError(ctx, error, locale);
         }
     });
-
-    cachedBot = bot;
-    cachedToken = env.BOT_TOKEN;
 
     return bot;
 };

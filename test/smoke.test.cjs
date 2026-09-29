@@ -98,3 +98,95 @@ test('db layer files exist for the D1 migration path', async () => {
 
     assert.ok(migrationFiles.length > 0);
 });
+
+test('legacy rollback loads its isolated Mongo environment file', () => {
+    const connectDbSource = fs.readFileSync(
+        path.join(__dirname, '../bot/connect-db.js'),
+        'utf8'
+    );
+
+    assert.match(
+        connectDbSource,
+        /'env', `\.env\.\$\{process\.env\.NODE_ENV\}`/
+    );
+    assert.doesNotMatch(connectDbSource, /\.dev\.vars/);
+    assert.match(connectDbSource, /process\.env\.MONGODB_URI/);
+});
+
+test('remote migration and webhook cutover cannot run from ordinary CI deploys', () => {
+    const packageJson = JSON.parse(
+        fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
+    );
+    const workflowSource = fs.readFileSync(
+        path.join(__dirname, '../.github/workflows/main.yml'),
+        'utf8'
+    );
+    const wranglerConfig = JSON.parse(
+        fs.readFileSync(path.join(__dirname, '../wrangler.jsonc'), 'utf8')
+    );
+    const deployJobSource = workflowSource.slice(
+        workflowSource.indexOf('\n    deploy:')
+    );
+
+    assert.equal(packageJson.scripts['deploy:stable'], undefined);
+    assert.equal(packageJson.scripts['deploy:production'], undefined);
+    assert.equal(packageJson.scripts['deploy:beta'], undefined);
+    assert.doesNotMatch(
+        packageJson.scripts['worker:deploy:stable'],
+        /db:migrate|telegram:webhook/
+    );
+    assert.doesNotMatch(
+        packageJson.scripts['worker:deploy:beta'],
+        /db:migrate|telegram:webhook/
+    );
+    assert.match(
+        deployJobSource,
+        /github\.event_name == 'workflow_dispatch'.*github\.ref == 'refs\/heads\/main'/
+    );
+    assert.doesNotMatch(deployJobSource, /github\.event_name == 'push'/);
+    assert.match(deployJobSource, /pnpm run worker:deploy:stable/);
+    assert.doesNotMatch(deployJobSource, /db:migrate/);
+    assert.doesNotMatch(deployJobSource, /telegram:webhook/);
+    assert.match(deployJobSource, /REPLACE_WITH_/);
+    assert.doesNotMatch(deployJobSource, /cat\s+<<['"]?EOF/);
+    assert.match(
+        deployJobSource,
+        /scripts\/cloudflare\/write-runtime-secrets\.ts/
+    );
+    assert.match(deployJobSource, /trap cleanup_runtime_secrets EXIT/);
+    assert.match(
+        deployJobSource,
+        /unset BOT_TOKEN TELEGRAM_WEBHOOK_PATH TELEGRAM_WEBHOOK_SECRET/
+    );
+    assert.match(
+        deployJobSource,
+        /BOT_TOKEN:\s*\$\{\{ secrets\.BOT_TOKEN \}\}/
+    );
+    assert.match(
+        deployJobSource,
+        /CLOUDFLARE_API_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/
+    );
+    assert.match(
+        deployJobSource,
+        /CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{ vars\.CLOUDFLARE_ACCOUNT_ID \}\}/
+    );
+    assert.doesNotMatch(
+        deployJobSource,
+        /^\s+run:.*\$\{\{\s*(?:secrets|vars)\./m
+    );
+    assert.equal(wranglerConfig.env.production.workers_dev, false);
+    assert.equal(wranglerConfig.env.beta.workers_dev, false);
+});
+
+test('game service logs claim-restore failures without raw error objects', () => {
+    const gameServiceSource = fs.readFileSync(
+        path.join(__dirname, '../src/bot/services/game-service.ts'),
+        'utf8'
+    );
+
+    assert.match(gameServiceSource, /channel_run_claim_restore_failed/);
+    assert.doesNotMatch(
+        gameServiceSource,
+        /console\.error\(\s*['"]failed to restore channel run claim/
+    );
+});

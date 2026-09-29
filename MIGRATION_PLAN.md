@@ -1,11 +1,13 @@
 # Princess Bot Migration Plan
 
-Last updated: 2026-05-10
+Last updated: 2026-07-15
 Repo: `/Users/inevix/dev/main/princess`
 
 ## Purpose
 
-This file is the source of truth for the modernization plan of the `princess` Telegram bot.
+This file preserves the architecture decisions and historical phase detail for the
+`princess` Telegram bot rewrite. The authoritative current audit, cutover gates,
+and rollback policy now live in [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
 
 Before starting each next phase, reread this file and confirm:
 
@@ -15,18 +17,24 @@ Before starting each next phase, reread this file and confirm:
 
 ## Current State Summary
 
-The current bot is:
+The migration is **implemented in large part but not cut over to production**.
 
-- A long-running polling `Telegraf` app started from `bot/index.js`.
-- Using `MongoDB + Mongoose`.
-- Deployed through `GitHub Actions -> Ansible -> Docker -> VPS`.
-- Written in JavaScript without a test suite.
-- Using hand-rolled i18n and changelog broadcasting.
+- `main` and `origin/main` remain at legacy baseline `243967c`: long-running
+  Telegraf polling, MongoDB/Mongoose, and GitHub Actions to Ansible/Docker/VPS.
+- Branch `feat/migration-to-v5` has checked-in baseline `076c2bd`, seven commits
+  ahead of main, with the Worker/D1 rewrite through Phase 7.
+- Phase 8 hardening and repository cleanup are current uncommitted worktree work.
+- The primary repository runtime is Cloudflare Workers + Hono + Telegraf webhooks,
+  with Drizzle + D1, strict TypeScript, typed i18n, and Changesets.
+- A durable bot-specific webhook `update_id` ledger with leases and deduplication
+  is now implemented. Workers-runtime D1 integration coverage, remote provisioning,
+  fresh data migration, traffic cutover, and live validation remain.
+- The current exact-parity vote path needs Workers Paid for the real 55-member
+  maximum group because actor validation plus one reconciliation uses about 56
+  Telegram API subrequests, above the Free plan's 50.
 
-Important behavioral note:
-
-- The "daily" run is not a real scheduled job today.
-- It is triggered by regular group messages and rate-limited to once per 24 hours.
+The daily product behavior remains message-triggered and rate-limited to once per
+24 hours; the cron trigger is for maintenance, not selection.
 
 ## Approved Architecture Decisions
 
@@ -467,7 +475,8 @@ Phase 6 intentional deferrals:
 
 ### Phase 7: Deployment Migration
 
-Status: complete
+Status: repository implementation complete; remote provisioning and production
+cutover pending
 
 Goals:
 
@@ -487,7 +496,7 @@ Exit criteria:
 - Production deploy targets Cloudflare Workers.
 - Old deployment path is no longer required.
 
-Phase 7 implementation result:
+Phase 7 repository implementation result:
 
 1. Replaced the GitHub Actions VPS/Ansible deploy workflow with a Cloudflare Worker deploy workflow in `.github/workflows/main.yml`
 2. Simplified deploy back to direct Wrangler commands with `--secrets-file`
@@ -518,12 +527,13 @@ Verification notes:
 
 Phase 7 intentional deferrals:
 
-- The legacy Docker/Ansible files are still present as temporary fallback artifacts, but they are no longer the primary deploy path
-- Automatic proactive release broadcast to all groups is still not part of the production scheduled flow
+- Automatic proactive release broadcast is retired for the v5 cutover. If it is
+  reintroduced later, use a Queue or Workflow with durable per-channel progress;
+  do not fan out inline from a cron invocation.
 
 ### Phase 8: Final Repo Operations and Agent Docs
 
-Status: pending
+Status: in progress in the uncommitted worktree
 
 Goals:
 
@@ -531,26 +541,86 @@ Goals:
 
 Scope:
 
-- Add `AGENT.md` final updates if still needed.
-- Install needed skills via `npx skills add`.
+- Finalize the repo instruction file as `AGENTS.md`.
+- Remove obsolete VPS deployment artifacts and dead release files.
 - Update README and operating instructions.
 
 Exit criteria:
 
 - Human and agent workflows are documented.
+- Only the active Worker/D1 release flow remains in the repo.
+
+Current uncommitted implementation:
+
+1. Removed obsolete VPS deployment artifacts:
+    - `.ansible/`
+    - `.docker/`
+    - Docker-related `package.json` scripts
+    - `package-lock.json`
+2. Promoted the repo instruction file to `AGENTS.md` and retired `AGENT.md`
+3. Removed dead legacy release input:
+    - `changelog.json`
+4. Kept the canonical release flow as:
+    - `.changeset/*.md` for unreleased notes
+    - `CHANGELOG.md` for human release history
+    - `releases.generated.json` for runtime `/releases`
+5. Tightened the stable GitHub Actions workflow so it now:
+    - prepares `.dev.vars.production`
+    - validates pushes and pull requests without deploying
+    - deploys only the stable Worker on a manual dispatch from `main`
+    - never applies D1 migrations or changes Telegram webhooks
+    - no longer carries unused `ADMIN_ID`
+6. Updated operator docs for:
+    - stable workflow behavior
+    - release artifact ownership
+    - beta safety with a shared D1 database
+7. Added a durable Telegram update ledger with:
+    - a unique bot-specific key plus `update_id`
+    - atomic claim and terminalized-duplicate acknowledgement
+    - lease-matched terminalization after success or caught dispatch failure
+    - no automatic deletion or release after Telegraf dispatch starts
+    - five-minute stale-lease reclamation
+    - a stable-owned job that prunes processed rows after seven days and abandoned
+      processing rows after 24 hours
+8. Hardened the Worker boundary with a 1 MiB authenticated body cap, message-update
+   validation, authenticated D1 readiness, service-level cleanup authorization,
+   and custom-domain-only production/beta Workers.
+
+Verification notes:
+
+- The complete suite reports 70 passing tests after the boundary-hardening work.
+- Generated-binding verification and local/stable/beta deployment dry-runs pass;
+  rerun these gates after further code or configuration changes.
+
+Important readiness note:
+
+- Stable and beta share the same D1 database, so beta testing is safe only in a beta-only Telegram group with a separate bot token, webhook path, and domain. The current schema does not namespace records by environment.
 
 ## Risks and Watchpoints
 
 ### Behavior Risks
 
 - Polling to webhook migration may subtly change how updates are handled.
+- The durable ledger terminalizes caught dispatch failures, so Telegram retries
+  cannot rerun known partial execution. D1 mutations, Telegram sends, and ledger
+  terminalization are not transactional: crashes, timeouts, lost responses, or
+  stale-lease reclaim can still repeat an earlier side effect. When terminalization
+  is uncertain, acknowledging the update favors at-most-once execution and can
+  lose an unfinished command or reply. This is an explicit cutover reliability
+  decision, not general recovery; use `max_connections=1`, avoid `/sudorun` during
+  cutover/reconciliation, and stop to inspect dispatch, terminalization, lease-loss,
+  or reclaimed-claim events.
 - The current message-triggered daily run must not accidentally become cron-driven unless intended.
-- Release fanout currently happens on process startup; that has to be redesigned explicitly.
+- Legacy release fanout is retired for the v5 cutover. If restored later, it must
+  use a durable Queue or Workflow rather than inline cron fanout.
 
 ### Performance Risks
 
 - Current logic does repeated sequential DB and Telegram API calls.
 - `getChatMember` calls per player may be expensive in a request-bound Worker environment.
+- Actor validation plus reconciliation of the real 55-member maximum group uses
+  about 56 Telegram API subrequests, so exact current behavior exceeds the
+  Workers Free limit of 50 and requires Paid or a redesign.
 
 ### Data Risks
 
@@ -652,8 +722,13 @@ For this bot, the practical setup is now:
 
 ## Next Step
 
-The next executable step is:
+Finish the pre-cutover repository gates in this order:
 
-`Phase 8: Final Repo Operations and Agent Docs`
+1. Add Workers-runtime integration tests against a real local D1 binding.
+2. Rerun the full verification suite, review, and commit Phase 8.
+3. Confirm Workers Paid and provision real D1 IDs, secrets, and routes.
+4. Follow the fresh-export, freeze, migrate, reconcile, beta-only validation, and
+   stable switch sequence in [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
 
-Do not begin Phase 8 until Phase 7 is reviewed and accepted.
+Do not equate a coded phase with a migrated production service. Legacy retirement
+comes only after live stable validation and D1 delta review.

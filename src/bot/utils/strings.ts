@@ -15,6 +15,15 @@ export const escapeUserLabel = (value: string) => {
     return result;
 };
 
+export const escapeHtml = (value: string) => {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+};
+
 export const replaceTemplate = (
     value: string,
     replacements: Record<string, string>

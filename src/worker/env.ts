@@ -1,19 +1,58 @@
-export interface WorkerBindings {
-    DB: D1Database;
-    BOT_TOKEN?: string;
-    TELEGRAM_WEBHOOK_PATH?: string;
-    TELEGRAM_WEBHOOK_SECRET?: string;
-    AUTHOR_TWITTER_LINK?: string;
-    WISHLIST_TG_URL?: string;
-    CHATGPT_GITHUB_REPO_URL?: string;
-    TG_CHANNEL?: string;
-    TG_GROUP?: string;
-    YT_CHANNEL?: string;
-    MAIL?: string;
-}
+export type WorkerBindings = Env;
 
-export const DEFAULT_TELEGRAM_WEBHOOK_PATH = '/telegram';
+const requiredStringBindings = [
+    'BOT_TOKEN',
+    'TELEGRAM_WEBHOOK_PATH',
+    'TELEGRAM_WEBHOOK_SECRET'
+] as const satisfies readonly (keyof WorkerBindings)[];
 
-export const getTelegramWebhookPath = (env: WorkerBindings) => {
-    return env.TELEGRAM_WEBHOOK_PATH || DEFAULT_TELEGRAM_WEBHOOK_PATH;
+type RuntimeConfiguration = Partial<
+    Record<
+        | (typeof requiredStringBindings)[number]
+        | 'BOT_ENVIRONMENT'
+        | 'ENABLE_SCHEDULED_CLEANUP',
+        unknown
+    >
+>;
+
+const isNonEmptyString = (value: unknown): value is string => {
+    return typeof value === 'string' && value.trim().length > 0;
+};
+
+const isTelegramWebhookPath = (value: unknown): value is string => {
+    return (
+        isNonEmptyString(value) &&
+        value === value.trim() &&
+        value.startsWith('/') &&
+        !value.includes('?') &&
+        !value.includes('#')
+    );
+};
+
+export const getTelegramWebhookPath = (env: RuntimeConfiguration) => {
+    if (!isTelegramWebhookPath(env.TELEGRAM_WEBHOOK_PATH)) {
+        return null;
+    }
+
+    return env.TELEGRAM_WEBHOOK_PATH;
+};
+
+export const hasRequiredWorkerConfiguration = (env: RuntimeConfiguration) => {
+    const hasRequiredStrings = requiredStringBindings.every(binding => {
+        return isNonEmptyString(env[binding]);
+    });
+    const hasValidEnvironment =
+        env.BOT_ENVIRONMENT === 'local' ||
+        env.BOT_ENVIRONMENT === 'stable' ||
+        env.BOT_ENVIRONMENT === 'beta';
+    const hasValidCleanupFlag =
+        env.ENABLE_SCHEDULED_CLEANUP === 'true' ||
+        env.ENABLE_SCHEDULED_CLEANUP === 'false';
+
+    return (
+        hasRequiredStrings &&
+        getTelegramWebhookPath(env) !== null &&
+        hasValidEnvironment &&
+        hasValidCleanupFlag
+    );
 };

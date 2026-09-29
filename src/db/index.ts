@@ -7,4 +7,10 @@ export {
     makeDatabaseService,
     withDatabase
 } from './service';
-export { channelMembers, channels, players } from './schema';
+export {
+    channelMembers,
+    channels,
+    players,
+    telegramUpdates,
+    telegramUpdateStatuses
+} from './schema';

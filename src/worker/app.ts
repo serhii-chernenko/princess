@@ -2,11 +2,16 @@ import { Hono } from 'hono';
 
 import type { WorkerBindings } from './env';
 import { registerHealthRoutes } from './routes/health';
-import { registerTelegramRoutes } from './routes/telegram';
+import {
+    registerTelegramRoutes,
+    type TelegramRouteDependencies
+} from './routes/telegram';
 
 export type WorkerApp = Hono<{ Bindings: WorkerBindings }>;
 
-export const createApp = () => {
+export const createApp = (
+    telegramDependencies: TelegramRouteDependencies = {}
+) => {
     const app = new Hono<{ Bindings: WorkerBindings }>();
 
     app.get('/', c => {
@@ -18,8 +23,8 @@ export const createApp = () => {
         });
     });
 
-    registerHealthRoutes(app);
-    registerTelegramRoutes(app);
+    registerHealthRoutes(app, telegramDependencies);
+    registerTelegramRoutes(app, telegramDependencies);
 
     return app;
 };

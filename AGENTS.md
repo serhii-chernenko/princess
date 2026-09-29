@@ -33,6 +33,19 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - Treat `100` bound parameters per statement as the safety ceiling unless verified otherwise.
 - Prefer chunk sizes derived from `floor(100 / columnCount)` or smaller.
 
+## Stable and Beta Data
+
+- Stable and beta currently share the same D1 database.
+- Do not test both bots in the same Telegram group unless the data model is explicitly namespaced by bot environment.
+- Treat beta as safe for real-group testing only when that group is beta-only.
+
+## Releases
+
+- `CHANGELOG.md` is the human-owned release history.
+- `.changeset/*.md` files are pre-release inputs.
+- `releases.generated.json` is the generated runtime artifact for `/releases`.
+- Do not edit `releases.generated.json` by hand.
+
 ## Backup Data
 
 - The `princess-db/` directory is local-only backup input.

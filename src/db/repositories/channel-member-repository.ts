@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -76,6 +76,20 @@ export const createChannelMemberRepository = (db: AppDb) => {
                     .where(eq(channelMembers.id, memberId));
             });
         },
+        incrementMemberScore(memberId: number) {
+            return try_db(async () => {
+                const [member] = await db
+                    .update(channelMembers)
+                    .set({
+                        score: sql`${channelMembers.score} + 1`,
+                        updatedAt: new Date()
+                    })
+                    .where(eq(channelMembers.id, memberId))
+                    .returning();
+
+                return member ?? null;
+            });
+        },
         resetScoresForChannel(channelId: number) {
             return try_db(() => {
                 return db
@@ -92,28 +106,6 @@ export const createChannelMemberRepository = (db: AppDb) => {
                 return db
                     .delete(channelMembers)
                     .where(eq(channelMembers.channelId, channelId));
-            });
-        },
-        findOrphanedPlayerIds(candidatePlayerIds: number[]) {
-            return try_db(async () => {
-                if (!candidatePlayerIds.length) {
-                    return [];
-                }
-
-                const rows = await db
-                    .select({
-                        playerId: channelMembers.playerId,
-                        count: sql<number>`count(*)`
-                    })
-                    .from(channelMembers)
-                    .where(inArray(channelMembers.playerId, candidatePlayerIds))
-                    .groupBy(channelMembers.playerId);
-
-                const activePlayerIds = new Set(rows.map(row => row.playerId));
-
-                return candidatePlayerIds.filter(
-                    playerId => !activePlayerIds.has(playerId)
-                );
             });
         },
         findActiveMemberWithPlayer(channelId: number, playerId: number) {

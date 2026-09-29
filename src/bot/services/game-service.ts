@@ -34,12 +34,49 @@ type ChatMemberReader = {
 
 type RunType = 'auto' | 'manual';
 
+export const getSortedPrintablePlayers = <
+    T extends {
+        member: {
+            score: number;
+        };
+    }
+>(
+    activePlayers: T[],
+    list: 'all' | 'top'
+) => {
+    return activePlayers
+        .filter(activePlayer => {
+            return list !== 'top' || activePlayer.member.score > 0;
+        })
+        .sort((left, right) => {
+            return right.member.score - left.member.score;
+        });
+};
+
 const runEffect = <A>(effect: Effect.Effect<A, Error>) => {
     return Effect.runPromise(effect);
 };
 
+const getErrorType = (error: unknown) => {
+    return error instanceof Error ? error.name : typeof error;
+};
+
 const isAdmin = (member: ChatMember) => {
     return member.status === 'creator' || member.status === 'administrator';
+};
+
+export const assertGlobalCleanupAllowed = (
+    env: Pick<WorkerBindings, 'BOT_ENVIRONMENT' | 'ENABLE_SCHEDULED_CLEANUP'>
+) => {
+    if (env.BOT_ENVIRONMENT !== 'local' && env.BOT_ENVIRONMENT !== 'stable') {
+        throw new Error(
+            'Global cleanup is forbidden outside the local or stable owner environment'
+        );
+    }
+
+    if (env.ENABLE_SCHEDULED_CLEANUP !== 'true') {
+        throw new Error('Global cleanup is disabled by configuration');
+    }
 };
 
 export const createGameService = (env: WorkerBindings) => {
@@ -271,8 +308,7 @@ export const createGameService = (env: WorkerBindings) => {
     const reconcileActivePlayers = async (
         telegramChatId: number,
         channelId: number,
-        telegram: ChatMemberReader,
-        list: 'all' | 'top' = 'top'
+        telegram: ChatMemberReader
     ) => {
         const rows = await runEffect(
             repositories.channelMembers.listMembersForChannel(channelId)
@@ -336,13 +372,11 @@ export const createGameService = (env: WorkerBindings) => {
                 row.player.displayName = refreshedName;
             }
 
-            if (list !== 'top' || row.member.score > 0) {
-                activePlayers.push({
-                    member: row.member,
-                    player: row.player,
-                    telegramMember
-                });
-            }
+            activePlayers.push({
+                member: row.member,
+                player: row.player,
+                telegramMember
+            });
         }
 
         return activePlayers;
@@ -363,17 +397,15 @@ export const createGameService = (env: WorkerBindings) => {
         const activePlayers = await reconcileActivePlayers(
             telegramChatId,
             channelId,
-            telegram,
-            list
+            telegram
         );
+        const printablePlayers = getSortedPrintablePlayers(activePlayers, list);
 
-        if (!activePlayers.length) {
+        if (!printablePlayers.length) {
             throw new BotUserError(LL.playersWithScoresNotFound());
         }
 
-        return activePlayers.sort((left, right) => {
-            return right.member.score - left.member.score;
-        });
+        return printablePlayers;
     };
 
     const getRunEta = (runDate: Date, lastVoteAt: Date | null) => {
@@ -450,8 +482,7 @@ export const createGameService = (env: WorkerBindings) => {
         const activePlayers = await reconcileActivePlayers(
             telegramChatId,
             channel.id,
-            telegram,
-            'all'
+            telegram
         );
 
         if (!activePlayers.length) {
@@ -482,25 +513,90 @@ export const createGameService = (env: WorkerBindings) => {
             throw new Error('No winner candidate was selected');
         }
 
-        await runEffect(
-            repositories.channelMembers.updateMemberState(winner.member.id, {
-                score: winner.member.score + 1
-            })
-        );
-        await runEffect(
-            repositories.channels.touchChannelRun(channel.id, runDate)
-        );
+        let claimedChannel = channel;
+        let ownsRunClaim = false;
 
-        const printablePlayers = await getPrintablePlayers(
-            telegramChatId,
-            channel.id,
-            telegram,
-            'top',
-            locale
+        if (!sudo) {
+            const claim = await runEffect(
+                repositories.channels.claimChannelRun(
+                    channel.id,
+                    channel.lastVoteAt,
+                    runDate
+                )
+            );
+
+            if (!claim) {
+                if (type === 'auto') {
+                    throw new BotUserError(LL.hasNotData(), { silent: true });
+                }
+
+                const hours = 24;
+
+                throw new BotUserError(
+                    LL.errorRunEta({
+                        hours,
+                        label: getHourLabel(hours, locale)
+                    }),
+                    { html: true }
+                );
+            }
+
+            claimedChannel = claim;
+            ownsRunClaim = true;
+        }
+
+        let incrementedWinner: ChannelMemberRow;
+
+        try {
+            const incrementedMember = await runEffect(
+                repositories.channelMembers.incrementMemberScore(
+                    winner.member.id
+                )
+            );
+
+            if (!incrementedMember) {
+                throw new Error('Failed to increment winner score');
+            }
+
+            incrementedWinner = incrementedMember;
+        } catch (error) {
+            if (ownsRunClaim) {
+                try {
+                    await runEffect(
+                        repositories.channels.restoreClaimedChannelRun(
+                            channel.id,
+                            runDate,
+                            channel.lastVoteAt
+                        )
+                    );
+                } catch (restoreError) {
+                    console.error(
+                        JSON.stringify({
+                            event: 'channel_run_claim_restore_failed',
+                            errorType: getErrorType(restoreError)
+                        })
+                    );
+                }
+            }
+
+            throw error;
+        }
+
+        winner.member = incrementedWinner;
+
+        if (sudo) {
+            await runEffect(
+                repositories.channels.touchChannelRun(channel.id, runDate)
+            );
+        }
+
+        const printablePlayers = getSortedPrintablePlayers(
+            activePlayers,
+            'top'
         );
 
         return {
-            channel,
+            channel: claimedChannel,
             printablePlayers,
             winner
         };
@@ -531,23 +627,14 @@ export const createGameService = (env: WorkerBindings) => {
         await resetChannelRun(channel.id);
     };
 
-    const deleteChannelAndOrphans = async (channelId: number) => {
-        const memberships = await runEffect(
-            repositories.channels.listChannelMembers(channelId)
-        );
-        const candidatePlayerIds = memberships.map(member => member.playerId);
-
+    const deleteChannelAndOrphans = async (
+        channelId: number,
+        candidatePlayerIds: number[]
+    ) => {
         await runEffect(repositories.channels.deleteChannel(channelId));
-
-        const orphanedPlayerIds = await runEffect(
-            repositories.channelMembers.findOrphanedPlayerIds(
-                candidatePlayerIds
-            )
+        await runEffect(
+            repositories.players.deleteOrphanedPlayers(candidatePlayerIds)
         );
-
-        for (const playerId of orphanedPlayerIds) {
-            await runEffect(repositories.players.deletePlayer(playerId));
-        }
     };
 
     const stopChannel = async (
@@ -569,19 +656,28 @@ export const createGameService = (env: WorkerBindings) => {
             throw new BotUserError(LL.alreadyStop());
         }
 
-        await deleteChannelAndOrphans(channel.id);
+        await deleteChannelAndOrphans(
+            channel.id,
+            memberships.map(member => member.playerId)
+        );
     };
 
     const cleanupInactiveChannels = async (cutoff: Date) => {
-        const staleChannels = await runEffect(
-            repositories.channels.findInactiveChannels(cutoff)
+        assertGlobalCleanupAllowed(env);
+
+        const candidatePlayers = await runEffect(
+            repositories.channels.findInactiveChannelPlayerIds(cutoff)
+        );
+        const deletedChannels = await runEffect(
+            repositories.channels.deleteInactiveChannels(cutoff)
+        );
+        await runEffect(
+            repositories.players.deleteOrphanedPlayers(
+                candidatePlayers.map(candidate => candidate.playerId)
+            )
         );
 
-        for (const channel of staleChannels) {
-            await deleteChannelAndOrphans(channel.id);
-        }
-
-        return staleChannels.length;
+        return deletedChannels.length;
     };
 
     const getStats = async () => {
