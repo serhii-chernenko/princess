@@ -35,8 +35,11 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 
 ## Stable and Beta Data
 
-- Stable and beta currently share the same D1 database.
-- Do not test both bots in the same Telegram group unless the data model is explicitly namespaced by bot environment.
+- Stable and beta use separate D1 databases (`princess-production` and `princess-beta`) once the beta database is provisioned.
+- Until the beta D1 exists, do not deploy beta against the production database.
+- Data is copied production to beta only (`pnpm db:copy:production-to-beta --confirm-overwrite-beta`); never the other direction.
+- Beta holds production user data after a copy; restrict access to it.
+- Do not add both bots to the same Telegram group.
 - Treat beta as safe for real-group testing only when that group is beta-only.
 
 ## Releases

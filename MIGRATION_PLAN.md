@@ -21,17 +21,21 @@ The migration is **implemented in large part but not cut over to production**.
 
 - `main` and `origin/main` remain at legacy baseline `243967c`: long-running
   Telegraf polling, MongoDB/Mongoose, and GitHub Actions to Ansible/Docker/VPS.
-- Branch `feat/migration-to-v5` has checked-in baseline `076c2bd`, seven commits
-  ahead of main, with the Worker/D1 rewrite through Phase 7.
-- Phase 8 hardening and repository cleanup are current uncommitted worktree work.
+- Branch `feat/migration-to-v5` has checked-in baseline `be567a8`, a WIP commit
+  ("chore: in progress", to be reworded or squashed before the PR) that records
+  Phase 8 on top of Phase 7 (`076c2bd`).
+- The 2026-09-29 follow-up (review fixes, D1 integration tests, beta isolation,
+  webhook helper changes) is an uncommitted worktree on top of `be567a8`.
 - The primary repository runtime is Cloudflare Workers + Hono + Telegraf webhooks,
   with Drizzle + D1, strict TypeScript, typed i18n, and Changesets.
 - A durable bot-specific webhook `update_id` ledger with leases and deduplication
-  is now implemented. Workers-runtime D1 integration coverage, remote provisioning,
-  fresh data migration, traffic cutover, and live validation remain.
-- The current exact-parity vote path needs Workers Paid for the real 55-member
-  maximum group because actor validation plus one reconciliation uses about 56
-  Telegram API subrequests, above the Free plan's 50.
+  is now implemented, with Workers-runtime D1 integration tests. Remote
+  provisioning, fresh data migration, traffic cutover, and live validation remain.
+- The exact-parity vote path needs Workers Paid (chosen by the owner): for the
+  55-member maximum group it makes 56 Telegram subrequests before replies, 58 in
+  total, above the Free plan's 50.
+- Beta will use its own D1 database (`princess-beta`), refreshed from production
+  by an explicit copy command.
 
 The daily product behavior remains message-triggered and rate-limited to once per
 24 hours; the cron trigger is for maintenance, not selection.
@@ -506,7 +510,8 @@ Phase 7 repository implementation result:
 4. Attached distinct production custom domains:
     - stable: `princess.chernenko.dev`
     - beta: `princess-beta.chernenko.dev`
-5. Kept stable and beta on the same D1 binding
+5. Kept stable and beta on the same D1 binding (superseded 2026-09-29 by a
+   separate beta D1)
 6. Kept the cron trigger only on stable:
     - `0 0 * * *`
 7. Added local tunnel-aware dev orchestration in `scripts/cloudflare/dev-with-tunnel.ts`
@@ -533,7 +538,7 @@ Phase 7 intentional deferrals:
 
 ### Phase 8: Final Repo Operations and Agent Docs
 
-Status: in progress in the uncommitted worktree
+Status: committed in `be567a8` (WIP message); 2026-09-29 follow-up uncommitted
 
 Goals:
 
@@ -550,7 +555,7 @@ Exit criteria:
 - Human and agent workflows are documented.
 - Only the active Worker/D1 release flow remains in the repo.
 
-Current uncommitted implementation:
+Phase 8 implementation:
 
 1. Removed obsolete VPS deployment artifacts:
     - `.ansible/`
@@ -573,7 +578,7 @@ Current uncommitted implementation:
 6. Updated operator docs for:
     - stable workflow behavior
     - release artifact ownership
-    - beta safety with a shared D1 database
+    - beta safety (later replaced by a separate beta D1)
 7. Added a durable Telegram update ledger with:
     - a unique bot-specific key plus `update_id`
     - atomic claim and terminalized-duplicate acknowledgement
@@ -588,13 +593,14 @@ Current uncommitted implementation:
 
 Verification notes:
 
-- The complete suite reports 70 passing tests after the boundary-hardening work.
+- The complete suite reports 122 passing tests, including Workers-runtime D1
+  integration tests.
 - Generated-binding verification and local/stable/beta deployment dry-runs pass;
   rerun these gates after further code or configuration changes.
 
 Important readiness note:
 
-- Stable and beta share the same D1 database, so beta testing is safe only in a beta-only Telegram group with a separate bot token, webhook path, and domain. The current schema does not namespace records by environment.
+- Superseded 2026-09-29: beta gets a separate D1 (`princess-beta`) filled by `pnpm db:copy:production-to-beta`. Until it is provisioned, beta must not be deployed against production. Beta still uses a separate bot token, webhook path, and domain.
 
 ## Risks and Watchpoints
 
@@ -620,7 +626,9 @@ Important readiness note:
 - `getChatMember` calls per player may be expensive in a request-bound Worker environment.
 - Actor validation plus reconciliation of the real 55-member maximum group uses
   about 56 Telegram API subrequests, so exact current behavior exceeds the
-  Workers Free limit of 50 and requires Paid or a redesign.
+  Workers Free limit of 50; the corrected formula is 1 actor check + N
+  reconciliation checks + 2 replies (`getMe` is cached per isolate), so Paid is
+  required and was chosen by the owner.
 
 ### Data Risks
 
@@ -724,9 +732,11 @@ For this bot, the practical setup is now:
 
 Finish the pre-cutover repository gates in this order:
 
-1. Add Workers-runtime integration tests against a real local D1 binding.
-2. Rerun the full verification suite, review, and commit Phase 8.
-3. Confirm Workers Paid and provision real D1 IDs, secrets, and routes.
+1. Rerun the full verification suite, then review and commit the 2026-09-29
+   worktree (and reword or squash `be567a8`).
+2. Enable Workers Paid and provision real production and beta D1 IDs, secrets,
+   GitHub environments, and routes.
+3. Copy production data into beta and validate there.
 4. Follow the fresh-export, freeze, migrate, reconcile, beta-only validation, and
    stable switch sequence in [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
 

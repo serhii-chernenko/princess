@@ -1,6 +1,6 @@
 # Migration Status and Cutover Runbook
 
-Audit date: 2026-07-15  
+Audit date: 2026-09-29  
 Repository: `/Users/inevix/dev/main/princess`
 
 This is the authoritative current-state audit and production cutover runbook. Use
@@ -10,33 +10,40 @@ This is the authoritative current-state audit and production cutover runbook. Us
 
 ## Executive Decision
 
-The rewrite is substantial, but the production migration is **not finished**.
-Do not switch the stable Telegram webhook yet.
+The rewrite is code-complete for cutover, but the production migration is **not
+finished**. Do not switch the stable Telegram webhook yet.
 
-The first production cutover is gated by:
+Code and repository gates are complete once the 2026-09-29 worktree changes on top
+of `be567a8` are reviewed and committed. Production cutover remains blocked only
+on operator steps:
 
-1. Workers-runtime D1 integration coverage, not only mocked D1 contracts.
-2. A confirmed Workers Paid plan for exact current behavior, or an approved
-   reconciliation redesign.
-3. Real Cloudflare resource IDs, secrets, routes, and a fresh Mongo export.
-4. A reviewed data reconciliation and beta-only validation.
+1. Enable Workers Paid (decided; required, see below).
+2. Real D1 IDs for production and the separate beta database, secrets, and the
+   GitHub `production` and `beta` environments.
+3. Cloudflare edge rate limiting for the webhook and `/health` paths.
+4. A fresh frozen Mongo export, the one-shot import, and a reviewed reconciliation.
+5. Beta validation against the copied data, then the stable webhook switch.
 
-The current exact-parity design requires Workers Paid. The largest observed group
-has 55 members. A vote now performs one actor membership check plus one 55-member
-reconciliation, about 56 Telegram API subrequests before replies. That is an
-improvement over the earlier actor check plus two full reconciliations, but it
-still exceeds the Workers Free limit of 50 subrequests per invocation. See the
+The exact-parity design requires Workers Paid, and the owner chose it. For a vote in
+a group of N members the Worker makes 1 actor `getChatMember`, N reconciliation
+`getChatMember` calls, and 2 replies; `getMe` is cached per isolate and no longer
+adds a call per update. For the largest observed group (N=55) that is 56
+subrequests before replies and 58 in total, above the Workers Free limit of 50.
+D1 queries also count toward per-invocation limits: about 8 in the base path, up to
+about 8+2N with membership drift. See the
 [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
 
 ## Repository and Branch Evidence
 
 - Current branch: `feat/migration-to-v5`.
 - Local `main` and `origin/main`: `243967c`.
-- Checked-in rewrite baseline at `HEAD`: `076c2bd`, seven commits ahead of main.
-- `076c2bd` records Phase 7. Phase 8 is current, uncommitted worktree work.
-- Therefore, staged removals and hardening visible in the worktree are not yet a
-  reviewed or committed repository state, and they are not evidence of a live
-  production migration.
+- Checked-in rewrite baseline at `HEAD`: `be567a8`, a WIP commit titled
+  "chore: in progress" that records Phase 8 on top of Phase 7 (`076c2bd`). It needs
+  a proper message or a squash before the PR; that is the owner's call.
+- The 2026-09-29 follow-up work (review fixes, D1 integration tests, beta isolation
+  tooling, webhook helper changes) is the current uncommitted worktree on top of
+  `be567a8`.
+- None of this is evidence of a live production migration.
 
 ## Main Compared with the Rewrite
 
@@ -51,14 +58,14 @@ still exceeds the Workers Free limit of 50 subrequests per invocation. See the
 
 ## Readiness by Layer
 
-| Layer                  | Status                          | Meaning                                                                                                                                                         |
-| ---------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rewrite implementation | In progress, mostly implemented | Commands, D1 repositories, webhook runtime, durable update ledger, migration tooling, and deployment scripts exist; runtime integration coverage remains.       |
-| Repository readiness   | In progress                     | Phase 8 hardening and legacy deployment-file removals are uncommitted; Workers-runtime D1 coverage remains.                                                     |
-| Remote provisioning    | Operator-blocked                | Stable and beta D1 IDs are still placeholders; account plan, secrets, and deployed routes are not proven by this repo audit.                                    |
-| Data migration         | Tooling verified only           | A historical backup transformed and imported locally; production needs a fresh export and reconciliation.                                                       |
-| Traffic cutover        | Not started                     | No audit evidence shows that the stable bot token now points at the Worker webhook.                                                                             |
-| Legacy retirement      | Deferred                        | Repo deployment artifacts are being removed, but Mongo polling and the VPS must remain recoverable until live validation and delta reconciliation are complete. |
+| Layer                  | Status                    | Meaning                                                                                                                                                                                          |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Rewrite implementation | Implemented               | Commands, D1 repositories, webhook runtime, durable update ledger, migration tooling, deployment scripts, and Workers-runtime D1 integration tests exist.                                        |
+| Repository readiness   | Pending review and commit | Phase 8 is committed in `be567a8` (WIP message); the 2026-09-29 follow-up is an uncommitted worktree on top of it and needs review, a proper commit, and a rerun of the gates.                   |
+| Remote provisioning    | Operator-blocked          | Stable and beta D1 IDs are still placeholders and the beta D1 does not exist yet; Workers Paid is decided but not proven enabled; secrets and deployed routes are not proven by this repo audit. |
+| Data migration         | Tooling verified only     | A historical backup transformed and imported locally; production needs a fresh export and reconciliation.                                                                                        |
+| Traffic cutover        | Not started               | No audit evidence shows that the stable bot token now points at the Worker webhook.                                                                                                              |
+| Legacy retirement      | Deferred                  | Repo deployment artifacts are removed, but Mongo polling and the VPS must remain recoverable until live validation and delta reconciliation are complete.                                        |
 
 ## Verified Historical Backup Evidence
 
@@ -90,7 +97,8 @@ set before enabling cleanup.
 
 ## Implemented in the Current Worktree
 
-The following implementation is visible now, subject to review, commit, and final
+The following implementation is visible now (Phase 8 in `be567a8` plus the
+uncommitted 2026-09-29 follow-up), subject to review, commit, and final
 verification:
 
 - **D1-compatible import.** Generated SQL is insert-only and fail-closed. It does
@@ -145,19 +153,52 @@ verification:
   `env/.env.dev` or `env/.env.production`, including `MONGODB_URI`, rather than
   Worker `.dev.vars*` files.
 
-Latest validation reports 70 passing tests, fresh generated Wrangler bindings,
-and successful local, stable, and beta deployment dry-runs. Rerun these gates
-after any further code or configuration change.
+The full `pnpm test` suite passes (122 tests, including the integration tests), with
+fresh generated Wrangler bindings and successful local, stable, and beta
+deployment dry-runs. The test script quotes its globs so nested test directories
+run. Rerun these gates after any further code or configuration change.
+
+## 2026-09-29 Review
+
+Runtime parity fixes made against the legacy behavior:
+
+- Auto-run with fewer than two active players no longer clears the schedule.
+- A `getChatMember` failure other than Telegram 400 aborts the vote before the
+  claim instead of silently shrinking the pool: silent in auto, a generic error
+  reply in manual. `/list` and `/top` are affected the same way.
+- Listener errors are always silent; the generic "Ой лишенько" reply is restored
+  for unexpected command errors.
+- `/join` and `/leave` reject bots; `/lang` requires an existing channel and an
+  admin.
+- Tie order is deterministic; sticker replies target the trigger message.
+- A `vote_announcement_failed` event is logged when the announcement fails after
+  the claim; the claim is kept (at-most-once).
+- The route returns 200 after a terminalized dispatch failure; `botInfo` is cached
+  per isolate.
+
+Intentional remaining differences from legacy:
+
+- `/run` answers a lost compare-and-set race with its own reply.
+- Cron cleanup stays off on stable until the deletion set is reviewed.
+- Proactive release broadcast is retired; `/lang` is new; names are HTML-escaped.
+- Chats the bot was kicked from are no longer auto-removed (a side effect of the
+  retired broadcast).
+- A crashed dispatch can be re-run after the five-minute stale reclaim:
+  at-least-once for crashes. The vote is guarded by compare-and-set; `/stop` and
+  `/reset` are not.
+- Concurrent `/sudorun` is not compare-and-set guarded (admin override).
 
 ## Remaining Code and Design Gaps
 
-### 1. Workers-Runtime D1 Coverage — Required Before Cutover
+### 1. Workers-Runtime D1 Coverage — Done
 
-Current tests cover repository SQL shapes and Worker behavior with test doubles.
-Add integration coverage in the Workers runtime against a real local D1 binding,
-including schema migration, import, CAS contention, atomic score increments,
-cleanup foreign keys, webhook duplicates, and failure recovery. The production
-migrator uses Drizzle's D1 HTTP driver; keep it aligned with the
+`test/integration/*.test.ts` run against a real local D1 through wrangler
+`getPlatformProxy`: migrations, update-ledger concurrency and stale reclaim,
+compare-and-set daily claim under 15 racers, atomic score increments, cleanup
+chunking over 100 IDs with cascades, Mongo import SQL execution and rerun
+rejection, and end-to-end webhook dispatch with duplicate and concurrent
+delivery. The production migrator uses Drizzle's D1 HTTP driver; keep it aligned
+with the
 [Drizzle D1 HTTP migration guide](https://orm.drizzle.team/docs/guides/d1-http-with-drizzle-kit).
 
 ### 2. At-Most-Once Error Path — Explicit Reliability Decision
@@ -195,27 +236,56 @@ If it returns later, use a Cloudflare
 [Workflow](https://developers.cloudflare.com/workflows/) with per-channel durable
 progress, bounded concurrency, retries, and idempotent release markers.
 
-### 4. Workers Free Plan — Redesign Needed if Paid Is Rejected
+### 4. Workers Paid — Decided, Must Be Enabled
 
-Exact parity with the real 55-member group performs about 56 Telegram API
-subrequests before replies, above Free's 50. The cutover decision is either:
+The owner chose Workers Paid. Exact parity needs it: a 55-member group makes 56
+Telegram subrequests before replies (58 total), above Free's 50, and D1 queries
+count toward the same per-invocation limits. Enable Paid before any production
+traffic. Do not silently ship partial reconciliation or assume D1 batching fixes
+the external Telegram subrequest count.
 
-- use Workers Paid for the current implementation; or
-- redesign membership reconciliation as a product/architecture change, for
-  example durable cached membership from Telegram membership updates or queued,
-  resumable reconciliation. A group-size cap would also change product behavior.
+### 5. Stable/Beta Isolation — Decided, Needs Provisioning
 
-Do not silently ship partial reconciliation or assume D1 batching fixes the
-external Telegram subrequest count.
+Beta gets its own D1 database, `princess-beta`, with placeholders
+`REPLACE_WITH_BETA_DATABASE_ID` and `REPLACE_WITH_BETA_PREVIEW_DATABASE_ID` in
+`wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
+the GitHub `beta` environment in CI). Migrate it with `pnpm db:migrate:beta`.
 
-### 5. Stable/Beta Isolation — Required for Shared-Group Testing
+`pnpm db:copy:production-to-beta --confirm-overwrite-beta`, or the manual workflow
+`.github/workflows/copy-production-to-beta.yml` (`main` only, `beta` environment,
+typed confirmation `OVERWRITE BETA`), copies production to beta. It needs
+`CLOUDFLARE_API_TOKEN` (secret) with D1 edit on both databases plus
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_BETA_DATABASE_ID`
+(variables). It:
 
-Stable and beta currently bind the same production D1 database, while game tables
-are keyed by Telegram chat/user rather than bot environment. They must not run in
-the same Telegram group. For now, beta validation is beta-only. Before shared-group
-or independent production use, give beta its own D1 database or namespace all
-game data and constraints by bot environment. Wrangler environments create
-distinct Workers, not automatically distinct resources; see
+- copies `players`, `channels`, and `channel_members` only, not
+  `__drizzle_migrations` or `telegram_updates`;
+- requires matching migrations, wipes beta, and verifies counts.
+
+Caveats:
+
+- A remote `d1 export` makes production D1 unavailable to queries while it runs;
+  run it only in a low-traffic window.
+- Production writes after the export are not copied and can cause a count
+  mismatch; rerun.
+- A mid-way failure leaves beta partly wiped; rerunning is safe.
+- Beta then holds production PII (Telegram IDs, names, usernames, group titles)
+  and beta logs at 100%: restrict access to the beta D1 and logs, define
+  retention, and consider lowering beta log sampling. Erasure on production does
+  not reach beta until the next copy.
+
+Restrict the GitHub `beta` environment to deployment branch `main` with required
+reviewers; the workflow's `if` guard alone does not stop a branch-edited workflow
+from using beta secrets. Consider CODEOWNERS or branch protection on
+`.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`. Store the copy's
+`CLOUDFLARE_API_TOKEN` as a `beta` environment secret scoped to D1 only, ideally
+split into a production-D1 read token (export) and a beta-D1 edit token
+(wipe/import); with one shared token, code guards are the only thing preventing
+production writes.
+
+Until the beta D1 exists, do not deploy beta against the production database. The
+copy direction is production to beta only. Wrangler environments create distinct
+Workers, not distinct resources; see
 [Wrangler environments](https://developers.cloudflare.com/workers/wrangler/environments/).
 
 ### 6. Cloudflare Edge Rate Limiting — Operator Hardening
@@ -226,6 +296,10 @@ verify Cloudflare edge rate-limiting rules for the custom-domain webhook and
 `/health` paths without blocking valid Telegram delivery. See
 [Cloudflare rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/).
 
+Related security notes: invocation logs at 100% may record the secret webhook path
+URL, so disable `invocation_logs` or treat the path as non-secret; `/health` reuses
+`TELEGRAM_WEBHOOK_SECRET`, so consider a separate token.
+
 ### 7. Final Legacy Removal — Post-Cutover
 
 Remove the polling code, Mongoose dependency, Mongo configuration, and live VPS
@@ -234,16 +308,19 @@ confirmation that no D1 writes need to be reconciled back to Mongo.
 
 ## Safe Cutover Sequence
 
-1. **Confirm capacity.** Confirm Workers Paid, or stop and approve a Free-plan
-   reconciliation redesign before any production traffic changes.
-2. **Provision Cloudflare.** Replace every production/beta D1 placeholder in
-   `wrangler.jsonc`; verify the stable/beta Workers, custom domains, D1 binding,
+1. **Enable capacity.** Enable Workers Paid (decided) before any production
+   traffic changes.
+2. **Provision Cloudflare.** Create the beta D1 `princess-beta` and replace every
+   production/beta D1 placeholder in `wrangler.jsonc`; set
+   `CLOUDFLARE_BETA_DATABASE_ID` and run `pnpm db:migrate:beta`; verify the stable/beta Workers, custom domains, D1 binding,
    disabled `workers.dev` endpoints, account IDs, and API tokens. Store bot tokens
    and webhook secrets as secrets,
    not Wrangler `vars`; follow the
    [Workers secrets guide](https://developers.cloudflare.com/workers/configuration/secrets/).
-   Create the GitHub `production` environment and configure required reviewers and
-   a `main` deployment-branch rule before relying on the manual deploy job.
+   Create the GitHub `production` and `beta` environments and configure required
+   reviewers and a `main` deployment-branch rule before relying on the manual
+   deploy and copy jobs. `TELEGRAM_WEBHOOK_PATH` is a GitHub secret, not a
+   variable.
 3. **Take a fresh Mongo export.** Follow
    [the MongoDB-to-D1 data runbook](./MONGO_TO_D1_RUNBOOK.md): export channels,
    players, scores, and statuses from the current source, publish only the four
@@ -274,19 +351,22 @@ confirmation that no D1 writes need to be reconciled back to Mongo.
 10. **Check readiness.** Require a successful authenticated `/health` response with
     the webhook-secret header, configuration and D1 checks, inspect Workers Logs,
     and run read-only smoke checks.
-11. **Register beta deliberately.** Set the beta webhook first and use
-    `max_connections=1`. Explicitly decide whether `drop_pending_updates` is
-    false/omitted (preserve and process the queue) or true (discard it). The helper
-    intentionally omits this parameter; do not make the choice accidentally. Low
+11. **Register beta deliberately.** Optionally refresh beta from production with
+    `pnpm db:copy:production-to-beta --confirm-overwrite-beta`. Set the beta
+    webhook first and use `max_connections=1`. Decide whether pending updates are
+    preserved or discarded: the helper requires
+    `--drop-pending-updates=true|false` for production and beta (for example
+    `pnpm telegram:webhook:set:beta --drop-pending-updates=false`). Low
     concurrency complements the durable ledger but cannot make Telegram sends
     exactly once.
-12. **Validate beta only.** Use the separate beta bot in a beta-only group. Verify
+12. **Validate beta only.** Use the separate beta bot with the beta D1. Verify
     commands, one daily vote, duplicate delivery behavior, scores, membership
-    changes, errors, and logs. Never put stable and beta in the same group while
-    sharing the current schema.
+    changes, errors, and logs. Never put stable and beta in the same group; the
+    databases are separate but the bots would still both answer.
 13. **Switch stable and monitor.** Point the stable bot at the stable Worker, keep
-    `max_connections=1` initially, make the stable pending-update choice explicitly,
-    verify `getWebhookInfo`, and monitor webhook errors, D1 errors, Telegram
+    `max_connections=1` initially, pass the explicit stable
+    `--drop-pending-updates=true|false` choice (for example
+    `pnpm telegram:webhook:set:stable --drop-pending-updates=false`), verify `getWebhookInfo`, and monitor webhook errors, D1 errors, Telegram
     rate/permission errors, latency, and score changes.
 14. **Review cleanup separately.** Generate the fresh deletion set, review channel
     and orphan-player IDs, take another bookmark/export, and only then change

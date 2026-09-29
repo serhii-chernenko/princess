@@ -1,6 +1,6 @@
 # User Migration Todo
 
-Last updated: 2026-07-15
+Last updated: 2026-09-29
 
 This is the concise progress checklist. Read
 [MIGRATION_STATUS.md](./MIGRATION_STATUS.md) before any production action; it is
@@ -50,29 +50,47 @@ the authoritative audit, cutover sequence, and rollback policy. Use
 
 ## In Progress — Code and Repository Gates
 
-- [ ] Add Workers-runtime integration tests against a real local D1 binding for
-      migrations, imports, concurrent vote claims, atomic score updates, cleanup,
-      duplicate updates, and failure recovery.
+- [x] Add Workers-runtime integration tests (`test/integration/`) against a real
+      local D1 via wrangler `getPlatformProxy`: migrations, update-ledger
+      concurrency and stale reclaim, compare-and-set daily claim, atomic score
+      increments, cleanup chunking and cascades, Mongo import SQL and rerun
+      rejection, and webhook dispatch with duplicate and concurrent delivery.
 - [x] Run `pnpm run check`, generated-binding verification, and local/stable/beta
-      deployment dry-runs. The latest suite reports 70/70 passing tests; rerun all
-      gates after further code or configuration changes.
-- [ ] Review and commit the current Phase 8 worktree; do not describe uncommitted
-      file removals as completed repository history.
-- [ ] Decide the stable/beta data-isolation design. Until then, keep beta in a
-      beta-only Telegram group and never test both bots in the same group.
+      deployment dry-runs. The latest `pnpm test` reports 122/122 passing tests;
+      rerun all gates after further code or configuration changes.
+- [x] Apply the 2026-09-29 review fixes for legacy parity (see
+      [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#2026-09-29-review)).
+- [x] Decide stable/beta isolation: separate beta D1 `princess-beta`, with a
+      production-to-beta copy command and manual workflow.
+- [ ] Review and commit the current worktree. Phase 8 is already committed in
+      `be567a8`, a WIP commit ("chore: in progress"); give it a proper message or
+      squash before the PR (owner's call). Today's follow-up is uncommitted on top.
 
 ## Operator-Blocked — Before and During Cutover
 
-- [ ] Confirm Workers Paid for exact parity with the real 55-member group. If Paid
-      is rejected, stop and approve a reconciliation redesign; the current vote uses
-      about 56 Telegram API subrequests before replies, above Free's limit of 50.
-- [ ] Create/verify the production D1 database, replace all D1 placeholders in
-      `wrangler.jsonc`, and verify stable/beta custom domains and bindings.
+- [ ] Enable Workers Paid (decided): the real 55-member group makes 56 Telegram
+      subrequests before replies (58 total), above Free's limit of 50.
+- [ ] Create/verify the production D1 database and the separate beta D1
+      `princess-beta`, replace all D1 placeholders in `wrangler.jsonc`, and verify
+      stable/beta custom domains and bindings.
+- [ ] Set `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally, GitHub `beta`
+      environment in CI) and run `pnpm db:migrate:beta`.
 - [ ] Configure Cloudflare control-plane credentials, per-bot runtime secrets, and
       GitHub deployment secrets/variables without committing secret files.
-- [ ] Create the GitHub `production` environment and configure required reviewers
-      plus a `main` deployment-branch rule. The workflow reference does not create
-      those protections.
+- [ ] Create the GitHub `production` and `beta` environments and configure required
+      reviewers plus a `main` deployment-branch rule on both. The workflow
+      reference does not create those protections, and the copy workflow's `if`
+      guard alone does not stop a branch-edited workflow from using beta secrets.
+      Consider CODEOWNERS or branch protection on `.github/workflows/`,
+      `scripts/db/`, and `wrangler.jsonc`.
+- [ ] Store `TELEGRAM_WEBHOOK_PATH` as a GitHub secret (not a variable). Store the
+      copy's `CLOUDFLARE_API_TOKEN` as a `beta` environment secret scoped to D1
+      only, ideally split into production-D1 read (export) and beta-D1 edit
+      (wipe/import) tokens.
+- [ ] Decide how to handle secret exposure: invocation logs at 100% may record the
+      secret webhook path URL (disable `invocation_logs` or treat the path as
+      non-secret), and `/health` reuses `TELEGRAM_WEBHOOK_SECRET` (consider a
+      separate token).
 - [ ] Configure and validate Cloudflare edge rate-limiting rules for the webhook and
       authenticated `/health` paths without blocking Telegram delivery.
 - [ ] Follow [MONGO_TO_D1_RUNBOOK.md](./MONGO_TO_D1_RUNBOOK.md): take a fresh
@@ -89,10 +107,17 @@ the authoritative audit, cutover sequence, and rollback policy. Use
       active/auto statuses, releases/languages, timestamps, and sample groups.
 - [ ] Deploy the Worker without switching the stable webhook and require an
       authenticated healthy configuration/D1 response plus clean logs.
-- [ ] Set the beta webhook with `max_connections=1` and a deliberate
-      `drop_pending_updates` choice; validate only in a beta-only group.
-- [ ] Set the stable webhook with the same deliberate choices, verify
-      `getWebhookInfo`, and monitor errors, latency, membership, and score changes.
+- [ ] Refresh beta with `pnpm db:copy:production-to-beta --confirm-overwrite-beta`
+      (or the manual `OVERWRITE BETA` workflow) in a low-traffic window; the export
+      blocks production D1 while it runs. Restrict access to beta D1 and logs, define
+      retention, and consider lower beta log sampling: beta holds production PII
+      (Telegram IDs, names, usernames, group titles), and erasure on production does
+      not reach beta until the next copy.
+- [ ] Set the beta webhook (`max_connections=1`) with an explicit
+      `--drop-pending-updates=true|false`; validate against the beta D1.
+- [ ] Set the stable webhook with the same explicit
+      `--drop-pending-updates=true|false` choice, verify `getWebhookInfo`, and
+      monitor errors, latency, membership, and score changes.
 - [ ] Explicitly accept the webhook at-most-once error policy: keep
       `max_connections=1`, do not use `/sudorun` during cutover/reconciliation,
       stop and inspect dispatch/terminalization/lease-loss/reclaimed-claim events,
@@ -106,8 +131,6 @@ the authoritative audit, cutover sequence, and rollback policy. Use
 - [ ] If rollback is required after D1 writes, stop webhook traffic and reconcile
       exported D1 deltas into Mongo before restarting polling. There is no automatic
       zero-loss rollback.
-- [ ] Separate stable and beta into different D1 databases, or namespace every
-      game table and constraint by bot environment, before shared-group testing.
 - [ ] Reintroduce proactive release broadcast only through a Queue or Workflow
       with durable progress, bounded concurrency, retries, and idempotency.
 - [ ] Replace the webhook lease ledger with a durable Queue-backed inbox before

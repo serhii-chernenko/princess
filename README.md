@@ -9,8 +9,8 @@ Telegram bot for friend groups. The runtime is now:
 - `Drizzle ORM`
 
 The rewrite is the primary repository path, but production traffic and data have
-not been cut over yet. Removal of the old Docker/Ansible deployment files is
-uncommitted Phase 8 work; the Mongo polling runtime remains temporarily for
+not been cut over yet. The old Docker/Ansible deployment files are removed (Phase 8,
+committed in `be567a8`); the Mongo polling runtime remains temporarily for
 comparison and controlled recovery. See
 [MIGRATION_STATUS.md](./MIGRATION_STATUS.md) before any production action.
 
@@ -20,10 +20,10 @@ comparison and controlled recovery. See
 - `pnpm >= 10.33.0`
 - a Telegram bot token from `@BotFather`
 - a Cloudflare account with Workers + D1 enabled
-- Workers Paid for exact parity with the current production data: actor validation
-  plus reconciliation of the largest observed 55-member group uses about 56
-  Telegram API subrequests, above the Free plan limit of 50. A Free-plan deployment
-  requires an approved reconciliation redesign.
+- Workers Paid (required, decided): a vote in a group of N members makes 1 actor
+  check, N reconciliation checks, and 2 replies, so the largest observed 55-member
+  group uses 56 Telegram API subrequests before replies, above the Free plan limit
+  of 50.
 
 ## Local setup
 
@@ -169,12 +169,21 @@ Create the production database:
 pnpm exec wrangler d1 create princess-production --env production --binding DB
 ```
 
-Put the printed `database_id` and `preview_database_id` into both Worker environments in [wrangler.jsonc](./wrangler.jsonc):
+Create the separate beta database the same way:
+
+```sh
+pnpm exec wrangler d1 create princess-beta --env beta --binding DB
+```
+
+Put each printed `database_id` and `preview_database_id` into its own Worker
+environment in [wrangler.jsonc](./wrangler.jsonc):
 
 - `env.production.d1_databases[0]`
-- `env.beta.d1_databases[0]`
+- `env.beta.d1_databases[0]` (`REPLACE_WITH_BETA_DATABASE_ID` and
+  `REPLACE_WITH_BETA_PREVIEW_DATABASE_ID`)
 
-Stable and beta share the same production D1 database.
+Stable and beta use separate D1 databases. Until the beta database exists, do not
+deploy beta against production.
 
 The checked-in values are placeholders. Stable deployment must remain blocked
 until every `REPLACE_WITH_...` value is replaced and verified. Wrangler
@@ -227,8 +236,8 @@ export MONGO_BACKUP_REF="<reviewed-40-character-backup-commit-sha>"
 pnpm run db:import:production
 ```
 
-There is intentionally no beta import command because beta and stable currently
-share this D1 database. For the first production migration, take a fresh Mongo
+There is intentionally no beta Mongo import; beta is filled from production (see
+[Beta safety](#beta-safety)). For the first production migration, take a fresh Mongo
 export, freeze polling writes, create a D1 Time Travel bookmark/export, import
 once, and reconcile the data by following
 [the data runbook](./MONGO_TO_D1_RUNBOOK.md) and
@@ -247,8 +256,8 @@ export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
 pnpm run worker:deploy:stable
 ```
 
-Stable, production, and beta deploy scripts validate the confirmed shared D1
-target before Wrangler starts and forward only the Cloudflare account/API token
+Stable, production, and beta deploy scripts validate the confirmed D1 target
+(`CLOUDFLARE_DATABASE_ID` or `CLOUDFLARE_BETA_DATABASE_ID`) before Wrangler starts and forward only the Cloudflare account/API token
 plus OS essentials. Runtime bot/webhook values are read from the fixed
 `--secrets-file`, not inherited by the child process.
 
@@ -258,29 +267,34 @@ Use the following only at their explicit steps in the
 ```sh
 export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
 pnpm run db:migrate:production
-pnpm run telegram:webhook:set:stable
+pnpm run telegram:webhook:set:stable --drop-pending-updates=false
 pnpm run telegram:webhook:info:stable
-pnpm run telegram:webhook:delete:stable
+pnpm run telegram:webhook:delete:stable --drop-pending-updates=false
 pnpm run worker:tail:stable
 ```
 
+`set` and `delete` for stable/production and beta require an explicit
+`--drop-pending-updates=true|false`; local may omit it.
+
 ## Beta production deploy
 
-Beta uses the same D1 DB, but a separate Worker, bot token, webhook secret, webhook path, and domain:
+Beta uses its own D1 database (`princess-beta`), Worker, bot token, webhook secret,
+webhook path, and domain:
 
 ```sh
-export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
+export CLOUDFLARE_BETA_DATABASE_ID="<exact-beta-database-uuid>"
+pnpm run db:migrate:beta
 pnpm run worker:deploy:beta
 ```
 
-Beta deployment does not migrate or import the shared database and does not change
-its webhook. Test it only in a beta-only Telegram group. Register or inspect the
-webhook deliberately when the runbook calls for it:
+Beta deployment does not migrate, import, or change its webhook. Test it only in a
+beta-only Telegram group. Register or inspect the webhook deliberately when the
+runbook calls for it:
 
 ```sh
-pnpm run telegram:webhook:set:beta
+pnpm run telegram:webhook:set:beta --drop-pending-updates=false
 pnpm run telegram:webhook:info:beta
-pnpm run telegram:webhook:delete:beta
+pnpm run telegram:webhook:delete:beta --drop-pending-updates=false
 pnpm run worker:tail:beta
 ```
 
@@ -289,22 +303,23 @@ pnpm run worker:tail:beta
 Pushes and pull requests validate only. To deploy stable Worker code, manually
 dispatch the workflow from `main` after reviewing the intended Worker change.
 
-Required GitHub repository secrets:
+Required GitHub secrets:
 
 - `BOT_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBHOOK_PATH`
 
-Required GitHub repository variables:
+Required GitHub variables:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_DATABASE_ID`
-- `TELEGRAM_WEBHOOK_PATH`
 
 The workflow now lives in [`.github/workflows/main.yml`](./.github/workflows/main.yml).
 
-Create a GitHub Actions environment named `production` before enabling deployment,
-then configure its required reviewers and deployment-branch protection for `main`.
+Create GitHub Actions environments named `production` and `beta` before enabling
+deployment or the beta copy, then configure required reviewers and a `main`
+deployment-branch rule on both.
 The workflow references that environment, but the `environment:` key alone does
 not create or enforce repository protection rules.
 
@@ -337,8 +352,9 @@ What it does not do:
 - authenticated webhook bodies are capped at 1 MiB before parsing and must contain
   a nonnegative safe `update_id` plus a minimally valid `message` update
 - webhook helpers set `max_connections=1` to reduce cutover concurrency
-- helpers intentionally omit `drop_pending_updates`; preserving or discarding the
-  pending queue is an operator decision
+- `set` and `delete` for stable/production and beta require
+  `--drop-pending-updates=true|false`; preserving or discarding the pending queue
+  is an operator decision (local may omit the flag)
 - the Worker claims each `update_id` in a bot-specific D1 ledger before Telegraf
   handling; terminalized duplicates return success without rerunning the handler,
   and concurrent claims return a retryable error
@@ -418,15 +434,40 @@ not a zero-loss rollback: first export and reconcile D1 deltas as described in
 
 ## Beta safety
 
-Stable and beta currently share the same D1 database.
+Beta has its own D1 database, `princess-beta`, so its data is isolated from stable.
+Until it is provisioned, beta must not be deployed against the production database.
+Beta also uses its own bot token, webhook path, and domain, and is tested in a
+beta-only Telegram group; do not add both bots to the same group.
 
-That is fine only if:
+Refresh beta from production (production to beta only):
 
-- beta uses its own bot token
-- beta uses its own webhook path and domain
-- beta is tested in a beta-only Telegram group
+```sh
+pnpm run db:migrate:beta
+pnpm run db:copy:production-to-beta --confirm-overwrite-beta
+```
 
-Do not add stable and beta to the same Telegram group with the current schema, because both bots will operate on the same `telegram_chat_id` records.
+The same copy is available as the manual workflow
+[`copy-production-to-beta.yml`](./.github/workflows/copy-production-to-beta.yml)
+(`main` only, `beta` environment, typed confirmation `OVERWRITE BETA`). It needs
+the `CLOUDFLARE_API_TOKEN` secret with D1 edit on both databases and the
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_BETA_DATABASE_ID`
+variables. Locally, `CLOUDFLARE_BETA_DATABASE_ID` lives in `env/.env.d1`.
+
+- It copies `players`, `channels`, and `channel_members` only (not
+  `__drizzle_migrations` or `telegram_updates`), requires matching migrations,
+  wipes beta, and verifies counts.
+- The remote export makes production D1 unavailable to queries while it runs; use a
+  low-traffic window. Production writes after the export are not copied and may
+  cause a count mismatch, so rerun. A mid-way failure leaves beta partly wiped;
+  rerunning is safe.
+- Beta then holds production PII (Telegram IDs, names, usernames, group titles) and
+  beta logs at 100%. Restrict access to the beta D1 and logs, define retention, and
+  consider lowering beta log sampling. Erasure on production does not reach beta
+  until the next copy.
+- Restrict the `beta` environment to `main` with required reviewers, scope the token
+  to D1 only (ideally a production-read token for export and a beta-edit token for
+  wipe/import), and consider CODEOWNERS or branch protection on
+  `.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`.
 
 Before the first real beta deploy, verify:
 
@@ -434,7 +475,7 @@ Before the first real beta deploy, verify:
 - the `princess-beta.chernenko.dev` route is attached in Cloudflare
 - `.dev.vars.beta` contains the beta bot token and beta webhook secret
 - the beta bot is invited only to a beta-only Telegram group
-- `pnpm run db:migrate:production` has already been applied to the shared D1 database
+- `pnpm run db:migrate:beta` has already been applied to the beta D1 database
 
 Scheduled cleanup defaults to `false` for stable and beta. Keep it disabled until
 after cutover, generate a fresh stale-channel/orphan-player review set, take a D1
