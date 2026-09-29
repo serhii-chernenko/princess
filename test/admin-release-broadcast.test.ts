@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
     parseBroadcastTarget,
+    resolveBroadcastCredentials,
+    runReleaseBroadcast,
     triggerReleaseBroadcast
 } from '../scripts/releases/trigger-broadcast';
 import { createApp } from '../src/worker/app';
@@ -202,4 +204,100 @@ test('broadcast script reports non-2xx responses as failures', async () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.status, 401);
+});
+
+const EXPECTED_VERSION = '5.0.0';
+const summaryBody = (releaseVersion: string) => {
+    return JSON.stringify({ enabled: true, summary: { releaseVersion } });
+};
+
+const runWithResponses = async (responses: Array<Response | Error>) => {
+    const queue = [...responses];
+    const logs: string[] = [];
+    let calls = 0;
+    const exitCode = await runReleaseBroadcast({
+        workerBaseUrl: 'https://worker.example.com',
+        secret: SECRET,
+        expectedVersion: EXPECTED_VERSION,
+        maxAttempts: 3,
+        retryDelayMilliseconds: 0,
+        sleep: async () => {},
+        log: message => {
+            logs.push(message);
+        },
+        fetchImplementation: (async () => {
+            calls += 1;
+            const next = queue.shift() ?? new Error('no more responses');
+
+            if (next instanceof Error) {
+                throw next;
+            }
+
+            return next;
+        }) as typeof fetch
+    });
+
+    return { exitCode, logs, calls };
+};
+
+test('broadcast credentials prefer process environment over env files', () => {
+    const credentials = resolveBroadcastCredentials('production', {
+        WORKER_BASE_URL: 'https://env.example.com',
+        TELEGRAM_WEBHOOK_SECRET: 'env-secret'
+    });
+
+    assert.deepEqual(credentials, {
+        workerBaseUrl: 'https://env.example.com',
+        secret: 'env-secret'
+    });
+});
+
+test('broadcast credentials name missing variables without values', () => {
+    assert.throws(() => {
+        return resolveBroadcastCredentials('beta', {
+            WORKER_BASE_URL: 'https://env.example.com'
+        });
+    }, /TELEGRAM_WEBHOOK_SECRET/);
+});
+
+test('broadcast retries on version mismatch then succeeds', async () => {
+    const { exitCode, calls } = await runWithResponses([
+        new Response(summaryBody('4.9.0'), { status: 200 }),
+        new Response('', { status: 502 }),
+        new Response(summaryBody(EXPECTED_VERSION), { status: 200 })
+    ]);
+
+    assert.equal(exitCode, 0);
+    assert.equal(calls, 3);
+});
+
+test('broadcast exits 0 when the broadcast is disabled', async () => {
+    const { exitCode, logs, calls } = await runWithResponses([
+        new Response('{"error":"disabled"}', { status: 409 })
+    ]);
+
+    assert.equal(exitCode, 0);
+    assert.equal(calls, 1);
+    assert.match(logs.join('\n'), /disabled/);
+});
+
+test('broadcast fails immediately on 401', async () => {
+    const { exitCode, calls } = await runWithResponses([
+        new Response('{"error":"unauthorized"}', { status: 401 }),
+        new Response(summaryBody(EXPECTED_VERSION), { status: 200 })
+    ]);
+
+    assert.equal(exitCode, 1);
+    assert.equal(calls, 1);
+});
+
+test('broadcast fails after exhausting retries', async () => {
+    const { exitCode, calls } = await runWithResponses([
+        new Response(summaryBody('4.9.0'), { status: 200 }),
+        new Error('connection reset'),
+        new Response('', { status: 404 })
+    ]);
+
+    assert.equal(exitCode, 1);
+    assert.equal(calls, 3);
 });
