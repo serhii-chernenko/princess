@@ -9,7 +9,7 @@ import {
     type D1DatabaseTarget
 } from './production-d1-target';
 
-export type ImportTarget = 'local' | 'production';
+export type ImportTarget = 'local' | D1DatabaseTarget;
 export type D1ExecuteTarget = 'local' | D1DatabaseTarget;
 
 export interface ApplicationTableCounts {
@@ -162,8 +162,8 @@ export const getWranglerConfigPath = () => wranglerConfigPath;
 export const readApplicationTableCounts = (
     target: ImportTarget
 ): ApplicationTableCounts => {
-    if (target === 'production') {
-        assertProductionD1Target();
+    if (target !== 'local') {
+        assertRemoteD1Target(target);
     }
 
     const result = spawnSync(
@@ -209,8 +209,8 @@ export const preflightImportTarget = (target: ImportTarget) => {
 };
 
 export const executeImportSql = (target: ImportTarget, sqlPath: string) => {
-    if (target === 'production') {
-        assertProductionD1Target();
+    if (target !== 'local') {
+        assertRemoteD1Target(target);
     }
 
     const result = spawnSync(

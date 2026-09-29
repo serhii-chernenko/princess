@@ -3,7 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
-    assertProductionD1Target,
+    assertRemoteD1Target,
     executeImportSql,
     getProjectRoot,
     preflightImportTarget,
@@ -12,12 +12,115 @@ import {
 import { loadD1Environment } from './d1-child-environment';
 import { getDefaultGithubRepository, prepareMongoImport } from './mongo-import';
 
+const usage =
+    'Usage: run-mongo-import.ts <local|production|beta> [--input-dir <absolute-path>]';
+
 const parseTarget = (value: string | undefined): ImportTarget => {
-    if (value === 'local' || value === 'production') {
+    if (value === 'local' || value === 'production' || value === 'beta') {
         return value;
     }
 
-    throw new Error('Usage: run-mongo-import.ts <local|production>');
+    throw new Error(usage);
+};
+
+export const parseImportInputDirectory = (arguments_: string[]) => {
+    const rest = arguments_.filter(argument => argument !== '--');
+
+    if (rest.length === 0) {
+        return undefined;
+    }
+
+    const [flag, value, ...extra] = rest;
+
+    if (flag !== '--input-dir' || !value || value.startsWith('--')) {
+        throw new Error(usage);
+    }
+
+    if (extra.length > 0) {
+        throw new Error(usage);
+    }
+
+    return value;
+};
+
+export type MongoImportSourceSelection =
+    | { kind: 'directory'; directory: string }
+    | {
+          kind: 'github';
+          repository: string;
+          ref: string;
+          requireCommitSha: boolean;
+      };
+
+export const resolveMongoImportSource = (
+    target: ImportTarget,
+    options: {
+        projectRoot: string;
+        environment: Readonly<Record<string, string | undefined>>;
+        inputDirectory?: string | undefined;
+    }
+): MongoImportSourceSelection => {
+    const { environment, inputDirectory, projectRoot } = options;
+    const ref = environment.MONGO_BACKUP_REF || undefined;
+    const directoryOverride =
+        inputDirectory ?? (environment.MONGO_BACKUP_DIR || undefined);
+
+    if (inputDirectory !== undefined && target !== 'beta') {
+        throw new Error(
+            `--input-dir is only supported for the beta import target, not ${target}`
+        );
+    }
+
+    if (target === 'beta') {
+        if (ref && directoryOverride) {
+            throw new Error(
+                'Choose either MONGO_BACKUP_DIR/--input-dir or MONGO_BACKUP_REF for the beta import, not both'
+            );
+        }
+
+        if (ref) {
+            return {
+                kind: 'github',
+                repository: resolveMongoBackupRepository(
+                    target,
+                    environment.MONGO_BACKUP_REPOSITORY
+                ),
+                ref,
+                requireCommitSha: false
+            };
+        }
+
+        const directory = path.resolve(
+            directoryOverride ?? path.join(projectRoot, 'princess-db')
+        );
+
+        if (
+            !fs.existsSync(directory) ||
+            !fs.statSync(directory).isDirectory()
+        ) {
+            throw new Error(
+                `Beta import backup directory does not exist: ${directory}. Set MONGO_BACKUP_DIR or pass --input-dir with an absolute path`
+            );
+        }
+
+        return { kind: 'directory', directory };
+    }
+
+    if (!ref) {
+        throw new Error(
+            'MONGO_BACKUP_REF must identify the private backup repository commit to import'
+        );
+    }
+
+    return {
+        kind: 'github',
+        repository: resolveMongoBackupRepository(
+            target,
+            environment.MONGO_BACKUP_REPOSITORY
+        ),
+        ref,
+        requireCommitSha: target === 'production'
+    };
 };
 
 export const resolveMongoBackupRepository = (
@@ -37,43 +140,31 @@ export const resolveMongoBackupRepository = (
         : (repositoryOverride ?? productionRepository);
 };
 
-export const runMongoImport = async (target: ImportTarget) => {
+export const runMongoImport = async (
+    target: ImportTarget,
+    inputDirectory?: string
+) => {
     const projectRoot = getProjectRoot();
 
-    if (target === 'production') {
+    if (target !== 'local') {
         loadD1Environment(projectRoot);
     }
 
-    const repository = resolveMongoBackupRepository(
-        target,
-        process.env.MONGO_BACKUP_REPOSITORY
-    );
+    const source = resolveMongoImportSource(target, {
+        projectRoot,
+        environment: process.env,
+        inputDirectory
+    });
 
-    if (target === 'production') {
-        assertProductionD1Target();
-    }
-
-    const ref = process.env.MONGO_BACKUP_REF;
-
-    if (!ref) {
-        throw new Error(
-            'MONGO_BACKUP_REF must identify the private backup repository commit to import'
-        );
+    if (target !== 'local') {
+        assertRemoteD1Target(target);
     }
 
     const outputDirectory = path.join(projectRoot, '.backups');
     const sqlPath = path.join(outputDirectory, 'mongo-to-d1.sql');
 
     try {
-        const report = await prepareMongoImport({
-            source: {
-                kind: 'github',
-                repository,
-                ref,
-                requireCommitSha: target === 'production'
-            },
-            outputDirectory
-        });
+        const report = await prepareMongoImport({ source, outputDirectory });
         const preflightCounts = preflightImportTarget(target);
 
         console.log(
@@ -104,12 +195,13 @@ if (
     scriptPath &&
     import.meta.url === pathToFileURL(path.resolve(scriptPath)).href
 ) {
-    void runMongoImport(parseTarget(process.argv[2])).catch(
-        (error: unknown) => {
-            console.error(
-                error instanceof Error ? error.message : String(error)
-            );
-            process.exitCode = 1;
-        }
-    );
+    void (async () => {
+        await runMongoImport(
+            parseTarget(process.argv[2]),
+            parseImportInputDirectory(process.argv.slice(3))
+        );
+    })().catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+    });
 }

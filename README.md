@@ -175,21 +175,20 @@ Create the separate beta database the same way:
 pnpm exec wrangler d1 create princess-beta --env beta --binding DB
 ```
 
-Put each printed `database_id` and `preview_database_id` into its own Worker
-environment in [wrangler.jsonc](./wrangler.jsonc):
+The real `database_id` values are committed in [wrangler.jsonc](./wrangler.jsonc)
+under `env.production.d1_databases[0]` and `env.beta.d1_databases[0]`. Neither
+environment defines `preview_database_id`, so `wrangler dev --remote` cannot reach a
+remote database by accident.
 
-- `env.production.d1_databases[0]`
-- `env.beta.d1_databases[0]` (`REPLACE_WITH_BETA_DATABASE_ID` and
-  `REPLACE_WITH_BETA_PREVIEW_DATABASE_ID`)
-
-Stable and beta use separate D1 databases. Until the beta database exists, do not
-deploy beta against production.
-
-The checked-in values are placeholders. Stable deployment must remain blocked
-until every `REPLACE_WITH_...` value is replaced and verified. Wrangler
-environments create distinct Workers but do not automatically isolate their bound
-resources; see the
+Stable and beta use separate D1 databases. Wrangler environments create distinct
+Workers but do not automatically isolate their bound resources; see the
 [Wrangler environments documentation](https://developers.cloudflare.com/workers/wrangler/environments/).
+
+Local operators without an API token can run the D1 and deploy scripts through
+`wrangler login` by setting `CLOUDFLARE_AUTH_MODE=wrangler-login` (plus
+`CLOUDFLARE_ACCOUNT_ID`). The mode is rejected when `CI` or `GITHUB_ACTIONS` is set;
+CI keeps using API tokens. Beta accepts a local backup for
+`pnpm db:import:beta` via `MONGO_BACKUP_DIR` or `--input-dir <absolute-path>`.
 
 Only stable owns the cron trigger. Beta does not.
 

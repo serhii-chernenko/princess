@@ -246,9 +246,7 @@ the external Telegram subrequest count.
 
 ### 5. Stable/Beta Isolation — Decided, Needs Provisioning
 
-Beta gets its own D1 database, `princess-beta`, with placeholders
-`REPLACE_WITH_BETA_DATABASE_ID` and `REPLACE_WITH_BETA_PREVIEW_DATABASE_ID` in
-`wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
+Beta gets its own D1 database, `princess-beta`, configured in `wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
 the GitHub `beta` environment in CI). Migrate it with `pnpm db:migrate:beta`.
 
 `pnpm db:copy:production-to-beta --confirm-overwrite-beta`, or the manual workflow

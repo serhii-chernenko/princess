@@ -31,6 +31,9 @@ const cloudflareAccountIdPattern = /^[0-9a-f]{32}$/;
 
 export type EnvironmentSource = Readonly<Record<string, string | undefined>>;
 export type ChildProcessEnvironment = Record<string, string>;
+export type CloudflareAuthMode = 'token' | 'wrangler-login';
+
+export const wranglerLoginAuthMode = 'wrangler-login';
 
 const requireCredential = (
     source: EnvironmentSource,
@@ -62,6 +65,30 @@ const createProcessEssentials = (source: EnvironmentSource) => {
     }
 
     return environment;
+};
+
+export const resolveCloudflareAuthMode = (
+    source: EnvironmentSource
+): CloudflareAuthMode => {
+    const mode = source.CLOUDFLARE_AUTH_MODE;
+
+    if (mode === undefined || mode === '' || mode === 'token') {
+        return 'token';
+    }
+
+    if (mode !== wranglerLoginAuthMode) {
+        throw new Error(
+            `CLOUDFLARE_AUTH_MODE must be unset, "token" or "${wranglerLoginAuthMode}"`
+        );
+    }
+
+    if (Boolean(source.CI) || Boolean(source.GITHUB_ACTIONS)) {
+        throw new Error(
+            `CLOUDFLARE_AUTH_MODE=${wranglerLoginAuthMode} is for local operators only and is rejected in CI`
+        );
+    }
+
+    return wranglerLoginAuthMode;
 };
 
 export const loadD1Environment = (projectRoot: string) => {
@@ -105,10 +132,13 @@ export const createWranglerChildEnvironment = (
             'CLOUDFLARE_ACCOUNT_ID',
             value => cloudflareAccountIdPattern.test(value)
         );
-        environment.CLOUDFLARE_API_TOKEN = requireCredential(
-            source,
-            'CLOUDFLARE_API_TOKEN'
-        );
+
+        if (resolveCloudflareAuthMode(source) === 'token') {
+            environment.CLOUDFLARE_API_TOKEN = requireCredential(
+                source,
+                'CLOUDFLARE_API_TOKEN'
+            );
+        }
     }
 
     return environment;

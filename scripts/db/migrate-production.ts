@@ -4,7 +4,9 @@ import { pathToFileURL } from 'node:url';
 
 import {
     createDrizzleChildEnvironment,
-    loadD1Environment
+    loadD1Environment,
+    resolveCloudflareAuthMode,
+    wranglerLoginAuthMode
 } from './d1-child-environment';
 import { getProjectRoot } from './d1-import-target';
 import {
@@ -12,6 +14,7 @@ import {
     resolveD1DatabaseId,
     type D1DatabaseTarget
 } from './production-d1-target';
+import { runWranglerLoginMigration } from './wrangler-login-migration';
 
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
@@ -25,7 +28,7 @@ export const getProductionMigrationArguments = (configPath: string) => {
     ];
 };
 
-export const runRemoteMigration = (target: D1DatabaseTarget) => {
+export const runRemoteMigration = async (target: D1DatabaseTarget) => {
     const projectRoot = getProjectRoot();
 
     loadD1Environment(projectRoot);
@@ -36,6 +39,25 @@ export const runRemoteMigration = (target: D1DatabaseTarget) => {
         target,
         process.env[d1DatabaseIdEnvironmentNames[target]]
     );
+
+    if (resolveCloudflareAuthMode(process.env) === wranglerLoginAuthMode) {
+        const result = await runWranglerLoginMigration(
+            target,
+            projectRoot,
+            wranglerConfigPath
+        );
+
+        console.log(
+            JSON.stringify(
+                { target, authMode: wranglerLoginAuthMode, ...result },
+                null,
+                2
+            )
+        );
+
+        return;
+    }
+
     const drizzleConfigPath = path.join(
         projectRoot,
         `drizzle.${target}.config.ts`
@@ -65,8 +87,8 @@ export const runRemoteMigration = (target: D1DatabaseTarget) => {
     }
 };
 
-export const runProductionMigration = () => {
-    runRemoteMigration('production');
+export const runProductionMigration = async () => {
+    await runRemoteMigration('production');
 };
 
 const scriptPath = process.argv[1];
@@ -75,10 +97,8 @@ if (
     scriptPath &&
     import.meta.url === pathToFileURL(path.resolve(scriptPath)).href
 ) {
-    try {
-        runProductionMigration();
-    } catch (error) {
+    runProductionMigration().catch((error: unknown) => {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    }
+    });
 }

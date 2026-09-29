@@ -79,8 +79,7 @@
                 {
                     "binding": "DB",
                     "database_name": "princess-production",
-                    "database_id": "REPLACE_WITH_PRODUCTION_DATABASE_ID",
-                    "preview_database_id": "REPLACE_WITH_PRODUCTION_PREVIEW_DATABASE_ID",
+                    "database_id": "19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1",
                     "migrations_dir": "drizzle"
                 }
             ]
@@ -116,8 +115,7 @@
                 {
                     "binding": "DB",
                     "database_name": "princess-beta",
-                    "database_id": "REPLACE_WITH_BETA_DATABASE_ID",
-                    "preview_database_id": "REPLACE_WITH_BETA_PREVIEW_DATABASE_ID",
+                    "database_id": "9c10aa80-4512-4967-b016-f7364e9c48d9",
                     "migrations_dir": "drizzle"
                 }
             ]

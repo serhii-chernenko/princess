@@ -84,8 +84,8 @@ jobs:
 
             - name: Verify production resource IDs are configured
               run: |
-                  if grep -Eq 'REPLACE_WITH_PRODUCTION_' wrangler.jsonc; then
-                      echo '::error file=wrangler.jsonc::Replace all REPLACE_WITH_PRODUCTION_ resource ID placeholders before deploying stable.'
+                  if grep -Eq 'REPLACE_WITH_' wrangler.jsonc; then
+                      echo '::error file=wrangler.jsonc::Replace all REPLACE_WITH_ resource ID placeholders before deploying stable.'
                       exit 1
                   fi
 

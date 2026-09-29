@@ -9,10 +9,8 @@ if (
     scriptPath &&
     import.meta.url === pathToFileURL(path.resolve(scriptPath)).href
 ) {
-    try {
-        runRemoteMigration('beta');
-    } catch (error) {
+    runRemoteMigration('beta').catch((error: unknown) => {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
-    }
+    });
 }

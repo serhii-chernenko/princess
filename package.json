@@ -20,6 +20,7 @@
         "db:import:prepare": "tsx scripts/db/prepare-mongo-import.ts",
         "db:import:prepare:github": "tsx scripts/db/prepare-mongo-import.ts --github-ref \"$MONGO_BACKUP_REF\"",
         "db:import:production": "tsx scripts/db/run-mongo-import.ts production",
+        "db:import:beta": "tsx scripts/db/run-mongo-import.ts beta",
         "db:migrate:local": "tsx scripts/db/migrate-local.ts",
         "db:migrate:production": "tsx scripts/db/migrate-production.ts",
         "db:migrate:beta": "tsx scripts/db/migrate-beta.ts",
