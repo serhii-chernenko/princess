@@ -1,0 +1,23 @@
+# -------------------------------------------------------------------------
+# CLOUDFLARE TUNNEL CONFIGURATION
+# 1. Copy this file to 'cloudflared.yml' (which is git-ignored)
+# 2. Run 'cloudflared tunnel create princess-dev'
+# 3. Replace UUID and paths below with your generated details
+# 4. Route the DNS hostname:
+#    cloudflared tunnel route dns princess-dev princess-dev.chernenko.dev
+# -------------------------------------------------------------------------
+
+tunnel: 'INSERT-YOUR-UUID-HERE'
+
+# Path to the json key file generated during 'tunnel create'
+# Mac/Linux: /Users/USERNAME/.cloudflared/UUID.json
+# Windows: C:\\Users\\USERNAME\\.cloudflared\\UUID.json
+credentials-file: '/Users/YOUR_USER/.cloudflared/INSERT-YOUR-UUID-HERE.json'
+
+# Uncomment if you get error page
+# protocol: http2
+
+ingress:
+    - hostname: princess-dev.chernenko.dev
+      service: http://localhost:8787
+    - service: http_status:404

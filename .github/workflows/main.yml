@@ -1,40 +1,56 @@
-name: Build Princess Bot on VPS
+name: Validate Princess Worker
 
 on:
-  push:
-    branches:
-      - 'main'
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+    contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    validate:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Run a build command
-        uses: dawidd6/action-ansible-playbook@v2
-        with:
-          playbook: .ansible/main.yml
-          key: ${{secrets.SSH_PRIVATE_KEY}}
-          inventory: |
-            [all]
-            ${{ secrets.VPS }} address=localhost
-          options: |
-            -e NODE_ENV=production
-            -e GITHUB_REPO=${{github.repository}}
-            -e BOT_TOKEN=${{secrets.BOT_TOKEN}}
-            -e MONGODB_URI=${{secrets.MONGODB_URI}}
-            -e ADMIN_ID=${{secrets.ADMIN_ID}}
-            -e AUTHOR_TWITTER_LINK=${{vars.AUTHOR_TWITTER_LINK}}
-            -e WISHLIST_TG_URL=${{vars.WISHLIST_TG_URL}}
-            -e CHATGPT_GITHUB_REPO_URL=${{vars.CHATGPT_GITHUB_REPO_URL}}
-            -e TG_CHANNEL=${{vars.TG_CHANNEL}}
-            -e TG_GROUP=${{vars.TG_GROUP}}
-            -e YT_CHANNEL=${{vars.YT_CHANNEL}}
-            -e MAIL=${{vars.MAIL}}
-            -e ansible_port=${{ secrets.SSH_PORT }}
+            - name: Setup pnpm
+              uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+              with:
+                  version: 10.33.0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Run canonical checks
+              run: pnpm run check
+
+            - name: Regenerate committed artifacts and reject drift
+              run: |
+                  pnpm run i18n:generate
+                  pnpm run releases:sync
+                  pnpm run cf-typegen
+                  pnpm run db:generate
+
+                  generated_status="$(git status --short --untracked-files=all -- drizzle releases.generated.json src/i18n worker-configuration.d.ts)"
+                  if [[ -n "$generated_status" ]]; then
+                      echo '::error::Committed generated artifacts are out of date.'
+                      printf '%s\n' "$generated_status"
+                      exit 1
+                  fi
+
+            - name: Dry-run production Worker deployment
+              run: pnpm exec wrangler deploy --env production --dry-run
+
+            - name: Dry-run beta Worker deployment
+              run: pnpm exec wrangler deploy --env beta --dry-run

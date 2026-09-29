@@ -1,0 +1,15 @@
+{
+    "jsPlugins": ["./tools/oxlint/arrow-body-plugin.mjs"],
+    "env": {
+        "node": true
+    },
+    "rules": {
+        "arrow-body/explicit-return-for-wrapped-arrow": [
+            "error",
+            {
+                "maxLen": 80
+            }
+        ],
+        "no-var": "error"
+    }
+}

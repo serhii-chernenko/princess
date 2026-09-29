@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "strict": true,
+        "noEmit": true,
+        "resolveJsonModule": true,
+        "lib": ["ES2022"],
+        "skipLibCheck": true,
+        "exactOptionalPropertyTypes": true,
+        "noUncheckedIndexedAccess": true,
+        "forceConsistentCasingInFileNames": true
+    },
+    "include": [
+        "drizzle.config.ts",
+        "drizzle.production.config.ts",
+        "scripts/**/*.ts",
+        "types/**/*.d.ts",
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "worker-configuration.d.ts"
+    ]
+}
