@@ -25,12 +25,12 @@ the authoritative audit, cutover sequence, and rollback policy. Use
 - [x] Validate the 2026-05-09 local backup transformation: 225 channels, 974
       players, and 1,040 memberships with zero skips. This backup is stale and is not
       cutover input.
-- [x] Smoke-test the direct GitHub pipeline at pinned SHA
+- [x] Test the direct GitHub pipeline at pinned SHA
       `4b9ebd56e45a52547258886866cfb943da03f620`: 223 channels, 979 players,
       and 1,045 memberships with zero skips. This read-only run was not made under a
       source freeze and is not cutover input.
 - [x] Replace the checked-in VPS deploy workflow with validation-only GitHub
-      Actions; production is deployed by Cloudflare Workers Builds (beta was later retired in favour of Worker Previews). Keep D1
+      Actions; production is deployed by Cloudflare Workers Builds (other branches get Worker Previews). Keep D1
       migration and Telegram webhook changes as separate operator actions.
 - [x] Add compare-and-set daily-run claiming, atomic score increments, a single
       membership reconciliation, set-based cleanup, D1-safe orphan chunks, a
@@ -60,9 +60,8 @@ the authoritative audit, cutover sequence, and rollback policy. Use
       rerun all gates after further code or configuration changes.
 - [x] Apply the 2026-09-29 review fixes for legacy parity (see
       [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#2026-09-29-review)).
-- [x] Decide production/beta isolation: separate beta D1 `princess-beta`, with a
-      production-to-beta copy command and manual workflow (superseded: beta retired;
-      previews use `princess-preview` with `db:copy:production-to-preview`).
+- [x] Decide production/preview isolation: separate preview D1 `princess-preview`,
+      with the `db:copy:production-to-preview` command and a manual workflow.
 - [ ] Review and commit the current worktree. Phase 8 is already committed in
       `be567a8`, a WIP commit ("chore: in progress"); give it a proper message or
       squash before the PR (owner's call). Today's follow-up is uncommitted on top.
@@ -72,17 +71,17 @@ the authoritative audit, cutover sequence, and rollback policy. Use
 Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 - [x] Enable Workers Paid (verified).
-- [x] Create the production D1 and the separate beta D1 `princess-beta` (since retired), replace all
-      D1 placeholders in `wrangler.jsonc`, and attach production/beta custom domains.
-- [x] Configure per-bot runtime secrets on both Workers; local copies in ignored
-      `.dev.vars.production` / `.dev.vars.beta` (beta file since removed); `env/.env.d1` in
+- [x] Create the production D1 and the separate preview D1 `princess-preview`, replace all
+      D1 placeholders in `wrangler.jsonc`, and attach the production custom domain.
+- [x] Configure per-bot runtime secrets; local copies in ignored
+      `.dev.vars.production` / `.dev.vars.preview`; `env/.env.d1` in
       `wrangler-login` mode.
 - [x] Take a fresh post-freeze export (`princess-db` commit `d97cd8e`), stop and
       freeze the legacy bot (17:48:52Z), and record the times.
 - [x] Apply the production schema migrations (rerun after a transient D1 7403).
 - [x] Run the one-shot production import from the pinned SHA and reconcile: 217
       channels, 886 players, 939 memberships, score sum 21192, 0 FK violations.
-- [x] Deploy production and beta (beta since retired); set the beta webhook, then the production webhook
+- [x] Deploy production; set the production webhook
       (17:52:44Z, `max_connections=1`, `allowed_updates` `message`).
 - [x] Fix the non-message update stall (`200 {ignored:true}`); queue drained.
 - [x] Connect Cloudflare Workers Builds to the repo; remove the old VPS deploy
@@ -94,28 +93,24 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 - [x] Apply migration `20260929183002_mysterious_freak` to `princess-production`
       before merging (Workers Builds deploys code but does not run migrations).
 - [x] Merge to `main` (PR #1), announce 5.0.0 (90 sent, 127 skipped, 0 failed),
-      and move the `princess-beta` Workers Build to the `beta` branch (obsolete: beta retired).
-- [x] Retire the beta environment in the repository: previews of the production Worker
-      (`env.production.previews`) replace it; `princess-preview` D1 id is set in
-      `wrangler.jsonc`.
-- [ ] Delete the retired beta resources: Worker `princess-beta`, D1 `princess-beta`,
-      queues `princess-beta-release-announcements` and
-      `princess-beta-release-announcements-dlq`, DNS/custom domain
-      `princess-beta.chernenko.dev`, the `beta` branch, and its Workers Build.
+      and enable previews of the production Worker (`env.production.previews`);
+      the `princess-preview` D1 id is set in `wrangler.jsonc`.
+- [x] Beta cleanup is done: the former beta Worker, D1, queues, custom domain,
+      branch, and Workers Build were deleted on 2026-09-29.
 - [ ] Provision and migrate the `princess-preview` D1 (`pnpm run db:migrate:preview`)
       and create the `princess-preview-release-announcements` queue if not done.
-- [ ] Set the Preview base-config secrets (`BOT_TOKEN` with the debug bot token,
+- [ ] Set the Preview base-config secrets (`BOT_TOKEN` with the preview bot token,
       `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`) with
       `pnpm exec wrangler preview base-config secret put NAME --env production`
-      (see README "Testing with Worker Previews"). Keep the debug bot out of
+      (see README "Testing with Worker Previews"). Keep the preview bot (@princess_debug_bot) out of
       production groups.
 - [ ] Investigate why registered Cron Triggers are not invoked (no `scheduled`
       events in Workers Observability); the daily ledger prune depends on them. The
       production `*/10` cron has not fired on Builds-deployed versions (open).
-- [ ] Rotate the production and debug bot tokens if desired (shared in chat).
+- [ ] Rotate the production and preview bot tokens if desired (shared in chat).
 - [ ] Configure the GitHub `preview` environment secrets/variables and protections
       (required reviewers, `main` deployment-branch rule, D1-scoped token) for the
-      copy workflow (replaces the retired `beta` environment); consider CODEOWNERS on
+      copy workflow; consider CODEOWNERS on
       `.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`.
 - [ ] Restrict access to the preview D1 and logs and define retention: preview holds
       production PII after a copy.

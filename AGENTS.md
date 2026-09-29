@@ -39,7 +39,7 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - Never point a preview at the production database.
 - Data is copied production to preview only (`pnpm db:copy:production-to-preview --confirm-overwrite-preview`); never the other direction.
 - The preview D1 may hold a production copy after the copy command; restrict access to it.
-- The debug bot is for preview-only Telegram groups.
+- The preview bot (@princess_debug_bot) is for preview-only Telegram groups.
 - Never add both bots to the same Telegram group.
 
 ## Deployment
@@ -50,8 +50,8 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 ## Worker Previews
 
 - Worker Previews (`env.production.previews`) of the production Worker use their own D1 database, `princess-preview`.
-- Previews get the debug bot token as a Preview base-config secret, never the production bot token.
-- Point the debug bot webhook at a preview only with `pnpm telegram:webhook:set:preview --url <preview url> --drop-pending-updates=true|false`.
+- Previews get the preview bot token as a Preview base-config secret, never the production bot token.
+- Point the preview bot webhook at a preview only with `pnpm telegram:webhook:set:preview --url <preview url> --drop-pending-updates=true|false`.
 - Previews run with `BOT_ENVIRONMENT="preview"`: no cron, no cleanup, no release broadcast.
 
 ## Releases

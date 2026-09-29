@@ -12,7 +12,7 @@ test('parseSemver reads plain major.minor.patch versions only', () => {
     assert.deepEqual(parseSemver(' 1.0.0 '), [1, 0, 0]);
     assert.equal(parseSemver('5.0'), null);
     assert.equal(parseSemver('v5.0.0'), null);
-    assert.equal(parseSemver('5.0.0-beta.1'), null);
+    assert.equal(parseSemver('5.0.0-rc.1'), null);
     assert.equal(parseSemver(''), null);
 });
 

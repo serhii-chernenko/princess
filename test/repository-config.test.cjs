@@ -59,7 +59,7 @@ test('remote migration and webhook cutover cannot run from ordinary CI deploys',
     assert.doesNotMatch(workflowSource, /telegram:webhook/);
     assert.doesNotMatch(workflowSource, /secrets\./);
     assert.equal(wranglerConfig.env.production.workers_dev, false);
-    assert.equal(wranglerConfig.env.beta, undefined);
+    assert.equal(wranglerConfig.env.preview, undefined);
     assert.equal(wranglerConfig.env.production.preview_urls, true);
 });
 
