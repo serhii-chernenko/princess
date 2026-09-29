@@ -8,7 +8,7 @@
     - en: The bot has moved to a new cloud infrastructure and a new database. All communities, players and their points are preserved.
 - [updated] Бот працює швидше та стабільніше.
     - en: The bot is now faster and more reliable.
-- [added] Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Use /lang to switch the bot to English.
+- [added] Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Admins can switch the bot to English with /lang en.
     - en: New /lang command: community admins can choose the bot language (Ukrainian or English).
 - [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Жодних додаткових прав не потрібно.
     - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. No extra permissions are needed.

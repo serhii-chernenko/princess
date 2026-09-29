@@ -328,24 +328,26 @@ test('a migration target already owned by another channel skips without sending'
     );
 });
 
-test('5xx errors return the row to the queue and retry with exponential backoff', async () => {
-    const attemptsToDelays: [number, number][] = [
-        [1, 30],
-        [2, 60],
-        [3, 120],
-        [4, 240],
-        [5, 480]
-    ];
+test('any 5xx is ambiguous, skipped with its status code and never resent', async () => {
+    for (const errorCode of [500, 502, 504]) {
+        for (const attempts of [1, QUEUE_MAX_DELIVERIES]) {
+            const { outcome, state } = await runOne(
+                { sendError: telegramError(errorCode) },
+                attempts
+            );
 
-    for (const [attempts, delaySeconds] of attemptsToDelays) {
-        const { outcome, state } = await runOne(
-            { sendError: telegramError(502) },
-            attempts
-        );
-
-        assert.equal(outcome.acked, false);
-        assert.deepEqual(outcome.retryOptions, { delaySeconds });
-        assert.deepEqual(state.marks, [['queued', 10, 502, true]]);
+            assert.equal(outcome.acked, true);
+            assert.equal(outcome.retried, false);
+            assert.deepEqual(state.marks, [
+                ['skipped', 10, 1, releaseVersion, errorCode]
+            ]);
+            assert.equal(
+                state.logs[0]?.event,
+                'release_announcement_ambiguous'
+            );
+            assert.equal(state.logs[0]?.errorCode, errorCode);
+            assert.deepEqual(state.sent, []);
+        }
     }
 });
 
@@ -365,19 +367,6 @@ test('backoff is capped at one hour', () => {
     assert.equal(getBackoffSeconds(1), 30);
     assert.equal(getBackoffSeconds(8), 3600);
     assert.equal(getBackoffSeconds(50), 3600);
-});
-
-test('the final delivery marks the row failed and hands the message to the DLQ', async () => {
-    const { outcome, state } = await runOne(
-        { sendError: telegramError(500) },
-        QUEUE_MAX_DELIVERIES
-    );
-
-    assert.equal(outcome.acked, false);
-    assert.equal(outcome.retried, true);
-    assert.equal(outcome.retryOptions, undefined);
-    assert.deepEqual(state.marks, [['failed', 10, 500]]);
-    assert.equal(state.logs[0]?.event, 'release_announcement_failed');
 });
 
 test('queue delivery limits match the committed wrangler consumers', () => {

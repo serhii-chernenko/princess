@@ -205,7 +205,7 @@ verification:
   `env/.env.dev` or `env/.env.production`, including `MONGODB_URI`, rather than
   Worker `.dev.vars*` files.
 
-The full `pnpm test` suite passes (190 tests, including the integration tests), with
+The full `pnpm test` suite passes (211 tests, including the integration tests), with
 fresh generated Wrangler bindings and successful local, stable, and beta
 deployment dry-runs. The test script quotes its globs so nested test directories
 run. Rerun these gates after any further code or configuration change.
@@ -295,17 +295,20 @@ The legacy startup loop is replaced by a queue-based announcement pipeline.
 - **Consumer.** Sequential, at least 50 ms between sends. Delivery is at-most-once
   on ambiguity: the row moves `queued` to `sending` by compare-and-set before the
   Telegram call. Success marks it `sent` (state write retried three times, never
-  resent) and stores the version on the channel. No Telegram response, or a
-  redelivery of a `sending` row, marks it `skipped` with no error code
-  (`release_announcement_ambiguous`). 403 and permanent 400 mark it `skipped` with
+  resent) and stores the version on the channel. No Telegram response, any 5xx
+  (Telegram may have delivered before erroring), or a redelivery of a `sending` row
+  marks it `skipped` with the status code or no code (`release_announcement_ambiguous`). 403 and permanent 400 mark it `skipped` with
   the code. 400 with `migrate_to_chat_id` updates the chat id and sends once more,
   or skips on a chat id conflict. Other 400 marks it `failed` without bumping the
   version. 429 re-enqueues a fresh job after `retry_after + 1` seconds (never
-  counts toward `max_retries`). 5xx returns the row to `queued` and retries with
-  30 s doubling backoff capped at one hour; the last delivery (`max_retries` 5, so
-  delivery six) marks it `failed` and the message goes to the DLQ. With
-  `ENABLE_RELEASE_BROADCAST` not `"true"` the consumer retries every message after
-  600 s without sending. Invalid or non-latest-version jobs are acknowledged.
+  counts toward `max_retries`). Handler errors retry with 30 s doubling backoff
+  capped at one hour (`max_retries` 5). Kill switch: the `ENABLE_RELEASE_BROADCAST`
+  variable requires a redeploy; while off the consumer retries every message after
+  600 s without sending, jobs land in the DLQ after about 50 min, and rows stay
+  `queued`. The fast emergency stop is
+  `pnpm exec wrangler queues pause-delivery princess-release-announcements`
+  (resume with `resume-delivery`). Invalid or non-latest-version jobs are
+  acknowledged.
 - **Stale recovery.** The cron re-enqueues `queued` rows older than 3 hours and marks
   `sending` rows older than 3 hours `skipped`.
 - **Queues.** Stable: `princess-release-announcements`, DLQ
@@ -317,8 +320,6 @@ The legacy startup loop is replaced by a queue-based announcement pipeline.
   marked `skipped` so members and scores survive a bot re-add.
 - **Not copied to beta.** `release_announcements` is excluded from
   `db:copy:production-to-beta`, like `telegram_updates`.
-- **Known gap.** A crash between the row insert and `sendBatch` leaves a `queued` row
-  without a job; a failed `sendBatch` is rolled back, a hard crash is not.
 
 ### 4. Workers Paid — Enabled
 

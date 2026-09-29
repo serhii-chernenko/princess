@@ -371,19 +371,23 @@ const handleMessage = async (
 
     const { failure } = outcome;
 
-    if (failure.errorCode === null) {
+    if (failure.errorCode === null || failure.errorCode >= 500) {
         await writeState('ambiguous', () => {
             return dependencies.markSkipped(
                 announcement.id,
                 channel.id,
                 releaseVersion,
-                null,
+                failure.errorCode,
                 timestamp()
             );
         });
         dependencies.log({
             event: 'release_announcement_ambiguous',
-            reason: 'no_telegram_response',
+            reason:
+                failure.errorCode === null
+                    ? 'no_telegram_response'
+                    : 'telegram_server_error',
+            errorCode: failure.errorCode,
             ...sentLogContext
         });
         message.ack();
@@ -431,28 +435,6 @@ const handleMessage = async (
         return;
     }
 
-    const isServerError = failure.errorCode >= 500;
-
-    if (isServerError && message.attempts < QUEUE_MAX_DELIVERIES) {
-        const delaySeconds = getBackoffSeconds(message.attempts);
-
-        await dependencies.releaseToQueue(
-            announcement.id,
-            failure.errorCode,
-            true,
-            timestamp()
-        );
-        dependencies.log({
-            event: 'release_announcement_retry',
-            errorCode: failure.errorCode,
-            attempts: message.attempts,
-            delaySeconds,
-            ...sentLogContext
-        });
-        message.retry({ delaySeconds });
-        return;
-    }
-
     await writeState('failed', () => {
         return dependencies.markFailed(
             announcement.id,
@@ -470,11 +452,6 @@ const handleMessage = async (
         ),
         ...sentLogContext
     });
-
-    if (isServerError) {
-        message.retry();
-        return;
-    }
 
     message.ack();
 };

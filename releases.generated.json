@@ -5,7 +5,7 @@
         "groups": {
             "added": [
                 {
-                    "uk": "Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Use /lang to switch the bot to English.",
+                    "uk": "Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Admins can switch the bot to English with /lang en.",
                     "en": "New /lang command: community admins can choose the bot language (Ukrainian or English)."
                 }
             ],

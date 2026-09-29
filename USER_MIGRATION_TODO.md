@@ -46,7 +46,7 @@ the authoritative audit, cutover sequence, and rollback policy. Use
 - [x] Bound authenticated webhook JSON to 1 MiB, validate message-update shape,
       authenticate `/health` before D1, prune 24-hour abandoned claims, reject
       beta/disabled global cleanup, and disable production/beta `workers.dev`.
-- [x] Retire proactive release broadcast for the v5 cutover; keep `/releases`.
+- [x] Implement proactive release announcements through Cloudflare Queues (at-most-once, bilingual notes, kill switch); keep `/releases`.
 
 ## In Progress — Code and Repository Gates
 
@@ -56,7 +56,7 @@ the authoritative audit, cutover sequence, and rollback policy. Use
       increments, cleanup chunking and cascades, Mongo import SQL and rerun
       rejection, and webhook dispatch with duplicate and concurrent delivery.
 - [x] Run `pnpm run check`, generated-binding verification, and local/stable/beta
-      deployment dry-runs. The latest `pnpm test` reports 122/122 passing tests;
+      deployment dry-runs. The latest `pnpm test` reports 211/211 passing tests;
       rerun all gates after further code or configuration changes.
 - [x] Apply the 2026-09-29 review fixes for legacy parity (see
       [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#2026-09-29-review)).
@@ -90,6 +90,9 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 ## Open Follow-ups
 
+- [ ] Before merging to `main`, apply migration `20260929183002_mysterious_freak`
+      to `princess-production` with `pnpm db:migrate:production`; Workers Builds
+      deploys code but does not run migrations.
 - [ ] Review and commit the current worktree, merge to `main`, then switch the
       `princess-beta` Workers Build branch from `feat/migration-to-v5` to `main`.
 - [ ] Rotate the stable and beta bot tokens if desired (shared in chat).
@@ -116,8 +119,6 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 - [ ] If rollback is required after D1 writes, stop webhook traffic and reconcile
       exported D1 deltas into Mongo before restarting polling. There is no automatic
       zero-loss rollback.
-- [ ] Reintroduce proactive release broadcast only through a Queue or Workflow
-      with durable progress, bounded concurrency, retries, and idempotency.
 - [ ] Replace the webhook lease ledger with a durable Queue-backed inbox before
       promising stronger retry or exactly-once behavior.
 - [ ] Make D1 effects deterministic and keyed by Telegram update ID, especially

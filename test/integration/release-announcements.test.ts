@@ -301,10 +301,14 @@ describe('Release announcements on D1', () => {
         assert.equal((await readChannel(limitedId))?.releaseVersion, '4.0.1');
 
         assert.deepEqual(await readAnnouncement(brokenId), {
-            status: 'failed',
+            status: 'skipped',
             attempts: 1,
             lastErrorCode: 500
         });
+        assert.equal(
+            (await readChannel(brokenId))?.releaseVersion,
+            currentVersion
+        );
         assert.equal(await countRows(harness, 'channels'), 4);
     });
 
