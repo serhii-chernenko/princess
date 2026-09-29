@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { defineConfig } from 'drizzle-kit';
 
-import { resolveBetaD1DatabaseId } from './scripts/db/production-d1-target';
+import { resolvePreviewD1DatabaseId } from './scripts/db/production-d1-target';
 
-const betaDatabaseId = resolveBetaD1DatabaseId(
+const previewDatabaseId = resolvePreviewD1DatabaseId(
     path.resolve(process.cwd(), 'wrangler.jsonc'),
-    process.env.CLOUDFLARE_BETA_DATABASE_ID
+    process.env.CLOUDFLARE_PREVIEW_DATABASE_ID
 );
 
 export default defineConfig({
@@ -15,7 +15,7 @@ export default defineConfig({
     driver: 'd1-http',
     dbCredentials: {
         accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
-        databaseId: betaDatabaseId,
+        databaseId: previewDatabaseId,
         token: process.env.CLOUDFLARE_D1_TOKEN ?? ''
     }
 });

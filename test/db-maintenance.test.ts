@@ -114,7 +114,7 @@ const createRecordingDatabase = (
 
 const createTestWorkerBindings = (
     database: D1Database,
-    botEnvironment: 'local' | 'production' | 'beta' = 'local',
+    botEnvironment: WorkerBindings['BOT_ENVIRONMENT'] = 'local',
     enableScheduledCleanup: 'true' | 'false' = 'true'
 ) => {
     return {
@@ -244,14 +244,10 @@ test('inactive-channel cleanup uses set-based channel work and chunked orphan de
     }
 });
 
-test('global cleanup rejects disabled and beta execution before querying D1', async () => {
+test('global cleanup rejects disabled execution before querying D1', async () => {
     const disabled = createRecordingDatabase(() => []);
-    const beta = createRecordingDatabase(() => []);
     const disabledGame = createGameService(
         createTestWorkerBindings(disabled.database, 'production', 'false')
-    );
-    const betaGame = createGameService(
-        createTestWorkerBindings(beta.database, 'beta', 'true')
     );
     const cutoff = new Date('2026-01-01T00:00:00.000Z');
 
@@ -259,12 +255,22 @@ test('global cleanup rejects disabled and beta execution before querying D1', as
         disabledGame.cleanupInactiveChannels(cutoff),
         /disabled by configuration/
     );
+    assert.equal(disabled.statements.length, 0);
+});
+
+test('global cleanup rejects preview execution even when scheduled cleanup is enabled', async () => {
+    const preview = createRecordingDatabase(() => []);
+    const previewGame = createGameService(
+        createTestWorkerBindings(preview.database, 'preview', 'true')
+    );
+
     await assert.rejects(
-        betaGame.cleanupInactiveChannels(cutoff),
+        previewGame.cleanupInactiveChannels(
+            new Date('2026-01-01T00:00:00.000Z')
+        ),
         /forbidden outside the local or production owner environment/
     );
-    assert.equal(disabled.statements.length, 0);
-    assert.equal(beta.statements.length, 0);
+    assert.equal(preview.statements.length, 0);
 });
 
 test('Mongo import SQL is insert-only and leaves transaction control to Wrangler', () => {

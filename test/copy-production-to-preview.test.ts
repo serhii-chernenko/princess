@@ -10,9 +10,9 @@ import {
     buildCountsSql,
     buildMigrationHashesSql,
     copiedTablesInInsertOrder,
-    copyProductionToBeta,
+    copyProductionToPreview,
     deleteChunkSize,
-    getBetaImportArguments,
+    getPreviewImportArguments,
     getExportArguments,
     getWipeOrder,
     migrationsTableName,
@@ -20,12 +20,12 @@ import {
     parseCopyArguments,
     selectCopyTables,
     type WranglerRunResult
-} from '../scripts/db/copy-production-to-beta';
+} from '../scripts/db/copy-production-to-preview';
 
 const configPath = path.resolve('/tmp/princess/wrangler.jsonc');
 const databaseIds = {
     productionDatabaseId: 'production-id',
-    betaDatabaseId: 'beta-id'
+    previewDatabaseId: 'preview-id'
 };
 const allProductionTables = [
     '__drizzle_migrations',
@@ -47,8 +47,8 @@ const ok = (stdout = ''): WranglerRunResult => {
 };
 
 interface FakeOptions {
-    betaHashes?: string[];
-    betaCountsAfterImport?: number;
+    previewHashes?: string[];
+    previewCountsAfterImport?: number;
     exportFails?: boolean;
     deleteChanges?: number[];
 }
@@ -78,7 +78,8 @@ const createFakeRunner = (options: FakeOptions = {}) => {
             return ok();
         }
 
-        const environment = arguments_[arguments_.indexOf('--env') + 1];
+        const environment =
+            arguments_[4] === 'princess-preview' ? 'preview' : 'production';
         const command = arguments_[arguments_.indexOf('--command') + 1] ?? '';
 
         if (command.includes('sqlite_master')) {
@@ -87,8 +88,8 @@ const createFakeRunner = (options: FakeOptions = {}) => {
 
         if (command.includes('__drizzle_migrations')) {
             const hashes =
-                environment === 'beta'
-                    ? (options.betaHashes ?? ['a', 'b'])
+                environment === 'preview'
+                    ? (options.previewHashes ?? ['a', 'b'])
                     : ['a', 'b'];
 
             return ok(envelope(hashes.map(hash => ({ hash }))));
@@ -100,8 +101,8 @@ const createFakeRunner = (options: FakeOptions = {}) => {
 
         if (command.includes('COUNT(*)')) {
             const players =
-                environment === 'beta'
-                    ? (options.betaCountsAfterImport ?? 3)
+                environment === 'preview'
+                    ? (options.previewCountsAfterImport ?? 3)
                     : 3;
 
             return ok(
@@ -120,26 +121,32 @@ const createFakeRunner = (options: FakeOptions = {}) => {
 };
 
 test('copy arguments require the explicit overwrite confirmation flag', () => {
-    assert.deepEqual(parseCopyArguments(['--confirm-overwrite-beta']), {
-        confirmOverwriteBeta: true
+    assert.deepEqual(parseCopyArguments(['--confirm-overwrite-preview']), {
+        confirmOverwritePreview: true
     });
-    assert.deepEqual(parseCopyArguments(['--', '--confirm-overwrite-beta']), {
-        confirmOverwriteBeta: true
-    });
+    assert.deepEqual(
+        parseCopyArguments(['--', '--confirm-overwrite-preview']),
+        {
+            confirmOverwritePreview: true
+        }
+    );
     assert.throws(() => {
         parseCopyArguments([]);
-    }, /--confirm-overwrite-beta to confirm/);
+    }, /--confirm-overwrite-preview to confirm/);
     assert.throws(() => {
-        parseCopyArguments(['--confirm-overwrite-beta', '--target=production']);
+        parseCopyArguments([
+            '--confirm-overwrite-preview',
+            '--target=production'
+        ]);
     }, /Unknown arguments/);
 });
 
-test('copy direction guard rejects identical production and beta databases', () => {
+test('copy direction guard rejects identical production and preview databases', () => {
     assert.throws(() => {
         assertDistinctCopyDatabases('same-id', 'same-id');
     }, /same D1 database/);
     assert.doesNotThrow(() => {
-        assertDistinctCopyDatabases('production-id', 'beta-id');
+        assertDistinctCopyDatabases('production-id', 'preview-id');
     });
 });
 
@@ -161,7 +168,7 @@ test('table selection excludes bookkeeping and ledger tables and fails on drift'
     }, /missing: channels, channel_members/);
 });
 
-test('export and import commands are hard-wired production to beta', () => {
+test('export and import commands are hard-wired production to preview', () => {
     const exportArguments = getExportArguments(
         configPath,
         '/tmp/out.sql',
@@ -189,16 +196,14 @@ test('export and import commands are hard-wired production to beta', () => {
     );
     assert.equal(exportArguments.includes('telegram_updates'), false);
     assert.equal(exportArguments.includes('release_announcements'), false);
-    assert.deepEqual(getBetaImportArguments(configPath, '/tmp/out.sql'), [
+    assert.deepEqual(getPreviewImportArguments(configPath, '/tmp/out.sql'), [
         'exec',
         'wrangler',
         'd1',
         'execute',
-        'DB',
+        'princess-preview',
         '--config',
         configPath,
-        '--env',
-        'beta',
         '--remote',
         '--file',
         '/tmp/out.sql',
@@ -218,7 +223,7 @@ test('generated SQL is chunked and quoted', () => {
 test('copy runs migrations check, wipe in FK order, import, verify, and cleans up', () => {
     const fake = createFakeRunner({ deleteChanges: [0, 0, 0] });
     const logs: string[] = [];
-    const result = copyProductionToBeta({
+    const result = copyProductionToPreview({
         runWrangler: fake.runWrangler,
         ...databaseIds,
         configPath,
@@ -254,7 +259,7 @@ test('copy keeps deleting while chunks are full', () => {
         deleteChanges: [deleteChunkSize, 4, 0, 0]
     });
 
-    copyProductionToBeta({
+    copyProductionToPreview({
         runWrangler: fake.runWrangler,
         ...databaseIds,
         configPath,
@@ -268,18 +273,18 @@ test('copy keeps deleting while chunks are full', () => {
     assert.equal(deleteCalls.length, 4);
 });
 
-test('copy aborts before touching production or beta data when migrations differ', () => {
-    const fake = createFakeRunner({ betaHashes: ['a'] });
+test('copy aborts before touching production or preview data when migrations differ', () => {
+    const fake = createFakeRunner({ previewHashes: ['a'] });
 
     assert.throws(() => {
-        copyProductionToBeta({
+        copyProductionToPreview({
             runWrangler: fake.runWrangler,
             ...databaseIds,
             ...databaseIds,
             configPath,
             log: () => undefined
         });
-    }, /pnpm db:migrate:beta/);
+    }, /pnpm db:migrate:preview/);
     assert.equal(fake.exportedFiles.length, 0);
     assert.equal(
         fake.calls.some(call => {
@@ -290,28 +295,28 @@ test('copy aborts before touching production or beta data when migrations differ
 });
 
 test('copy fails on row count mismatch and still removes the SQL file', () => {
-    const fake = createFakeRunner({ betaCountsAfterImport: 1 });
+    const fake = createFakeRunner({ previewCountsAfterImport: 1 });
 
     assert.throws(() => {
-        copyProductionToBeta({
+        copyProductionToPreview({
             runWrangler: fake.runWrangler,
             ...databaseIds,
             ...databaseIds,
             configPath,
             log: () => undefined
         });
-    }, /players \(production=3, beta=1\)/);
+    }, /players \(production=3, preview=1\)/);
     assert.equal(fs.existsSync(fake.exportedFiles[0] ?? ''), false);
 });
 
-test('copy itself refuses identical production and beta database ids', () => {
+test('copy itself refuses identical production and preview database ids', () => {
     const fake = createFakeRunner();
 
     assert.throws(() => {
-        copyProductionToBeta({
+        copyProductionToPreview({
             runWrangler: fake.runWrangler,
             productionDatabaseId: 'same-id',
-            betaDatabaseId: 'same-id',
+            previewDatabaseId: 'same-id',
             configPath,
             log: () => undefined
         });
@@ -319,17 +324,17 @@ test('copy itself refuses identical production and beta database ids', () => {
     assert.equal(fake.calls.length, 0);
 });
 
-test('post-wipe failures state that beta is empty or partial and how to restore it', () => {
-    const fake = createFakeRunner({ betaCountsAfterImport: 1 });
+test('post-wipe failures state that preview is empty or partial and how to restore it', () => {
+    const fake = createFakeRunner({ previewCountsAfterImport: 1 });
 
     assert.throws(() => {
-        copyProductionToBeta({
+        copyProductionToPreview({
             runWrangler: fake.runWrangler,
             ...databaseIds,
             configPath,
             log: () => undefined
         });
-    }, /Beta is now empty or only partially filled\. Re-run "pnpm db:copy:production-to-beta --confirm-overwrite-beta"/);
+    }, /Preview is now empty or only partially filled\. Re-run "pnpm db:copy:production-to-preview --confirm-overwrite-preview"/);
 });
 
 test('wrangler log path is allowed through the child environment only when provided', () => {
@@ -364,7 +369,7 @@ test('export failures redact signed URLs from the error', () => {
 
     assert.throws(
         () => {
-            copyProductionToBeta({
+            copyProductionToPreview({
                 runWrangler: fake.runWrangler,
                 ...databaseIds,
                 ...databaseIds,
@@ -388,7 +393,7 @@ test('package exposes the copy command through the guarded script', () => {
     ) as { scripts: Record<string, string> };
 
     assert.equal(
-        packageJson.scripts['db:copy:production-to-beta'],
-        'tsx scripts/db/copy-production-to-beta.ts'
+        packageJson.scripts['db:copy:production-to-preview'],
+        'tsx scripts/db/copy-production-to-preview.ts'
     );
 });

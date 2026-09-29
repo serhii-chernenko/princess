@@ -21,7 +21,7 @@
         "BOT_ENVIRONMENT": "local",
         "ENABLE_SCHEDULED_CLEANUP": "true",
         "ENABLE_RELEASE_BROADCAST": "false",
-        "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
+        "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
         "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
         "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
         "TG_CHANNEL": "https://t.me/serhii_chernenko",
@@ -57,11 +57,12 @@
         "production": {
             "name": "princess",
             "workers_dev": false,
+            "preview_urls": true,
             "vars": {
                 "BOT_ENVIRONMENT": "production",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
                 "ENABLE_RELEASE_BROADCAST": "true",
-                "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
+                "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
                 "TG_CHANNEL": "https://t.me/serhii_chernenko",
@@ -111,66 +112,49 @@
                     "database_id": "19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1",
                     "migrations_dir": "drizzle"
                 }
-            ]
-        },
-        "beta": {
-            "name": "princess-beta",
-            "workers_dev": false,
-            "vars": {
-                "BOT_ENVIRONMENT": "beta",
-                "ENABLE_SCHEDULED_CLEANUP": "false",
-                "ENABLE_RELEASE_BROADCAST": "true",
-                "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
-                "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
-                "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
-                "TG_CHANNEL": "https://t.me/serhii_chernenko",
-                "TG_GROUP": "https://t.me/serhii_chernenko_chat",
-                "YT_CHANNEL": "https://youtube.com/@serhii.chernenko",
-                "MAIL": "contact@chernenko.digital"
-            },
-            "secrets": {
-                "required": [
-                    "BOT_TOKEN",
-                    "TELEGRAM_WEBHOOK_SECRET",
-                    "TELEGRAM_WEBHOOK_PATH"
-                ]
-            },
-            "routes": [
-                {
-                    "pattern": "princess-beta.chernenko.dev",
-                    "custom_domain": true
-                }
             ],
-            "triggers": {
-                "crons": ["*/10 * * * *"]
-            },
-            "queues": {
-                "producers": [
+            "previews": {
+                "vars": {
+                    "BOT_ENVIRONMENT": "preview",
+                    "ENABLE_SCHEDULED_CLEANUP": "false",
+                    "ENABLE_RELEASE_BROADCAST": "false",
+                    "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
+                    "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
+                    "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
+                    "TG_CHANNEL": "https://t.me/serhii_chernenko",
+                    "TG_GROUP": "https://t.me/serhii_chernenko_chat",
+                    "YT_CHANNEL": "https://youtube.com/@serhii.chernenko",
+                    "MAIL": "contact@chernenko.digital"
+                },
+                "d1_databases": [
                     {
-                        "binding": "RELEASE_QUEUE",
-                        "queue": "princess-beta-release-announcements"
+                        "binding": "DB",
+                        "database_name": "princess-preview",
+                        "database_id": "b9a13fb8-8745-4d33-a5a2-f067b7b35220",
+                        "migrations_dir": "drizzle"
                     }
                 ],
-                "consumers": [
-                    {
-                        "queue": "princess-beta-release-announcements",
-                        "max_batch_size": 10,
-                        "max_batch_timeout": 5,
-                        "max_retries": 5,
-                        "retry_delay": 30,
-                        "max_concurrency": 1,
-                        "dead_letter_queue": "princess-beta-release-announcements-dlq"
+                "queues": {
+                    "producers": [
+                        {
+                            "binding": "RELEASE_QUEUE",
+                            "queue": "princess-preview-release-announcements"
+                        }
+                    ]
+                },
+                "observability": {
+                    "enabled": true,
+                    "logs": {
+                        "enabled": true,
+                        "head_sampling_rate": 1,
+                        "invocation_logs": true
+                    },
+                    "traces": {
+                        "enabled": true,
+                        "head_sampling_rate": 0.05
                     }
-                ]
-            },
-            "d1_databases": [
-                {
-                    "binding": "DB",
-                    "database_name": "princess-beta",
-                    "database_id": "9c10aa80-4512-4967-b016-f7364e9c48d9",
-                    "migrations_dir": "drizzle"
                 }
-            ]
+            }
         }
     }
 }

@@ -51,6 +51,3 @@ jobs:
 
             - name: Dry-run production Worker deployment
               run: pnpm exec wrangler deploy --env production --dry-run
-
-            - name: Dry-run beta Worker deployment
-              run: pnpm exec wrangler deploy --env beta --dry-run

@@ -38,6 +38,10 @@ observation window is in progress. See
   total, above the Free plan's 50.
 - Beta will use its own D1 database (`princess-beta`), refreshed from production
   by an explicit copy command.
+- Note 2026-09-29: the beta environment was later retired in favour of Worker
+  Previews of the production Worker (own D1 `princess-preview`); the beta
+  references below are historical. See
+  [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#beta-retirement).
 
 The daily product behavior remains message-triggered and rate-limited to once per
 24 hours; the cron trigger is for maintenance, not selection.
@@ -736,7 +740,7 @@ For this bot, the practical setup is now:
 Post-cutover, in this order:
 
 1. Review and commit the worktree, merge to `main`, and switch the `princess-beta`
-   Workers Build branch to `main`.
+   Workers Build branch to `main` (obsolete: the beta environment was retired).
 2. Observe production; keep MongoDB Atlas untouched as a backup source.
 3. Review the deletion set before enabling scheduled cleanup.
 4. Decide on Mongo Atlas retirement (legacy code is already removed) after the observation

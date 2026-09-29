@@ -134,8 +134,8 @@ The production wrapper explicitly selects `wrangler.jsonc`, environment
 `production`, binding `DB`, and remote D1. It refuses a non-SHA source ref and
 aborts unless all four application tables have zero rows. It also requires the
 independent database-ID confirmation to match the production binding, requires
-the binding name `princess-production`. Beta has its own database
-(`princess-beta`, `CLOUDFLARE_BETA_DATABASE_ID`) and is never imported from Mongo. Put D1-only credentials in ignored `env/.env.d1` (copied from
+the binding name `princess-production`. Worker Previews have their own database
+(`princess-preview`, `CLOUDFLARE_PREVIEW_DATABASE_ID`), filled from production or from a local backup, never from the production import. Put D1-only credentials in ignored `env/.env.d1` (copied from
 `env/.env.d1.example`) or the shell, never in `.dev.vars.production`.
 
 For remote file execution, Cloudflare documents that a failed import restores the
@@ -171,23 +171,26 @@ Require all of the following before deploying or registering webhooks:
 
 Archive the report and reconciliation evidence with the recorded freeze time,
 backup commit SHA, D1 recovery point, and operator identity. Only then continue
-with Worker deployment and the beta/production webhook sequence in the main cutover
+with Worker deployment and the preview/production webhook sequence in the main cutover
 runbook.
 
-## 7. Beta data and pending updates
+## 7. Preview data and pending updates
 
-Beta is filled from production, not from Mongo. After production reconciliation,
-run `pnpm db:migrate:beta` and then
-`pnpm db:copy:production-to-beta --confirm-overwrite-beta` (or the manual
-`OVERWRITE BETA` workflow) in a low-traffic window: the remote export blocks
+The preview database (`princess-preview`) is filled from production, or from a
+local backup with `pnpm db:import:preview` (`MONGO_BACKUP_DIR` or
+`--input-dir <absolute-path>`, `princess-db/` by default; the target must be empty).
+After production reconciliation, run `pnpm db:migrate:preview` and then
+`pnpm db:copy:production-to-preview --confirm-overwrite-preview` (or the manual
+`OVERWRITE PREVIEW` workflow) in a low-traffic window: the remote export blocks
 production D1 queries while it runs. It copies `players`, `channels`, and
-`channel_members`, wipes beta first, and verifies counts; writes made to production
-after the export cause a count mismatch, and a mid-way failure leaves beta partly
-wiped, so rerun. Beta then holds production PII; restrict access to it.
+`channel_members`, wipes preview first, and verifies counts; writes made to production
+after the export cause a count mismatch, and a mid-way failure leaves preview partly
+wiped, so rerun. Preview then holds production PII; restrict access to it.
 
 At each webhook switch, decide what happens to updates Telegram queued while the
-webhook was unset. `set` and `delete` for production and beta require
-`--drop-pending-updates=true|false`: for example,
+webhook was unset. `set` and `delete` for production and preview require
+`--drop-pending-updates=true|false`, and `set` and `info` for preview also require
+`--url https://<name>.<account>.workers.dev`: for example,
 `pnpm telegram:webhook:set:prod --drop-pending-updates=false` preserves and
 processes the queue, while `=true` discards it. Local may omit the flag. Make the
-choice deliberately for beta and again for production.
+choice deliberately for the preview and again for production.

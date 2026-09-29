@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type D1DatabaseTarget = 'production' | 'beta';
+export type D1DatabaseTarget = 'production' | 'preview';
 
 const d1DatabaseIdPattern =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -9,12 +9,12 @@ const zeroDatabaseId = '00000000-0000-0000-0000-000000000000';
 
 export const d1DatabaseNames: Record<D1DatabaseTarget, string> = {
     production: 'princess-production',
-    beta: 'princess-beta'
+    preview: 'princess-preview'
 };
 
 export const d1DatabaseIdEnvironmentNames: Record<D1DatabaseTarget, string> = {
     production: 'CLOUDFLARE_DATABASE_ID',
-    beta: 'CLOUDFLARE_BETA_DATABASE_ID'
+    preview: 'CLOUDFLARE_PREVIEW_DATABASE_ID'
 };
 
 const readRecord = (value: unknown, location: string) => {
@@ -45,10 +45,17 @@ const readDatabaseBindingRecord = (
     target: D1DatabaseTarget
 ) => {
     const environment = readRecord(
-        environments[target],
-        `Wrangler ${target} environment`
+        environments.production,
+        'Wrangler production environment'
     );
-    const databases = environment.d1_databases;
+    const databaseHolder =
+        target === 'preview'
+            ? readRecord(
+                  environment.previews,
+                  'Wrangler preview environment previews block'
+              )
+            : environment;
+    const databases = databaseHolder.d1_databases;
 
     if (!Array.isArray(databases)) {
         throw new Error(
@@ -120,7 +127,7 @@ export const parseD1Target = (
     const environments = parseWranglerEnvironments(configSource);
     const resolvedTarget = readDatabaseBinding(environments, target);
 
-    if (target === 'beta') {
+    if (target !== 'production') {
         const productionBinding = readDatabaseBindingRecord(
             environments,
             'production'
@@ -131,7 +138,7 @@ export const parseD1Target = (
             productionBinding.database_name === resolvedTarget.databaseName
         ) {
             throw new Error(
-                'Wrangler beta DB binding must not share the production database'
+                `Wrangler ${target} DB binding must not share the production database`
             );
         }
     }
@@ -184,9 +191,9 @@ export const resolveProductionD1DatabaseId = (
     return resolveD1DatabaseId(configPath, 'production', environmentDatabaseId);
 };
 
-export const resolveBetaD1DatabaseId = (
+export const resolvePreviewD1DatabaseId = (
     configPath: string,
     environmentDatabaseId?: string
 ) => {
-    return resolveD1DatabaseId(configPath, 'beta', environmentDatabaseId);
+    return resolveD1DatabaseId(configPath, 'preview', environmentDatabaseId);
 };

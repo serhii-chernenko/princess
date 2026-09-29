@@ -83,15 +83,16 @@ const createReadinessDatabase = (readyValue: number | null) => {
 
 const createBindings = (
     DB: D1Database,
-    botEnvironment: 'local' | 'production' | 'beta' = 'local'
+    botEnvironment: WorkerBindings['BOT_ENVIRONMENT'] = 'local'
 ): WorkerBindings => {
     return {
         DB,
         BOT_ENVIRONMENT: botEnvironment,
         ENABLE_SCHEDULED_CLEANUP: botEnvironment === 'local' ? 'true' : 'false',
-        ENABLE_RELEASE_BROADCAST: botEnvironment === 'local' ? 'false' : 'true',
+        ENABLE_RELEASE_BROADCAST:
+            botEnvironment === 'production' ? 'true' : 'false',
         RELEASE_QUEUE: {} as WorkerBindings['RELEASE_QUEUE'],
-        AUTHOR_TWITTER_LINK: 'https://twitter.com/giraffender',
+        AUTHOR_TWITTER_LINK: 'https://x.com/serhiichernenko',
         WISHLIST_TG_URL: 'https://t.me/wishlist_ua_bot',
         CHATGPT_GITHUB_REPO_URL:
             'https://github.com/serhii-chernenko/chatgpt-telegram-bot',
@@ -659,6 +660,55 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
     assert.equal(cleanupCalls, 1);
     assert.equal(abandonedLedgerPruneCalls, 1);
     assert.equal(processedLedgerPruneCalls, 1);
+});
+
+test('preview environment serves health and webhook but never runs scheduled work', async () => {
+    const { database, queries } = createReadinessDatabase(1);
+    const bindings = createBindings(database, 'preview');
+    const handledUpdateIds: number[] = [];
+    const app = createApp({
+        ...ledgerRouteDependencies,
+        async handleUpdate(_env, update) {
+            handledUpdateIds.push(update.update_id);
+        }
+    });
+
+    const health = await app.request(
+        '/health',
+        {
+            headers: {
+                'X-Telegram-Bot-Api-Secret-Token': 'test-webhook-secret'
+            }
+        },
+        bindings
+    );
+    const webhook = await app.fetch(
+        createTelegramRequest('/telegram/test', createTelegramUpdateBody(7)),
+        bindings
+    );
+    let scheduledCalls = 0;
+    const countScheduledCall = async () => {
+        scheduledCalls += 1;
+        return 0;
+    };
+
+    await runScheduledTasks(
+        { cron: '0 0 * * *', scheduledTime: Date.now(), noRetry() {} },
+        bindings,
+        {} as ExecutionContext,
+        {
+            cleanupInactiveChannels: countScheduledCall,
+            pruneProcessedTelegramUpdates: countScheduledCall,
+            pruneAbandonedTelegramUpdates: countScheduledCall
+        }
+    );
+
+    assert.equal(health.status, 200);
+    assert.equal(webhook.status, 200);
+    assert.deepEqual(handledUpdateIds, [7]);
+    assert.equal(bindings.ENABLE_RELEASE_BROADCAST, 'false');
+    assert.equal(scheduledCalls, 0);
+    assert.ok(queries.length > 0);
 });
 
 test('bot info is fetched once per bot key and reused by later updates', async () => {

@@ -24,15 +24,21 @@ pruned by the normal seven-day maintenance.
 
 Remaining follow-ups (none block traffic):
 
-1. Rotate the production and beta bot tokens if desired (they were shared in chat).
+1. Rotate the production and debug bot tokens if desired (they were shared in chat).
 2. Decide on Mongo Atlas retirement after the observation window.
 3. Enable scheduled cleanup only after reviewing the deletion set.
-4. Configure the GitHub `beta` environment secrets/variables for the copy workflow.
+4. Configure the GitHub `preview` environment secrets/variables for the copy workflow
+   (supersedes the retired `beta` environment).
 5. Investigate Cron Triggers: the schedules are registered (the dashboard shows
    `*/10 * * * *` with a next run) but Cloudflare has not invoked them; Workers
    Observability shows no `scheduled` events. Release announcements do not depend
    on the cron, but the daily ledger prune does.
 6. Add Cloudflare edge rate limiting for the webhook and `/health` paths.
+7. Delete the retired beta resources in Cloudflare and GitHub (see
+   [Beta retirement](#beta-retirement)).
+8. Set the Preview base-config secrets with the debug bot token and provision or
+   migrate `princess-preview` and its queue if not done (see
+   [Worker Previews](#worker-previews)).
 
 Workers Paid is enabled (verified). The exact-parity design requires it: for a vote
 in a group of N members the Worker makes 1 actor `getChatMember`, N reconciliation
@@ -90,7 +96,11 @@ All times UTC, 2026-09-29.
   enqueued 217 announcements. Delivery was resumed at 19:47:30Z and drained by
   19:51:38Z: 90 sent, 125 skipped with 400 (chat gone), 2 skipped with 403, 0
   ambiguous, 0 failed. `feat/migration-to-v5` was deleted; a `beta` branch was
-  created from `main`.
+  created from `main` (later retired, see [Beta retirement](#beta-retirement)).
+- **Beta retirement (later).** The beta environment recorded above (Worker
+  `princess-beta`, D1 `princess-beta`, its queues, the `beta` branch, and
+  `princess-beta.chernenko.dev`) was retired in favour of Worker Previews of the
+  production Worker; see [Beta retirement](#beta-retirement).
 
 ### Finding: legacy winners were limited to resolvable members
 
@@ -107,19 +117,20 @@ treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 
 - The rewrite was merged into `main` by PR #1 as merge commit `24a17c6`, keeping
   the per-phase history (including the WIP commit `be567a8`).
-- `main` deploys production; `beta` deploys the beta Worker.
+- `main` deploys production. The former `beta` branch and Worker are retired; testing
+  uses Worker Previews.
 - The cutover itself is recorded in the [Cutover record](#cutover-record).
 
 ## Main Compared with the Rewrite
 
-| Concern           | `main` at `243967c`                               | Rewrite worktree                                                          |
-| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
-| Runtime           | Long-running Node.js process on a VPS             | Cloudflare Worker with Hono and strict TypeScript                         |
-| Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                    |
-| Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories                 |
-| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; release announcements via Cloudflare Queues           |
-| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy production/beta |
-| Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest   |
+| Concern           | `main` at `243967c`                               | Rewrite worktree                                                        |
+| ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| Runtime           | Long-running Node.js process on a VPS             | Cloudflare Worker with Hono and strict TypeScript                       |
+| Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                  |
+| Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories               |
+| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; release announcements via Cloudflare Queues         |
+| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy production    |
+| Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest |
 
 ## Readiness by Layer
 
@@ -175,7 +186,7 @@ verification:
 - **Set-based cleanup.** Candidate players are selected once, stale channels are
   deleted as a set, and now-orphaned players are deleted with `NOT EXISTS` in
   chunks of 90 IDs. Global cleanup requires `ENABLE_SCHEDULED_CLEANUP="true"` in
-  the service itself and rejects beta even if that flag is misconfigured; targeted
+  the service itself and rejects preview even if that flag is misconfigured; targeted
   `/stop` remains available. Remote cleanup defaults to false.
 - **Safer daily vote.** The channel run timestamp is claimed with compare-and-set,
   the winner score uses an atomic SQL increment, a failed score update restores
@@ -199,15 +210,15 @@ verification:
   separate status-and-time-qualified deletes.
 - **Operational gates and observability.** Cleanup is explicitly gated;
   environment-tagged structured logs, Workers Logs, and sampled traces are
-  configured. Production and beta are available only on their custom domains;
-  `workers.dev` is disabled. See [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+  configured. Production is available only on its custom domain; `workers.dev` is
+  disabled (previews use `preview_urls`). See [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
 - **CI, check, format, and deployment hardening.** Oxfmt excludes generated
   binding/release/i18n artifacts, canonical checks run on pull requests and pushes,
   CI regenerates i18n, release, Wrangler-binding, and Drizzle artifacts and rejects
   tracked or untracked drift, and deploy dry-runs run in CI.
   Third-party actions are pinned to full commit SHAs. The workflow only validates:
   the manual GitHub deploy job was removed because Cloudflare Workers Builds now
-  deploys production and beta. D1 migrations and Telegram webhook changes remain
+  deploys production. D1 migrations and Telegram webhook changes remain
   separate operator actions.
 - **Release migration.** The v5.0.0 release is cut with bilingual (Ukrainian and
   English) notes. `CHANGELOG.md` remains the human history and
@@ -216,7 +227,7 @@ verification:
   its env loader, and its smoke tests are deleted; git history keeps them.
 
 The full `pnpm test` suite passes (221 tests, including the integration tests), with
-fresh generated Wrangler bindings and successful local, production, and beta
+fresh generated Wrangler bindings and successful local and production
 deployment dry-runs. The test script quotes its globs so nested test directories
 run. Rerun these gates after any further code or configuration change.
 
@@ -296,7 +307,7 @@ Telegram send methods still provide no application idempotency key. See
 
 The legacy startup loop is replaced by a queue-based announcement pipeline.
 
-- **Producer.** A `*/10 * * * *` cron on production and beta runs when
+- **Producer.** A `*/10 * * * *` cron on production runs when
   `ENABLE_RELEASE_BROADCAST` is `"true"` (`"false"` locally). It selects channels
   whose `release_version` is semver-lower than the newest manifest version and that
   have no `release_announcements` row for it, inserts rows with insert-or-ignore
@@ -322,14 +333,14 @@ The legacy startup loop is replaced by a queue-based announcement pipeline.
 - **Stale recovery.** The cron re-enqueues `queued` rows older than 3 hours and marks
   `sending` rows older than 3 hours `skipped`.
 - **Queues.** Production: `princess-release-announcements`, DLQ
-  `princess-release-announcements-dlq`. Beta: `princess-beta-release-announcements`,
-  DLQ `princess-beta-release-announcements-dlq`. Local:
+  `princess-release-announcements-dlq`. Previews: producer-only
+  `princess-preview-release-announcements` (no consumer). Local:
   `princess-local-release-announcements`. Consumers use batch size 10, batch timeout
   5 s, `max_concurrency` 1.
 - **Deviation from legacy.** Channels are never deleted on 403 or 400; the row is
   marked `skipped` so members and scores survive a bot re-add.
-- **Not copied to beta.** `release_announcements` is excluded from
-  `db:copy:production-to-beta`, like `telegram_updates`.
+- **Not copied to preview.** `release_announcements` is excluded from
+  `db:copy:production-to-preview`, like `telegram_updates`.
 
 ### 4. Workers Paid — Enabled
 
@@ -338,21 +349,28 @@ Telegram subrequests before replies (58 total), above Free's 50, and D1 queries
 count toward the same per-invocation limits. Do not silently ship partial reconciliation or assume D1 batching fixes
 the external Telegram subrequest count.
 
-### 5. Production/Beta Isolation — Provisioned
+### 5. Production/Preview Isolation — Provisioned
 
-Beta has its own D1 database, `princess-beta`, configured in `wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
-the GitHub `beta` environment in CI). Migrate it with `pnpm db:migrate:beta`.
+Worker Previews of the production Worker use their own D1 database,
+`princess-preview` (`b9a13fb8-8745-4d33-a5a2-f067b7b35220`), configured in
+`env.production.previews` in `wrangler.jsonc`. Its ID is
+`CLOUDFLARE_PREVIEW_DATABASE_ID` (`env/.env.d1` locally, the GitHub `preview`
+environment in CI). Migrate it with `pnpm db:migrate:preview`. The earlier beta
+Worker and D1 are retired (see [Beta retirement](#beta-retirement)).
 
-`pnpm db:copy:production-to-beta --confirm-overwrite-beta`, or the manual workflow
-`.github/workflows/copy-production-to-beta.yml` (`main` only, `beta` environment,
-typed confirmation `OVERWRITE BETA`), copies production to beta. It needs
-`CLOUDFLARE_API_TOKEN` (secret) with D1 edit on both databases plus
-`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_BETA_DATABASE_ID`
-(variables). It:
+`pnpm db:copy:production-to-preview --confirm-overwrite-preview`, or the manual
+workflow `.github/workflows/copy-production-to-preview.yml` (`main` only, `preview`
+environment, typed confirmation `OVERWRITE PREVIEW`), copies production to preview.
+It needs `CLOUDFLARE_API_TOKEN` (secret) with D1 edit on both databases plus
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_PREVIEW_DATABASE_ID`
+(variables). A local backup can be imported instead with `pnpm db:import:preview`
+(the target must be empty). The copy:
 
+- has a hard-coded production-to-preview direction and requires distinct database ids;
 - copies `players`, `channels`, and `channel_members` only, not
   `__drizzle_migrations` or `telegram_updates`;
-- requires matching migrations, wipes beta, and verifies counts.
+- requires matching migrations, wipes preview in foreign-key-safe chunks, and
+  verifies counts.
 
 Caveats:
 
@@ -360,24 +378,23 @@ Caveats:
   run it only in a low-traffic window.
 - Production writes after the export are not copied and can cause a count
   mismatch; rerun.
-- A mid-way failure leaves beta partly wiped; rerunning is safe.
-- Beta then holds production PII (Telegram IDs, names, usernames, group titles)
-  and beta logs at 100%: restrict access to the beta D1 and logs, define
-  retention, and consider lowering beta log sampling. Erasure on production does
-  not reach beta until the next copy.
+- A mid-way failure leaves preview partly wiped; rerunning is safe.
+- Preview then holds production PII (Telegram IDs, names, usernames, group titles):
+  restrict access to the preview D1 and logs, and define retention. Erasure on
+  production does not reach preview until the next copy.
 
-The GitHub `beta` environment secrets/variables are not configured yet. Restrict the environment to deployment branch `main` with required
-reviewers; the workflow's `if` guard alone does not stop a branch-edited workflow
-from using beta secrets. Consider CODEOWNERS or branch protection on
-`.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`. Store the copy's
-`CLOUDFLARE_API_TOKEN` as a `beta` environment secret scoped to D1 only, ideally
-split into a production-D1 read token (export) and a beta-D1 edit token
-(wipe/import); with one shared token, code guards are the only thing preventing
-production writes.
+The GitHub `preview` environment secrets/variables are not configured yet. Restrict
+the environment to deployment branch `main` with required reviewers; the workflow's
+`if` guard alone does not stop a branch-edited workflow from using preview secrets.
+Consider CODEOWNERS or branch protection on `.github/workflows/`, `scripts/db/`,
+and `wrangler.jsonc`. Store the copy's `CLOUDFLARE_API_TOKEN` as a `preview`
+environment secret scoped to D1 only, ideally split into a production-D1 read token
+(export) and a preview-D1 edit token (wipe/import); with one shared token, code
+guards are the only thing preventing production writes.
 
-Never deploy beta against the production database. The
-copy direction is production to beta only. Wrangler environments create distinct
-Workers, not distinct resources; see
+Never point a preview at the production database. The copy direction is production
+to preview only. Wrangler environments create distinct Workers, not distinct
+resources; see
 [Wrangler environments](https://developers.cloudflare.com/workers/wrangler/environments/).
 
 ### 6. Cloudflare Edge Rate Limiting — Operator Hardening (open)
@@ -405,14 +422,14 @@ happened. Reuse it for any re-run.
 
 1. **Enable capacity.** Enable Workers Paid (decided) before any production
    traffic changes.
-2. **Provision Cloudflare.** Create the beta D1 `princess-beta` and replace every
-   production/beta D1 placeholder in `wrangler.jsonc`; set
-   `CLOUDFLARE_BETA_DATABASE_ID` and run `pnpm db:migrate:beta`; verify the production/beta Workers, custom domains, D1 binding,
+2. **Provision Cloudflare.** Create the preview D1 `princess-preview` and replace every
+   production/preview D1 placeholder in `wrangler.jsonc`; set
+   `CLOUDFLARE_PREVIEW_DATABASE_ID` and run `pnpm db:migrate:preview`; verify the production Worker, custom domain, D1 binding,
    disabled `workers.dev` endpoints, account IDs, and API tokens. Store bot tokens
    and webhook secrets as secrets,
    not Wrangler `vars`; follow the
    [Workers secrets guide](https://developers.cloudflare.com/workers/configuration/secrets/).
-   Create the GitHub `beta` environment and configure required reviewers and a
+   Create the GitHub `preview` environment and configure required reviewers and a
    `main` deployment-branch rule before relying on the copy workflow. Runtime
    secrets live on the Workers, not in GitHub.
 3. **Take a fresh Mongo export.** Follow
@@ -440,22 +457,23 @@ happened. Reuse it for any re-run.
    constraints, score totals/distribution, active/auto flags, timestamps, release
    versions, languages, and several known large/small/sample groups.
 9. **Deploy without switching Telegram.** Cloudflare Workers Builds deploys the
-   beta and production Worker code and bindings. D1 migration and Telegram webhook
+   production Worker code and bindings. D1 migration and Telegram webhook
    registration remain separate operator actions.
 10. **Check readiness.** Require a successful authenticated `/health` response with
     the webhook-secret header, configuration and D1 checks, inspect Workers Logs,
     and run read-only smoke checks.
-11. **Register beta deliberately.** Optionally refresh beta from production with
-    `pnpm db:copy:production-to-beta --confirm-overwrite-beta`. Set the beta
-    webhook first and use `max_connections=1`. Decide whether pending updates are
+11. **Register the preview webhook deliberately.** Optionally refresh preview from
+    production with `pnpm db:copy:production-to-preview --confirm-overwrite-preview`.
+    Set the debug bot webhook to a preview first with `--url`, and use
+    `max_connections=1`. Decide whether pending updates are
     preserved or discarded: the helper requires
-    `--drop-pending-updates=true|false` for production and beta (for example
-    `pnpm telegram:webhook:set:beta --drop-pending-updates=false`). Low
+    `--drop-pending-updates=true|false` for production and preview (for example
+    `pnpm telegram:webhook:set:preview -- --url <preview url> --drop-pending-updates=false`). Low
     concurrency complements the durable ledger but cannot make Telegram sends
     exactly once.
-12. **Validate beta only.** Use the separate beta bot with the beta D1. Verify
+12. **Validate in a preview only.** Use the debug bot with the preview D1. Verify
     commands, one daily vote, duplicate delivery behavior, scores, membership
-    changes, errors, and logs. Never put production and beta in the same group; the
+    changes, errors, and logs. Never put the production and debug bots in the same group; the
     databases are separate but the bots would still both answer.
 13. **Switch production and monitor.** Point the production bot at the production Worker, keep
     `max_connections=1` initially, pass the explicit production
@@ -465,6 +483,43 @@ happened. Reuse it for any re-run.
 14. **Review cleanup separately.** Generate the fresh deletion set, review channel
     and orphan-player IDs, take another bookmark/export, and only then change
     `ENABLE_SCHEDULED_CLEANUP` from its remote default of `false`.
+
+## Worker Previews
+
+Wrangler is pinned to 4.143.1. All testing uses Worker Previews of the production
+Worker `princess`: `env.production.previews` in `wrangler.jsonc` and
+`env.production.preview_urls: true` (`workers_dev` stays `false`). A preview gets
+the separate `princess-preview` D1, the producer-only
+`princess-preview-release-announcements` queue, `BOT_ENVIRONMENT="preview"`, broadcast
+and cleanup off, and no crons, consumers, or routes. Secrets come from the Preview
+base config (the real debug bot token), and the debug bot's webhook is pointed at a
+preview URL with `pnpm telegram:webhook:set:preview -- --url <preview url>
+--drop-pending-updates=true|false`. See the README "Testing with Worker Previews"
+section.
+
+Notes:
+
+- Previews never run cron triggers or queue consumers; only production owns them.
+- All previews share the single `princess-preview` D1 and the debug bot's single
+  webhook, so only one preview receives Telegram traffic at a time.
+- `preview_urls: true` also exposes production version URLs on `workers.dev`,
+  protected only by the webhook secret gating.
+- Wrangler 4.143.1 cannot tail a preview; use Cloudflare dashboard observability.
+- Open investigation: the production `*/10` cron has not fired on Builds-deployed
+  versions, whereas the retired beta Worker's single-cron config fired at 19:50,
+  20:00, and 20:10. Production has two crons, `"0 0 * * *"` and `"*/10 * * * *"`.
+  The cause is unknown.
+
+## Beta Retirement
+
+The beta environment (Worker `princess-beta`, D1 `princess-beta`, its queues, the
+`beta` branch, `princess-beta.chernenko.dev`, the GitHub `beta` environment,
+`.dev.vars.beta`, `CLOUDFLARE_BETA_DATABASE_ID`, the `*:beta` scripts, and
+`drizzle.beta.config.ts`) was retired in favour of Worker Previews. The repository
+no longer references it. Remaining owner cleanup, still open: delete Worker
+`princess-beta`, D1 `princess-beta`, queues `princess-beta-release-announcements` and
+its `-dlq`, the DNS/custom domain `princess-beta.chernenko.dev`, the `beta` branch,
+and its Workers Build.
 
 ## Rollback Rules
 

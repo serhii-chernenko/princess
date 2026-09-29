@@ -8,12 +8,14 @@ import {
     parseWorkerDeployTarget
 } from '../scripts/cloudflare/deploy-worker';
 
-test('Worker deploy wrapper accepts only fixed production and beta targets', () => {
+test('Worker deploy wrapper accepts only only the fixed production target', () => {
     assert.equal(parseWorkerDeployTarget('production'), 'production');
-    assert.equal(parseWorkerDeployTarget('beta'), 'beta');
+    assert.throws(() => {
+        parseWorkerDeployTarget('beta');
+    }, /Usage/);
     assert.throws(() => {
         parseWorkerDeployTarget('staging');
-    }, /Usage: deploy-worker\.ts <production\|beta>/);
+    }, /Usage: deploy-worker\.ts <production>/);
 });
 
 test('Worker deploy wrapper builds fixed config, environment, and secrets arguments', () => {
@@ -21,7 +23,6 @@ test('Worker deploy wrapper builds fixed config, environment, and secrets argume
     const productionSecretsPath = path.resolve(
         '/tmp/princess/.dev.vars.production'
     );
-    const betaSecretsPath = path.resolve('/tmp/princess/.dev.vars.beta');
 
     assert.deepEqual(
         getWorkerDeployArguments(
@@ -41,20 +42,6 @@ test('Worker deploy wrapper builds fixed config, environment, and secrets argume
             productionSecretsPath
         ]
     );
-    assert.deepEqual(
-        getWorkerDeployArguments('beta', configPath, betaSecretsPath),
-        [
-            'exec',
-            'wrangler',
-            'deploy',
-            '--config',
-            configPath,
-            '--env',
-            'beta',
-            '--secrets-file',
-            betaSecretsPath
-        ]
-    );
 });
 
 test('all package Worker deploy commands use the fail-closed wrapper', () => {
@@ -70,10 +57,7 @@ test('all package Worker deploy commands use the fail-closed wrapper', () => {
         packageJson.scripts['worker:deploy:prod'],
         'tsx scripts/cloudflare/deploy-worker.ts production'
     );
-    assert.equal(
-        packageJson.scripts['worker:deploy:beta'],
-        'tsx scripts/cloudflare/deploy-worker.ts beta'
-    );
+    assert.equal(packageJson.scripts['worker:deploy:beta'], undefined);
     assert.match(wrapperSource, /resolveD1DatabaseId/);
     assert.match(wrapperSource, /createWranglerChildEnvironment/);
     assert.match(wrapperSource, /loadD1Environment/);
@@ -88,7 +72,7 @@ test('main workflow only validates and never deploys', () => {
 
     assert.match(workflowSource, /pnpm run check/);
     assert.match(workflowSource, /wrangler deploy --env production --dry-run/);
-    assert.match(workflowSource, /wrangler deploy --env beta --dry-run/);
+    assert.doesNotMatch(workflowSource, /--env beta/);
     assert.doesNotMatch(workflowSource, /workflow_dispatch:/);
     assert.doesNotMatch(workflowSource, /^\s+deploy:/m);
     assert.doesNotMatch(workflowSource, /worker:deploy/);
@@ -101,7 +85,7 @@ test('copy workflow is manual, main-only, protected, and confirmed', () => {
     const workflowSource = fs.readFileSync(
         path.resolve(
             process.cwd(),
-            '.github/workflows/copy-production-to-beta.yml'
+            '.github/workflows/copy-production-to-preview.yml'
         ),
         'utf8'
     );
@@ -109,11 +93,11 @@ test('copy workflow is manual, main-only, protected, and confirmed', () => {
     assert.match(workflowSource, /workflow_dispatch:/);
     assert.doesNotMatch(workflowSource, /^\s+(push|pull_request):/m);
     assert.match(workflowSource, /github\.ref == 'refs\/heads\/main'/);
-    assert.match(workflowSource, /inputs\.confirmation == 'OVERWRITE BETA'/);
-    assert.match(workflowSource, /environment: beta/);
+    assert.match(workflowSource, /inputs\.confirmation == 'OVERWRITE PREVIEW'/);
+    assert.match(workflowSource, /environment: preview/);
     assert.match(workflowSource, /permissions:\s+contents: read/);
     assert.match(workflowSource, /concurrency:/);
-    assert.match(workflowSource, /--confirm-overwrite-beta/);
+    assert.match(workflowSource, /--confirm-overwrite-preview/);
     assert.doesNotMatch(
         workflowSource,
         /^\s+run:.*\$\{\{\s*(?:secrets|vars)\./m

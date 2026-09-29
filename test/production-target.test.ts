@@ -13,7 +13,7 @@ import { getProductionMigrationArguments } from '../scripts/db/migrate-productio
 import { prepareMongoImport } from '../scripts/db/mongo-import';
 import {
     parseD1DatabaseId,
-    resolveBetaD1DatabaseId,
+    resolvePreviewD1DatabaseId,
     resolveProductionD1DatabaseId
 } from '../scripts/db/production-d1-target';
 import { resolveMongoBackupRepository } from '../scripts/db/run-mongo-import';
@@ -21,14 +21,14 @@ import { resolveMongoBackupRepository } from '../scripts/db/run-mongo-import';
 const productionDatabaseId = '12345678-1234-1234-1234-1234567890ab';
 const otherDatabaseId = '87654321-4321-4321-4321-ba0987654321';
 
-const betaDatabaseId = 'abcdef12-1234-1234-1234-1234567890ab';
+const previewDatabaseId = 'fedcba98-1234-1234-1234-1234567890ab';
 
 const createWranglerConfig = (
     databaseId: string,
     options: {
         productionDatabaseName?: string;
-        betaDatabaseId?: string;
-        betaDatabaseName?: string;
+        previewDatabaseId?: string;
+        previewDatabaseName?: string;
     } = {}
 ) => {
     const createBinding = (bindingDatabaseId: string, databaseName: string) => {
@@ -47,15 +47,15 @@ const createWranglerConfig = (
                         databaseId,
                         options.productionDatabaseName ?? 'princess-production'
                     )
-                ]
-            },
-            beta: {
-                d1_databases: [
-                    createBinding(
-                        options.betaDatabaseId ?? betaDatabaseId,
-                        options.betaDatabaseName ?? 'princess-beta'
-                    )
-                ]
+                ],
+                previews: {
+                    d1_databases: [
+                        createBinding(
+                            options.previewDatabaseId ?? previewDatabaseId,
+                            options.previewDatabaseName ?? 'princess-preview'
+                        )
+                    ]
+                }
             }
         }
     });
@@ -65,17 +65,17 @@ test('D1 target parser resolves each environment to its own binding', () => {
     const config = createWranglerConfig(productionDatabaseId);
 
     assert.equal(parseD1DatabaseId(config, 'production'), productionDatabaseId);
-    assert.equal(parseD1DatabaseId(config, 'beta'), betaDatabaseId);
+    assert.equal(parseD1DatabaseId(config, 'preview'), previewDatabaseId);
 });
 
-test('production D1 target ignores unconfigured beta placeholders', () => {
+test('production D1 target ignores unconfigured preview placeholders', () => {
     const config = createWranglerConfig(productionDatabaseId, {
-        betaDatabaseId: 'REPLACE_WITH_BETA_DATABASE_ID'
+        previewDatabaseId: 'REPLACE_WITH_PREVIEW_DATABASE_ID'
     });
 
     assert.equal(parseD1DatabaseId(config, 'production'), productionDatabaseId);
     assert.throws(() => {
-        parseD1DatabaseId(config, 'beta');
+        parseD1DatabaseId(config, 'preview');
     }, /must be a real lowercase Cloudflare D1 database UUID/);
 });
 
@@ -129,19 +129,19 @@ test('D1 targets enforce per-environment names and forbid sharing', () => {
     assert.throws(() => {
         parseD1DatabaseId(
             createWranglerConfig(productionDatabaseId, {
-                betaDatabaseName: 'princess-production'
+                previewDatabaseName: 'princess-production'
             }),
-            'beta'
+            'preview'
         );
-    }, /beta DB database_name must be princess-beta/);
+    }, /preview DB database_name must be princess-preview/);
     assert.throws(() => {
         parseD1DatabaseId(
             createWranglerConfig(productionDatabaseId, {
-                betaDatabaseId: productionDatabaseId
+                previewDatabaseId: productionDatabaseId
             }),
-            'beta'
+            'preview'
         );
-    }, /beta DB binding must not share the production database/);
+    }, /preview DB binding must not share the production database/);
 });
 
 test('production D1 target rejects a mismatched environment database ID', context => {
@@ -162,13 +162,6 @@ test('production D1 target rejects a mismatched environment database ID', contex
     assert.throws(() => {
         resolveProductionD1DatabaseId(configPath);
     }, /CLOUDFLARE_DATABASE_ID confirmation is required/);
-    assert.throws(() => {
-        resolveBetaD1DatabaseId(configPath, productionDatabaseId);
-    }, /CLOUDFLARE_BETA_DATABASE_ID does not match the beta DB binding/);
-    assert.equal(
-        resolveBetaD1DatabaseId(configPath, betaDatabaseId),
-        betaDatabaseId
-    );
     assert.equal(
         resolveProductionD1DatabaseId(configPath, productionDatabaseId),
         productionDatabaseId
@@ -185,10 +178,10 @@ test('Drizzle child environment passes the target-specific database ID variable'
     };
 
     assert.deepEqual(
-        createDrizzleChildEnvironment(source, betaDatabaseId, 'beta'),
+        createDrizzleChildEnvironment(source, previewDatabaseId, 'preview'),
         {
             CLOUDFLARE_ACCOUNT_ID: source.CLOUDFLARE_ACCOUNT_ID,
-            CLOUDFLARE_BETA_DATABASE_ID: betaDatabaseId,
+            CLOUDFLARE_PREVIEW_DATABASE_ID: previewDatabaseId,
             CLOUDFLARE_D1_TOKEN: source.CLOUDFLARE_D1_TOKEN
         }
     );
@@ -364,21 +357,79 @@ test('production migration and D1 commands target explicit reviewed configs', ()
     );
 });
 
-test('beta D1 execute and migration commands are explicit and remote', () => {
+test('preview D1 target resolves from the production previews block and fails closed', () => {
+    const config = createWranglerConfig(productionDatabaseId);
+
+    assert.equal(parseD1DatabaseId(config, 'preview'), previewDatabaseId);
+    assert.throws(() => {
+        parseD1DatabaseId(
+            createWranglerConfig(productionDatabaseId, {
+                previewDatabaseId: 'REPLACE_WITH_PREVIEW_DATABASE_ID'
+            }),
+            'preview'
+        );
+    }, /must be a real lowercase Cloudflare D1 database UUID/);
+    assert.throws(() => {
+        parseD1DatabaseId(
+            createWranglerConfig(productionDatabaseId, {
+                previewDatabaseId: productionDatabaseId
+            }),
+            'preview'
+        );
+    }, /preview DB binding must not share the production database/);
+    assert.throws(() => {
+        parseD1DatabaseId(
+            createWranglerConfig(productionDatabaseId, {
+                previewDatabaseName: 'princess-production'
+            }),
+            'preview'
+        );
+    }, /preview DB database_name must be princess-preview/);
+    assert.throws(() => {
+        parseD1DatabaseId(
+            JSON.stringify({
+                env: {
+                    production: {
+                        d1_databases:
+                            JSON.parse(config).env.production.d1_databases
+                    }
+                }
+            }),
+            'preview'
+        );
+    }, /previews block must be an object/);
+});
+
+test('preview D1 confirmation, execute and migration commands are explicit and remote', () => {
     const wranglerConfigPath = path.resolve('/tmp/princess/wrangler.jsonc');
+    const configPath = path.join(
+        fs.mkdtempSync(path.join(os.tmpdir(), 'princess-preview-')),
+        'wrangler.jsonc'
+    );
     const packageJson = JSON.parse(
         fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8')
     ) as { scripts: Record<string, string> };
 
+    fs.writeFileSync(configPath, createWranglerConfig(productionDatabaseId));
+
+    assert.equal(
+        resolvePreviewD1DatabaseId(configPath, previewDatabaseId),
+        previewDatabaseId
+    );
+    assert.throws(() => {
+        resolvePreviewD1DatabaseId(configPath, undefined);
+    }, /CLOUDFLARE_PREVIEW_DATABASE_ID confirmation is required/);
+    assert.throws(() => {
+        resolvePreviewD1DatabaseId(configPath, productionDatabaseId);
+    }, /CLOUDFLARE_PREVIEW_DATABASE_ID does not match the preview DB binding/);
     assert.deepEqual(
-        getD1ExecuteArguments('beta', wranglerConfigPath, {
+        getD1ExecuteArguments('preview', wranglerConfigPath, {
             file: '/tmp/import.sql'
-        }).slice(5),
+        }).slice(4),
         [
+            'princess-preview',
             '--config',
             wranglerConfigPath,
-            '--env',
-            'beta',
             '--remote',
             '--file',
             '/tmp/import.sql',
@@ -386,8 +437,12 @@ test('beta D1 execute and migration commands are explicit and remote', () => {
         ]
     );
     assert.equal(
-        packageJson.scripts['db:migrate:beta'],
-        'tsx scripts/db/migrate-beta.ts'
+        packageJson.scripts['db:migrate:preview'],
+        'tsx scripts/db/migrate-preview.ts'
+    );
+    assert.equal(
+        packageJson.scripts['worker:preview'],
+        'wrangler preview --env production'
     );
 });
 

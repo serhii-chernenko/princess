@@ -8,7 +8,7 @@ import {
 } from '../cloudflare/runtime-env';
 
 type WebhookAction = 'set' | 'info' | 'delete';
-type EnvTarget = 'local' | 'production' | 'beta';
+type EnvTarget = 'local' | 'production' | 'preview';
 
 export const TELEGRAM_API_MAX_RESPONSE_BYTES = 64 * 1024;
 export const TELEGRAM_API_TIMEOUT_MILLISECONDS = 15_000;
@@ -63,14 +63,115 @@ const parseAction = (value: string | undefined): WebhookAction => {
 };
 
 const parseTarget = (value: string | undefined): EnvTarget => {
-    if (value === 'local' || value === 'production' || value === 'beta') {
+    if (value === 'local' || value === 'production' || value === 'preview') {
         return value;
     }
 
-    throw new Error('Webhook target must be one of: local, production, beta');
+    throw new Error(
+        'Webhook target must be one of: local, production, preview'
+    );
 };
 
 const dropPendingUpdatesFlagPrefix = '--drop-pending-updates=';
+const urlFlag = '--url';
+const urlFlagPrefix = `${urlFlag}=`;
+const workersDevHostSuffix = '.workers.dev';
+
+export const parsePreviewBaseUrl = (value: string) => {
+    let url: URL;
+
+    try {
+        url = new URL(value);
+    } catch {
+        throw new Error('--url must be a valid absolute URL');
+    }
+
+    if (url.protocol !== 'https:') {
+        throw new Error('--url must use https');
+    }
+
+    if (
+        !url.hostname.endsWith(workersDevHostSuffix) ||
+        url.hostname === workersDevHostSuffix.slice(1)
+    ) {
+        throw new Error(`--url host must end with ${workersDevHostSuffix}`);
+    }
+
+    if (
+        url.username !== '' ||
+        url.password !== '' ||
+        url.port !== '' ||
+        url.pathname !== '/' ||
+        url.search !== '' ||
+        url.hash !== ''
+    ) {
+        throw new Error(
+            '--url must be a bare origin such as https://name.account.workers.dev'
+        );
+    }
+
+    return url.origin;
+};
+
+export const parseWebhookArguments = (
+    action: WebhookAction,
+    target: EnvTarget,
+    arguments_: string[]
+) => {
+    const flags = arguments_.filter(argument => argument !== '--');
+    const remainingFlags: string[] = [];
+    let baseUrlValue: string | undefined;
+
+    for (let index = 0; index < flags.length; index += 1) {
+        const flag = flags[index] as string;
+
+        if (flag === urlFlag) {
+            index += 1;
+            baseUrlValue = flags[index];
+
+            if (baseUrlValue === undefined || baseUrlValue.startsWith('--')) {
+                throw new Error('--url requires a value');
+            }
+        } else if (flag.startsWith(urlFlagPrefix)) {
+            baseUrlValue = flag.slice(urlFlagPrefix.length);
+        } else {
+            remainingFlags.push(flag);
+        }
+    }
+
+    const dropPendingUpdates = parseDropPendingUpdates(
+        action,
+        target,
+        remainingFlags
+    );
+
+    if (target !== 'preview') {
+        if (baseUrlValue !== undefined) {
+            throw new Error('--url is only supported for the preview target');
+        }
+
+        return { dropPendingUpdates, baseUrl: undefined };
+    }
+
+    if (action === 'delete') {
+        if (baseUrlValue !== undefined) {
+            throw new Error('Webhook delete does not accept --url');
+        }
+
+        return { dropPendingUpdates, baseUrl: undefined };
+    }
+
+    if (baseUrlValue === undefined) {
+        throw new Error(
+            `Webhook ${action} for preview requires --url https://<name>.<account>.workers.dev`
+        );
+    }
+
+    return {
+        dropPendingUpdates,
+        baseUrl: parsePreviewBaseUrl(baseUrlValue)
+    };
+};
 
 export const parseDropPendingUpdates = (
     action: WebhookAction,
@@ -354,7 +455,7 @@ export const formatTelegramWebhookInfo = (
 const run = async () => {
     const action = parseAction(process.argv[2]);
     const target = parseTarget(process.argv[3]);
-    const dropPendingUpdates = parseDropPendingUpdates(
+    const { dropPendingUpdates, baseUrl } = parseWebhookArguments(
         action,
         target,
         process.argv.slice(4)
@@ -363,7 +464,7 @@ const run = async () => {
     loadOptionalEnvFile(target);
 
     if (action === 'info') {
-        const expectedWebhookUrl = createWebhookUrl();
+        const expectedWebhookUrl = createWebhookUrl(baseUrl);
         const payload = await callTelegramApi('getWebhookInfo');
 
         console.log(formatTelegramWebhookInfo(payload, expectedWebhookUrl));
@@ -378,7 +479,7 @@ const run = async () => {
         return;
     }
 
-    const webhookUrl = createWebhookUrl();
+    const webhookUrl = createWebhookUrl(baseUrl);
     const secretToken = requireEnv('TELEGRAM_WEBHOOK_SECRET');
     const params = createDropPendingUpdatesParameters(dropPendingUpdates);
 

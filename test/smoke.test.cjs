@@ -48,13 +48,8 @@ test('remote migration and webhook cutover cannot run from ordinary CI deploys',
 
     assert.equal(packageJson.scripts['deploy:prod'], undefined);
     assert.equal(packageJson.scripts['deploy:production'], undefined);
-    assert.equal(packageJson.scripts['deploy:beta'], undefined);
     assert.doesNotMatch(
         packageJson.scripts['worker:deploy:prod'],
-        /db:migrate|telegram:webhook/
-    );
-    assert.doesNotMatch(
-        packageJson.scripts['worker:deploy:beta'],
         /db:migrate|telegram:webhook/
     );
     assert.doesNotMatch(workflowSource, /workflow_dispatch:/);
@@ -64,7 +59,8 @@ test('remote migration and webhook cutover cannot run from ordinary CI deploys',
     assert.doesNotMatch(workflowSource, /telegram:webhook/);
     assert.doesNotMatch(workflowSource, /secrets\./);
     assert.equal(wranglerConfig.env.production.workers_dev, false);
-    assert.equal(wranglerConfig.env.beta.workers_dev, false);
+    assert.equal(wranglerConfig.env.beta, undefined);
+    assert.equal(wranglerConfig.env.production.preview_urls, true);
 });
 
 test('game service logs claim-restore failures without raw error objects', () => {

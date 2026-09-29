@@ -4,7 +4,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import {
     buildMigrationHashesSql,
     migrationsTableName
-} from '../../scripts/db/copy-production-to-beta';
+} from '../../scripts/db/copy-production-to-preview';
 import { countRows, createD1Harness, type D1Harness } from './d1-harness';
 
 interface SchemaObject {

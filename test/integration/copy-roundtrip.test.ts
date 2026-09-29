@@ -10,7 +10,7 @@ import {
     copiedTablesInInsertOrder,
     getExportArguments,
     getWipeOrder
-} from '../../scripts/db/copy-production-to-beta';
+} from '../../scripts/db/copy-production-to-preview';
 import { createD1Harness, type D1Harness } from './d1-harness';
 
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
@@ -204,7 +204,7 @@ const seedSourceDatabase = async (harness: D1Harness) => {
     await insertMembers(2, smallChannelMemberTotal);
 };
 
-describe('production to beta export and import round trip', () => {
+describe('production to preview export and import round trip', () => {
     const wranglerRunnable = isWranglerRunnable();
     const localDirectories: LocalDirectory[] = [];
     let sourceSnapshot: Record<string, string>;

@@ -1,6 +1,7 @@
 import type { ReleaseAnnouncementJob } from './queues/release-announcement-job';
 
-export type WorkerBindings = Omit<Env, 'RELEASE_QUEUE'> & {
+export type WorkerBindings = Omit<Env, 'RELEASE_QUEUE' | 'BOT_ENVIRONMENT'> & {
+    BOT_ENVIRONMENT: Env['BOT_ENVIRONMENT'] | 'preview';
     RELEASE_QUEUE: Queue<ReleaseAnnouncementJob>;
 };
 
@@ -48,7 +49,7 @@ export const hasRequiredWorkerConfiguration = (env: RuntimeConfiguration) => {
     const hasValidEnvironment =
         env.BOT_ENVIRONMENT === 'local' ||
         env.BOT_ENVIRONMENT === 'production' ||
-        env.BOT_ENVIRONMENT === 'beta';
+        env.BOT_ENVIRONMENT === 'preview';
     const hasValidCleanupFlag =
         env.ENABLE_SCHEDULED_CLEANUP === 'true' ||
         env.ENABLE_SCHEDULED_CLEANUP === 'false';

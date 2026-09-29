@@ -4,10 +4,10 @@
 !/.github
 !/.github/workflows
 !/.github/workflows/main.yml
-!/.github/workflows/copy-production-to-beta.yml
+!/.github/workflows/copy-production-to-preview.yml
 !.dev.vars.example
 !.dev.vars.production.example
-!.dev.vars.beta.example
+!.dev.vars.preview.example
 !.typesafe-i18n.json
 !.changeset
 !.changeset/*
@@ -15,7 +15,7 @@
 !releases.generated.json
 !drizzle.config.ts
 !drizzle.production.config.ts
-!drizzle.beta.config.ts
+!drizzle.preview.config.ts
 !/drizzle
 !/drizzle/*
 !/drizzle/*/migration.sql

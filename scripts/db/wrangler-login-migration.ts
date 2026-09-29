@@ -6,7 +6,7 @@ import path from 'node:path';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { getMigrationsToRun } from 'drizzle-orm/migrator.utils';
 
-import { migrationsTableName } from './copy-production-to-beta';
+import { migrationsTableName } from './copy-production-to-preview';
 import { createWranglerChildEnvironment } from './d1-child-environment';
 import { getD1ExecuteArguments } from './d1-import-target';
 import type { D1DatabaseTarget } from './production-d1-target';
