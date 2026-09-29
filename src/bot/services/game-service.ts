@@ -61,7 +61,42 @@ const getErrorType = (error: unknown) => {
     return error instanceof Error ? error.name : typeof error;
 };
 
-const isAdmin = (member: ChatMember) => {
+const getTelegramErrorCode = (error: unknown) => {
+    if (typeof error !== 'object' || error === null) {
+        return null;
+    }
+
+    const { code, response } = error as {
+        code?: unknown;
+        response?: { error_code?: unknown };
+    };
+
+    return response?.error_code ?? code ?? null;
+};
+
+const missingMemberDescriptionPattern =
+    /user not found|member not found|participant_id_invalid|user_id_invalid/i;
+
+const getTelegramErrorDescription = (error: unknown) => {
+    if (typeof error !== 'object' || error === null) {
+        return '';
+    }
+
+    const { response } = error as { response?: { description?: unknown } };
+
+    return typeof response?.description === 'string'
+        ? response.description
+        : '';
+};
+
+export const isDefinitiveMissingMemberError = (error: unknown) => {
+    return (
+        getTelegramErrorCode(error) === 400 &&
+        missingMemberDescriptionPattern.test(getTelegramErrorDescription(error))
+    );
+};
+
+export const isAdmin = (member: Pick<ChatMember, 'status'>) => {
     return member.status === 'creator' || member.status === 'administrator';
 };
 
@@ -79,10 +114,12 @@ export const assertGlobalCleanupAllowed = (
     }
 };
 
-export const createGameService = (env: WorkerBindings) => {
-    const db = createDb(env);
-    const repositories = createRepositories(db);
-
+export const createGameService = (
+    env: WorkerBindings,
+    repositories: ReturnType<typeof createRepositories> = createRepositories(
+        createDb(env)
+    )
+) => {
     const findChannel = async (telegramChatId: number) => {
         return runEffect(
             repositories.channels.findChannelByTelegramChatId(telegramChatId)
@@ -154,7 +191,8 @@ export const createGameService = (env: WorkerBindings) => {
             throw new BotUserError(
                 LL.accessDenied({
                     name: formatUserName(actorMember.user)
-                })
+                }),
+                { silent: mode === 'auto' }
             );
         }
 
@@ -308,7 +346,9 @@ export const createGameService = (env: WorkerBindings) => {
     const reconcileActivePlayers = async (
         telegramChatId: number,
         channelId: number,
-        telegram: ChatMemberReader
+        telegram: ChatMemberReader,
+        mode: RunType | 'command',
+        locale: AppLocale
     ) => {
         const rows = await runEffect(
             repositories.channelMembers.listMembersForChannel(channelId)
@@ -323,8 +363,25 @@ export const createGameService = (env: WorkerBindings) => {
                     telegramChatId,
                     row.player.telegramUserId
                 );
-            } catch {
-                continue;
+            } catch (error) {
+                if (isDefinitiveMissingMemberError(error)) {
+                    continue;
+                }
+
+                console.error(
+                    JSON.stringify({
+                        event: 'chat_member_lookup_failed',
+                        errorType: getErrorType(error),
+                        errorCode: getTelegramErrorCode(error),
+                        chatId: telegramChatId,
+                        playerId: row.player.id,
+                        mode
+                    })
+                );
+
+                throw new BotUserError(getMessages(locale).error(), {
+                    silent: mode === 'auto'
+                });
             }
 
             const displayName = formatUserName(telegramMember.user);
@@ -394,10 +451,20 @@ export const createGameService = (env: WorkerBindings) => {
         locale: AppLocale = getDefaultAppLocale()
     ) => {
         const LL = getMessages(locale);
+        const memberships = await runEffect(
+            repositories.channels.listChannelMembers(channelId)
+        );
+
+        if (!memberships.length) {
+            throw new BotUserError(LL.playersNotFound());
+        }
+
         const activePlayers = await reconcileActivePlayers(
             telegramChatId,
             channelId,
-            telegram
+            telegram,
+            'command',
+            locale
         );
         const printablePlayers = getSortedPrintablePlayers(activePlayers, list);
 
@@ -482,25 +549,27 @@ export const createGameService = (env: WorkerBindings) => {
         const activePlayers = await reconcileActivePlayers(
             telegramChatId,
             channel.id,
-            telegram
+            telegram,
+            type,
+            locale
         );
 
         if (!activePlayers.length) {
-            await resetChannelRun(channel.id);
-
-            if (type === 'manual') {
-                throw new BotUserError(LL.playersNotFound());
-            }
-
-            throw new BotUserError(LL.hasNotData(), { silent: true });
-        }
-
-        if (activePlayers.length < 2) {
-            await resetChannelRun(channel.id);
-
             if (type === 'auto') {
                 throw new BotUserError(LL.hasNotData(), { silent: true });
             }
+
+            await resetChannelRun(channel.id);
+
+            throw new BotUserError(LL.playersNotFound());
+        }
+
+        if (activePlayers.length < 2) {
+            if (type === 'auto') {
+                throw new BotUserError(LL.hasNotData(), { silent: true });
+            }
+
+            await resetChannelRun(channel.id);
 
             throw new BotUserError(LL.playersNotEnough());
         }
@@ -645,7 +714,7 @@ export const createGameService = (env: WorkerBindings) => {
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
-            throw new BotUserError(LL.alreadyStop());
+            throw new BotUserError(LL.hasNotData());
         }
 
         const memberships = await runEffect(
@@ -694,9 +763,14 @@ export const createGameService = (env: WorkerBindings) => {
 
     const setChannelLocale = async (
         telegramChatId: number,
-        locale: AppLocale
+        locale: AppLocale,
+        currentLocale: AppLocale = getDefaultAppLocale()
     ) => {
-        const channel = await ensureChannel(telegramChatId);
+        const channel = await findChannel(telegramChatId);
+
+        if (!channel) {
+            throw new BotUserError(getMessages(currentLocale).hasNotData());
+        }
 
         await runEffect(
             repositories.channels.updateChannelLanguage(telegramChatId, locale)

@@ -5,6 +5,8 @@ import {
 } from 'node:crypto';
 import test from 'node:test';
 
+import { Telegraf } from 'telegraf';
+
 import { createApp } from '../src/worker/app';
 import type { WorkerBindings } from '../src/worker/env';
 import {
@@ -14,6 +16,10 @@ import {
     type TelegramUpdateLedger
 } from '../src/worker/routes/telegram';
 import { runScheduledTasks } from '../src/worker/scheduled/tasks';
+import {
+    clearCachedBotInfo,
+    handleUpdateWithPrincessBot
+} from '../src/worker/routes/telegram';
 
 class ReadinessPreparedStatement {
     constructor(private readonly readyValue: number | null) {}
@@ -423,9 +429,7 @@ test('webhook logs a secret-safe warning when reclaiming a stale claim', async (
         logWarning(message) {
             warnings.push(message);
         },
-        async handleUpdate() {
-            // The log assertion does not require the real Telegraf dispatcher.
-        }
+        async handleUpdate() {}
     });
 
     const response = await app.fetch(
@@ -492,7 +496,11 @@ test('failed dispatch is terminalized and cannot execute again on retry', async 
         bindings
     );
 
-    assert.equal(failedDispatch.status, 500);
+    assert.equal(failedDispatch.status, 200);
+    assert.deepEqual(await failedDispatch.json(), {
+        accepted: true,
+        updateId: 42
+    });
     assert.equal(automaticRetry.status, 200);
     assert.deepEqual(await automaticRetry.json(), {
         accepted: true,
@@ -642,4 +650,49 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
     assert.equal(cleanupCalls, 1);
     assert.equal(abandonedLedgerPruneCalls, 1);
     assert.equal(processedLedgerPruneCalls, 1);
+});
+
+test('bot info is fetched once per bot key and reused by later updates', async () => {
+    clearCachedBotInfo();
+
+    const { database } = createReadinessDatabase(1);
+    const bindings = createBindings(database);
+    const update = JSON.parse(createTelegramUpdateBody(42)) as Parameters<
+        typeof handleUpdateWithPrincessBot
+    >[1];
+    let getMeCalls = 0;
+    const createBot = () => {
+        const bot = new Telegraf('123456:test-token');
+
+        bot.telegram.callApi = (async (method: string) => {
+            if (method === 'getMe') {
+                getMeCalls += 1;
+            }
+
+            return {
+                id: 123456,
+                is_bot: true,
+                first_name: 'Princess',
+                username: 'princess_test_bot'
+            };
+        }) as typeof bot.telegram.callApi;
+
+        return bot;
+    };
+
+    await handleUpdateWithPrincessBot(
+        bindings,
+        update,
+        'test-bot-key',
+        createBot
+    );
+    await handleUpdateWithPrincessBot(
+        bindings,
+        update,
+        'test-bot-key',
+        createBot
+    );
+
+    assert.equal(getMeCalls, 1);
+    clearCachedBotInfo();
 });

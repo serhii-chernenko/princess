@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -55,7 +55,11 @@ export const createChannelMemberRepository = (db: AppDb) => {
                     })
                     .from(channelMembers)
                     .innerJoin(players, eq(channelMembers.playerId, players.id))
-                    .where(eq(channelMembers.channelId, channelId));
+                    .where(eq(channelMembers.channelId, channelId))
+                    .orderBy(
+                        desc(channelMembers.score),
+                        asc(channelMembers.id)
+                    );
             });
         },
         updateMemberState(

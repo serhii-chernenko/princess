@@ -14,8 +14,10 @@ const TASKS = {
     releases: 'maintenance:releases'
 } as const;
 
+const DAILY_CRON = '0 0 * * *';
+
 const getScheduledTaskNames = (cron: string) => {
-    if (cron.includes('0 0')) {
+    if (cron === DAILY_CRON) {
         return [TASKS.cleanup, TASKS.releases];
     }
 

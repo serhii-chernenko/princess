@@ -1,4 +1,4 @@
-import type { Update } from 'telegraf/types';
+import type { Update, UserFromGetMe } from 'telegraf/types';
 import { Effect } from 'effect';
 
 import { createPrincessBot } from '../../bot';
@@ -22,14 +22,13 @@ export { compareSecrets, type SecretComparisonCrypto } from '../telegram-auth';
 
 export type RuntimeTelegramUpdate = Update;
 
-// Telegram updates are expected to be small JSON metadata. One MiB leaves ample
-// room for message entities while bounding authenticated request buffering.
 export const TELEGRAM_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 
 export interface TelegramRouteDependencies {
     handleUpdate?: (
         env: WorkerBindings,
-        update: RuntimeTelegramUpdate
+        update: RuntimeTelegramUpdate,
+        botKey: string
     ) => Promise<void>;
     secretsMatch?: SecretMatcher;
     createUpdateLedger?: (env: WorkerBindings) => TelegramUpdateLedger;
@@ -106,6 +105,16 @@ type LimitedJsonBodyResult =
           state: 'too-large';
       };
 
+const cancelReaderIgnoringFailure = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>
+) => {
+    try {
+        await reader.cancel();
+    } catch {
+        return;
+    }
+};
+
 const readLimitedJsonBody = async (
     request: Request
 ): Promise<LimitedJsonBodyResult> => {
@@ -151,11 +160,7 @@ const readLimitedJsonBody = async (
             totalBytes += chunk.value.byteLength;
 
             if (totalBytes > TELEGRAM_WEBHOOK_MAX_BODY_BYTES) {
-                try {
-                    await reader.cancel();
-                } catch {
-                    // The size decision is already final even if cancellation races.
-                }
+                await cancelReaderIgnoringFailure(reader);
 
                 return {
                     state: 'too-large'
@@ -232,13 +237,37 @@ const createD1UpdateLedger = (env: WorkerBindings): TelegramUpdateLedger => {
     };
 };
 
-const handleUpdateWithPrincessBot = async (
+type PrincessBot = Pick<
+    ReturnType<typeof createPrincessBot>,
+    'handleUpdate'
+> & {
+    botInfo?: UserFromGetMe;
+};
+
+const botInfoByBotKey = new Map<string, UserFromGetMe>();
+
+export const clearCachedBotInfo = () => {
+    botInfoByBotKey.clear();
+};
+
+export const handleUpdateWithPrincessBot = async (
     env: WorkerBindings,
-    update: RuntimeTelegramUpdate
+    update: RuntimeTelegramUpdate,
+    botKey: string,
+    createBot: (env: WorkerBindings) => PrincessBot = createPrincessBot
 ) => {
-    const bot = createPrincessBot(env);
+    const bot = createBot(env);
+    const cachedBotInfo = botInfoByBotKey.get(botKey);
+
+    if (cachedBotInfo) {
+        bot.botInfo = cachedBotInfo;
+    }
 
     await bot.handleUpdate(update);
+
+    if (!cachedBotInfo && bot.botInfo) {
+        botInfoByBotKey.set(botKey, bot.botInfo);
+    }
 };
 
 const isJsonRequest = (contentType: string | undefined) => {
@@ -404,7 +433,7 @@ export const registerTelegramRoutes = (
         let dispatchError: unknown;
 
         try {
-            await handleUpdate(c.env, payload);
+            await handleUpdate(c.env, payload, botKey);
         } catch (error) {
             dispatchFailed = true;
             dispatchError = error;
@@ -432,8 +461,6 @@ export const registerTelegramRoutes = (
                 })
             );
 
-            // Dispatch may already have mutated D1 or called Telegram. A success
-            // response avoids deliberately asking Telegram to replay uncertain work.
             return c.json(
                 {
                     accepted: true,
@@ -477,9 +504,10 @@ export const registerTelegramRoutes = (
 
             return c.json(
                 {
-                    error: 'Telegram update processing failed'
+                    accepted: true,
+                    updateId: payload.update_id
                 },
-                500
+                200
             );
         }
 

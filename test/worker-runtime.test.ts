@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { Effect } from 'effect';
+
 import { renderReleaseNotes } from '../src/bot/content/releases';
 import {
     getAvailableLanguagesMessage,
@@ -9,7 +11,12 @@ import {
 } from '../src/bot/content/messages';
 import { mapAppLocaleToI18nLocale, normalizeAppLocale } from '../src/bot/i18n';
 import { getTelegramWebhookPath } from '../src/worker/env';
-import { getSortedPrintablePlayers } from '../src/bot/services/game-service';
+import {
+    createGameService,
+    getSortedPrintablePlayers
+} from '../src/bot/services/game-service';
+import type { createRepositories } from '../src/db/repositories';
+import type { WorkerBindings } from '../src/worker/env';
 import { escapeHtml } from '../src/bot/utils/strings';
 import { formatUserName, isForwardedReply } from '../src/bot/utils/telegram';
 
@@ -165,4 +172,253 @@ test('available languages message mentions ua externally', () => {
         /Available languages: en, ua/
     );
     assert.match(getAvailableLanguagesMessage('ua'), /Доступні мови: en, ua/);
+});
+
+const voteChannel = {
+    id: 1,
+    telegramChatId: -1001,
+    language: 'en',
+    releaseVersion: '1.0.0',
+    lastVoteAt: new Date('2026-01-01T00:00:00Z'),
+    createdAt: new Date('2025-01-01T00:00:00Z')
+};
+
+const createVoteHarness = (memberCount: number) => {
+    const calls = {
+        resetChannelRun: 0,
+        claimChannelRun: 0
+    };
+    const rows = Array.from({ length: memberCount }, (_unused, index) => {
+        return {
+            member: {
+                id: index + 1,
+                channelId: 1,
+                playerId: index + 1,
+                score: 0,
+                isActive: true,
+                isAutoJoined: true,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            player: {
+                id: index + 1,
+                telegramUserId: 100 + index,
+                displayName: `Player ${index + 1}`,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+        };
+    });
+    const repositories = {
+        channels: {
+            findChannelByTelegramChatId: () => Effect.succeed(voteChannel),
+            listChannelMembers: () => {
+                return Effect.succeed(rows.map(row => row.member));
+            },
+            resetChannelRun: () => {
+                calls.resetChannelRun += 1;
+                return Effect.void;
+            },
+            claimChannelRun: () => {
+                calls.claimChannelRun += 1;
+                return Effect.succeed({
+                    ...voteChannel,
+                    lastVoteAt: new Date()
+                });
+            },
+            restoreClaimedChannelRun: () => Effect.void,
+            touchChannelRun: () => Effect.void
+        },
+        channelMembers: {
+            listMembersForChannel: () => Effect.succeed(rows),
+            updateMemberState: () => Effect.void,
+            incrementMemberScore: (memberId: number) => {
+                return Effect.succeed(
+                    rows.find(row => row.member.id === memberId)?.member
+                );
+            }
+        },
+        players: {
+            updateDisplayName: () => Effect.void
+        }
+    } as unknown as ReturnType<typeof createRepositories>;
+    const game = createGameService({} as WorkerBindings, repositories);
+
+    return { calls, game };
+};
+
+const runAt = new Date('2026-01-03T00:00:00Z');
+
+const createTelegram = (failure?: (userId: number) => Error | undefined) => {
+    return {
+        async getChatMember(_chatId: number, userId: number) {
+            const error = failure?.(userId);
+
+            if (error) {
+                throw error;
+            }
+
+            return {
+                status: 'member',
+                user: {
+                    id: userId,
+                    is_bot: false,
+                    first_name: `User${userId}`
+                }
+            } as never;
+        }
+    };
+};
+
+const createTelegramError = (errorCode: number, description?: string) => {
+    return Object.assign(new Error('telegram failure'), {
+        response: { error_code: errorCode, description }
+    });
+};
+
+test('auto run below two active players stays silent and keeps the schedule', async () => {
+    const { calls, game } = createVoteHarness(1);
+
+    await assert.rejects(
+        game.runVote(-1001, 100, runAt, createTelegram(), 'auto', false, 'en'),
+        error => {
+            return (error as { silent?: boolean }).silent === true;
+        }
+    );
+    assert.equal(calls.resetChannelRun, 0);
+
+    await assert.rejects(
+        game.runVote(
+            -1001,
+            100,
+            runAt,
+            createTelegram(),
+            'manual',
+            false,
+            'en'
+        ),
+        error => {
+            return (error as { silent?: boolean }).silent === false;
+        }
+    );
+    assert.equal(calls.resetChannelRun, 1);
+});
+
+test('definitive 400 member lookups drop the player and the vote continues', async () => {
+    const { calls, game } = createVoteHarness(3);
+    const telegram = createTelegram(userId => {
+        return userId === 100
+            ? createTelegramError(400, 'Bad Request: user not found')
+            : undefined;
+    });
+
+    const result = await game.runVote(
+        -1001,
+        101,
+        runAt,
+        telegram,
+        'manual',
+        false,
+        'en'
+    );
+
+    assert.equal(calls.claimChannelRun, 1);
+    assert.notEqual(result.winner.player.telegramUserId, 100);
+});
+
+test('non-member 400 lookups such as chat not found abort the vote without reset', async () => {
+    const { calls, game } = createVoteHarness(3);
+    const telegram = createTelegram(userId => {
+        return userId === 100
+            ? createTelegramError(400, 'Bad Request: chat not found')
+            : undefined;
+    });
+    const originalConsoleError = console.error;
+
+    console.error = () => undefined;
+
+    try {
+        await assert.rejects(
+            game.runVote(-1001, 101, runAt, telegram, 'auto', false, 'en'),
+            error => {
+                return (error as { silent?: boolean }).silent === true;
+            }
+        );
+        await assert.rejects(
+            game.runVote(-1001, 101, runAt, telegram, 'manual', false, 'en'),
+            error => {
+                return (error as { silent?: boolean }).silent === false;
+            }
+        );
+    } finally {
+        console.error = originalConsoleError;
+    }
+
+    assert.equal(calls.claimChannelRun, 0);
+    assert.equal(calls.resetChannelRun, 0);
+});
+
+test('transient member lookup errors abort the vote before claiming', async () => {
+    for (const errorCode of [429, 502]) {
+        const { calls, game } = createVoteHarness(3);
+        const telegram = createTelegram(userId => {
+            return userId === 101 ? createTelegramError(errorCode) : undefined;
+        });
+        const originalConsoleError = console.error;
+        const logged: string[] = [];
+
+        console.error = (message: string) => {
+            logged.push(message);
+        };
+
+        try {
+            await assert.rejects(
+                game.runVote(-1001, 100, runAt, telegram, 'auto', false, 'en'),
+                error => {
+                    return (error as { silent?: boolean }).silent === true;
+                }
+            );
+            await assert.rejects(
+                game.runVote(
+                    -1001,
+                    100,
+                    runAt,
+                    telegram,
+                    'manual',
+                    false,
+                    'en'
+                ),
+                error => {
+                    const botError = error as {
+                        silent?: boolean;
+                        message: string;
+                    };
+
+                    return (
+                        botError.silent === false && botError.message.length > 0
+                    );
+                }
+            );
+            await assert.rejects(
+                game.runVote(
+                    -1001,
+                    100,
+                    runAt,
+                    createTelegram(() => new TypeError('fetch failed')),
+                    'manual',
+                    false,
+                    'en'
+                )
+            );
+        } finally {
+            console.error = originalConsoleError;
+        }
+
+        assert.equal(calls.claimChannelRun, 0);
+        assert.equal(calls.resetChannelRun, 0);
+        assert.equal(
+            logged.some(entry => entry.includes('chat_member_lookup_failed')),
+            true
+        );
+    }
 });

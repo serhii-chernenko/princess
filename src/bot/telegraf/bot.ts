@@ -1,8 +1,9 @@
 import { message } from 'telegraf/filters';
 import { Telegraf } from 'telegraf';
 import type { Context } from 'telegraf';
+import type { ChatMember, User } from 'telegraf/types';
 
-import { createGameService } from '../services/game-service';
+import { createGameService, isAdmin } from '../services/game-service';
 import { BotUserError, isBotUserError } from '../errors';
 import {
     getAvailableLanguagesMessage,
@@ -47,7 +48,7 @@ type ChatMemberReader = {
 const handleCommandError = async (
     ctx: Context,
     error: unknown,
-    _locale: AppLocale = getDefaultAppLocale()
+    locale: AppLocale = getDefaultAppLocale()
 ) => {
     if (isBotUserError(error)) {
         if (error.silent) {
@@ -63,19 +64,50 @@ const handleCommandError = async (
         return;
     }
 
+    try {
+        await ctx.sendMessage(getMessages(locale).error());
+    } catch (replyError) {
+        console.error(
+            JSON.stringify({
+                event: 'generic_error_reply_failed',
+                errorType: getErrorType(replyError)
+            })
+        );
+    }
+
     throw error;
 };
 
-const handleListenerError = async (
-    ctx: Context,
-    error: unknown,
-    locale: AppLocale = getDefaultAppLocale()
-) => {
-    if (isBotUserError(error) && error.silent) {
+const handleListenerError = async (ctx: Context, error: unknown) => {
+    if (isBotUserError(error)) {
         return;
     }
 
-    await handleCommandError(ctx, error, locale);
+    throw error;
+};
+
+const getErrorType = (error: unknown) => {
+    return error instanceof Error ? error.name : typeof error;
+};
+
+const assertHumanSender = (user: User, locale: AppLocale) => {
+    if (user.is_bot) {
+        throw new BotUserError(
+            getMessages(locale).accessDenied({
+                name: formatUserName(user)
+            })
+        );
+    }
+};
+
+const assertAdminActor = (actorMember: ChatMember, locale: AppLocale) => {
+    if (!isAdmin(actorMember)) {
+        throw new BotUserError(
+            getMessages(locale).accessDenied({
+                name: formatUserName(actorMember.user)
+            })
+        );
+    }
 };
 
 const isPrivateChatStart = (ctx: Context) => {
@@ -200,6 +232,47 @@ const renderWinnerMessage = (ctxUser: Context['from'], locale: AppLocale) => {
     return congratsMessage;
 };
 
+const announceWinner = async (
+    ctx: Context,
+    result: {
+        printablePlayers: Parameters<typeof postPrintablePlayers>[1];
+        winner: {
+            player: { id: number };
+            telegramMember: { user: User };
+        };
+    },
+    locale: AppLocale
+) => {
+    const LL = getMessages(locale);
+
+    try {
+        const congratsMessage = renderWinnerMessage(
+            result.winner.telegramMember.user,
+            locale
+        );
+
+        await ctx.replyWithHTML(
+            `${LL.winner({
+                name: escapeHtml(
+                    formatUserName(result.winner.telegramMember.user, 'name')
+                )
+            })}<em>${congratsMessage} ❤️</em>`
+        );
+        await postPrintablePlayers(ctx, result.printablePlayers, 'top', locale);
+    } catch (error) {
+        console.error(
+            JSON.stringify({
+                event: 'vote_announcement_failed',
+                errorType: getErrorType(error),
+                chatId: ctx.chat?.id ?? null,
+                winnerPlayerId: result.winner.player.id
+            })
+        );
+
+        throw error;
+    }
+};
+
 const getRequestedLanguage = (ctx: Context) => {
     const messagePayload = ctx.message;
 
@@ -319,6 +392,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
+            assertHumanSender(actor.user, locale);
             const result = await game.joinChannel(
                 actor.chatId,
                 actor.user,
@@ -350,6 +424,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
+            assertHumanSender(actor.user, locale);
             await game.leaveChannel(actor.chatId, actor.user, locale);
 
             await ctx.sendMessage(
@@ -372,7 +447,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
-            const LL = getMessages(locale);
             const telegramDate = getTelegramDate(ctx.message?.date);
             const result = await game.runVote(
                 actor.chatId,
@@ -383,27 +457,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
-            const congratsMessage = renderWinnerMessage(
-                result.winner.telegramMember.user,
-                locale
-            );
-
-            await ctx.replyWithHTML(
-                `${LL.winner({
-                    name: escapeHtml(
-                        formatUserName(
-                            result.winner.telegramMember.user,
-                            'name'
-                        )
-                    )
-                })}<em>${congratsMessage} ❤️</em>`
-            );
-            await postPrintablePlayers(
-                ctx,
-                result.printablePlayers,
-                'top',
-                locale
-            );
+            await announceWinner(ctx, result, locale);
         } catch (error) {
             await handleCommandError(ctx, error, locale);
         }
@@ -419,7 +473,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
-            const LL = getMessages(locale);
             const telegramDate = getTelegramDate(ctx.message?.date);
             const result = await game.runVote(
                 actor.chatId,
@@ -430,27 +483,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 true,
                 locale
             );
-            const congratsMessage = renderWinnerMessage(
-                result.winner.telegramMember.user,
-                locale
-            );
-
-            await ctx.replyWithHTML(
-                `${LL.winner({
-                    name: escapeHtml(
-                        formatUserName(
-                            result.winner.telegramMember.user,
-                            'name'
-                        )
-                    )
-                })}<em>${congratsMessage} ❤️</em>`
-            );
-            await postPrintablePlayers(
-                ctx,
-                result.printablePlayers,
-                'top',
-                locale
-            );
+            await announceWinner(ctx, result, locale);
         } catch (error) {
             await handleCommandError(ctx, error, locale);
         }
@@ -539,18 +572,15 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
-            const actorMember = await ctx.getChatMember(actor.user.id);
+            const { actorMember } = await game.getChannelAndActor(
+                actor.chatId,
+                actor.user.id,
+                createChatMemberReader(ctx),
+                'command',
+                locale
+            );
 
-            if (
-                actorMember.status !== 'creator' &&
-                actorMember.status !== 'administrator'
-            ) {
-                throw new BotUserError(
-                    LL.accessDenied({
-                        name: formatUserName(actorMember.user)
-                    })
-                );
-            }
+            assertAdminActor(actorMember, locale);
 
             await game.resetScores(actor.chatId, locale);
             await ctx.sendMessage(LL.successReset());
@@ -570,18 +600,15 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
-            const actorMember = await ctx.getChatMember(actor.user.id);
+            const { actorMember } = await game.getChannelAndActor(
+                actor.chatId,
+                actor.user.id,
+                createChatMemberReader(ctx),
+                'command',
+                locale
+            );
 
-            if (
-                actorMember.status !== 'creator' &&
-                actorMember.status !== 'administrator'
-            ) {
-                throw new BotUserError(
-                    LL.accessDenied({
-                        name: formatUserName(actorMember.user)
-                    })
-                );
-            }
+            assertAdminActor(actorMember, locale);
 
             await game.stopChannel(actor.chatId, locale);
             await ctx.sendMessage(LL.successStop());
@@ -660,7 +687,16 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 return;
             }
 
-            await game.setChannelLocale(actor.chatId, normalized);
+            const { actorMember } = await game.getChannelAndActor(
+                actor.chatId,
+                actor.user.id,
+                createChatMemberReader(ctx),
+                'command',
+                locale
+            );
+
+            assertAdminActor(actorMember, locale);
+            await game.setChannelLocale(actor.chatId, normalized, locale);
             const nextLL = getMessages(normalized);
 
             await ctx.sendMessage(
@@ -674,7 +710,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
     });
 
     bot.hears(/принцес/i, async ctx => {
-        await ctx.replyWithSticker(PRINCESS_STICKER_ID);
+        await ctx.replyWithSticker(PRINCESS_STICKER_ID, {
+            reply_parameters: {
+                message_id: ctx.message.message_id
+            }
+        });
     });
 
     bot.on(message('text'), async ctx => {
@@ -690,7 +730,6 @@ export const createPrincessBot = (env: WorkerBindings) => {
             }
 
             locale = await game.getChannelLocale(ctx.chat.id);
-            const LL = getMessages(locale);
             const result = await game.runVote(
                 ctx.chat.id,
                 ctx.from.id,
@@ -700,29 +739,9 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
-            const congratsMessage = renderWinnerMessage(
-                result.winner.telegramMember.user,
-                locale
-            );
-
-            await ctx.replyWithHTML(
-                `${LL.winner({
-                    name: escapeHtml(
-                        formatUserName(
-                            result.winner.telegramMember.user,
-                            'name'
-                        )
-                    )
-                })}<em>${congratsMessage} ❤️</em>`
-            );
-            await postPrintablePlayers(
-                ctx,
-                result.printablePlayers,
-                'top',
-                locale
-            );
+            await announceWinner(ctx, result, locale);
         } catch (error) {
-            await handleListenerError(ctx, error, locale);
+            await handleListenerError(ctx, error);
         }
     });
 
