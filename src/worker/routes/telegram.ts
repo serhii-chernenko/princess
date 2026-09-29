@@ -93,6 +93,16 @@ export const isRuntimeTelegramUpdate = (
     );
 };
 
+export const isIgnorableTelegramUpdate = (
+    value: unknown
+): value is { update_id: number } => {
+    return (
+        isRecord(value) &&
+        isNonNegativeSafeInteger(value.update_id) &&
+        value.message === undefined
+    );
+};
+
 type LimitedJsonBodyResult =
     | {
           state: 'parsed';
@@ -356,6 +366,13 @@ export const registerTelegramRoutes = (
         }
 
         const payload = body.payload;
+
+        if (isIgnorableTelegramUpdate(payload)) {
+            return c.json({
+                ignored: true,
+                updateId: payload.update_id
+            });
+        }
 
         if (!isRuntimeTelegramUpdate(payload)) {
             return c.json(

@@ -124,9 +124,6 @@ test('remote migration and webhook cutover cannot run from ordinary CI deploys',
     const wranglerConfig = JSON.parse(
         fs.readFileSync(path.join(__dirname, '../wrangler.jsonc'), 'utf8')
     );
-    const deployJobSource = workflowSource.slice(
-        workflowSource.indexOf('\n    deploy:')
-    );
 
     assert.equal(packageJson.scripts['deploy:stable'], undefined);
     assert.equal(packageJson.scripts['deploy:production'], undefined);
@@ -139,41 +136,12 @@ test('remote migration and webhook cutover cannot run from ordinary CI deploys',
         packageJson.scripts['worker:deploy:beta'],
         /db:migrate|telegram:webhook/
     );
-    assert.match(
-        deployJobSource,
-        /github\.event_name == 'workflow_dispatch'.*github\.ref == 'refs\/heads\/main'/
-    );
-    assert.doesNotMatch(deployJobSource, /github\.event_name == 'push'/);
-    assert.match(deployJobSource, /pnpm run worker:deploy:stable/);
-    assert.doesNotMatch(deployJobSource, /db:migrate/);
-    assert.doesNotMatch(deployJobSource, /telegram:webhook/);
-    assert.match(deployJobSource, /REPLACE_WITH_/);
-    assert.doesNotMatch(deployJobSource, /cat\s+<<['"]?EOF/);
-    assert.match(
-        deployJobSource,
-        /scripts\/cloudflare\/write-runtime-secrets\.ts/
-    );
-    assert.match(deployJobSource, /trap cleanup_runtime_secrets EXIT/);
-    assert.match(
-        deployJobSource,
-        /unset BOT_TOKEN TELEGRAM_WEBHOOK_PATH TELEGRAM_WEBHOOK_SECRET/
-    );
-    assert.match(
-        deployJobSource,
-        /BOT_TOKEN:\s*\$\{\{ secrets\.BOT_TOKEN \}\}/
-    );
-    assert.match(
-        deployJobSource,
-        /CLOUDFLARE_API_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/
-    );
-    assert.match(
-        deployJobSource,
-        /CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{ vars\.CLOUDFLARE_ACCOUNT_ID \}\}/
-    );
-    assert.doesNotMatch(
-        deployJobSource,
-        /^\s+run:.*\$\{\{\s*(?:secrets|vars)\./m
-    );
+    assert.doesNotMatch(workflowSource, /workflow_dispatch:/);
+    assert.doesNotMatch(workflowSource, /^\s+deploy:/m);
+    assert.doesNotMatch(workflowSource, /worker:deploy/);
+    assert.doesNotMatch(workflowSource, /db:migrate/);
+    assert.doesNotMatch(workflowSource, /telegram:webhook/);
+    assert.doesNotMatch(workflowSource, /secrets\./);
     assert.equal(wranglerConfig.env.production.workers_dev, false);
     assert.equal(wranglerConfig.env.beta.workers_dev, false);
 });

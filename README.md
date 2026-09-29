@@ -8,10 +8,11 @@ Telegram bot for friend groups. The runtime is now:
 - `Cloudflare D1`
 - `Drizzle ORM`
 
-The rewrite is the primary repository path, but production traffic and data have
-not been cut over yet. The old Docker/Ansible deployment files are removed (Phase 8,
-committed in `be567a8`); the Mongo polling runtime remains temporarily for
-comparison and controlled recovery. See
+The rewrite serves production: the cutover to Workers and D1 happened on 2026-09-29
+(see the [cutover record](./MIGRATION_STATUS.md#cutover-record)). The old
+Docker/Ansible deployment files and the VPS bot are removed; the Mongo polling
+runtime remains in the repository only for controlled recovery, and MongoDB Atlas is
+kept as the rollback source during the observation window. See
 [MIGRATION_STATUS.md](./MIGRATION_STATUS.md) before any production action.
 
 ## Requirements
@@ -197,7 +198,7 @@ Fill `.dev.vars.production` for the stable bot:
 ```dotenv
 BOT_TOKEN="123456:telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
-TELEGRAM_WEBHOOK_PATH="/telegram/princess-stable"
+TELEGRAM_WEBHOOK_PATH="/telegram/princess"
 WORKER_BASE_URL="https://princess.chernenko.dev"
 ```
 
@@ -245,10 +246,11 @@ the insert-only import against populated application tables.
 
 ## Stable production deploy
 
-Production migration, Worker deployment, and webhook registration are deliberately
-separate operations. There is no combined cutover command.
+Stable and beta are deployed by Cloudflare Workers Builds (see
+[Cloudflare deployment](#cloudflare-deployment)). Production migration, manual Worker
+deployment, and webhook registration are deliberately separate operations.
 
-Deploy only the stable Worker code and configured runtime secrets:
+For a manual stable deploy of the Worker code and configured runtime secrets:
 
 ```sh
 export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
@@ -297,48 +299,28 @@ pnpm run telegram:webhook:delete:beta --drop-pending-updates=false
 pnpm run worker:tail:beta
 ```
 
-## GitHub Actions production deploy
+## Cloudflare deployment
 
-Pushes and pull requests validate only. To deploy stable Worker code, manually
-dispatch the workflow from `main` after reviewing the intended Worker change.
+Cloudflare Workers Builds is connected to `serhii-chernenko/princess`:
 
-Required GitHub secrets:
+- `princess` builds from `main` (build command `pnpm run i18n:generate`, deploy
+  command `pnpm exec wrangler deploy --env production`)
+- `princess-beta` builds from `feat/migration-to-v5` until the merge, then from `main`
 
-- `BOT_TOKEN`
-- `CLOUDFLARE_API_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_WEBHOOK_PATH`
+Runtime secrets (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`) are
+set on each Worker, not in GitHub. Builds do not apply D1 migrations or change
+Telegram webhooks.
 
-Required GitHub variables:
+## GitHub Actions
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_DATABASE_ID`
+[`.github/workflows/main.yml`](./.github/workflows/main.yml) only validates pushes and
+pull requests to `main`. It installs with `pnpm`, runs the canonical checks,
+regenerates i18n, release, Wrangler-binding, and Drizzle artifacts, fails on tracked
+or untracked drift, and performs production and beta deployment dry-runs. It never
+deploys and holds no deployment secrets.
 
-The workflow now lives in [`.github/workflows/main.yml`](./.github/workflows/main.yml).
-
-Create GitHub Actions environments named `production` and `beta` before enabling
-deployment or the beta copy, then configure required reviewers and a `main`
-deployment-branch rule on both.
-The workflow references that environment, but the `environment:` key alone does
-not create or enforce repository protection rules.
-
-What it does now:
-
-- validates pushes, pull requests, and manual runs
-- installs with `pnpm`
-- runs the canonical checks, regenerates i18n, release, Wrangler-binding, and
-  Drizzle artifacts, fails on tracked or untracked drift, and performs a production
-  deployment dry-run
-- only on a manual dispatch from `main`, checks for resource-ID placeholders,
-  writes the stable runtime secrets file, and runs the serialized
-  `pnpm run worker:deploy:stable` job without cancelling an in-flight deployment
-
-What it does not do:
-
-- it does not deploy beta automatically
-- it does not apply remote D1 migrations or import data
-- it does not register, change, or delete Telegram webhooks
-- it assumes `wrangler.jsonc` already contains the real production D1 IDs
+[`copy-production-to-beta.yml`](./.github/workflows/copy-production-to-beta.yml) is
+the only workflow that uses secrets; see [Beta safety](#beta-safety).
 
 ## Telegram webhook notes
 
@@ -386,7 +368,7 @@ Stable example:
 
 ```sh
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -d "url=https://princess.chernenko.dev/telegram/princess-stable" \
+  -d "url=https://princess.chernenko.dev/telegram/princess" \
   -d "secret_token=replace-with-a-secret-token"
 ```
 
@@ -434,7 +416,7 @@ not a zero-loss rollback: first export and reconcile D1 deltas as described in
 ## Beta safety
 
 Beta has its own D1 database, `princess-beta`, so its data is isolated from stable.
-Until it is provisioned, beta must not be deployed against the production database.
+Never deploy beta against the production database.
 Beta also uses its own bot token, webhook path, and domain, and is tested in a
 beta-only Telegram group; do not add both bots to the same group.
 
@@ -477,8 +459,15 @@ Before the first real beta deploy, verify:
 - `pnpm run db:migrate:beta` has already been applied to the beta D1 database
 
 Scheduled cleanup defaults to `false` for stable and beta. Keep it disabled until
-after cutover, generate a fresh stale-channel/orphan-player review set, take a D1
+the deletion set is reviewed: generate a fresh stale-channel/orphan-player review set, take a D1
 bookmark/export, and approve the deletion set explicitly.
+
+## Operator note
+
+Keep the bot an administrator in every group. Winners are drawn from members the bot
+can resolve via `getChatMember`; a non-admin bot only resolves recently seen users
+(legacy swallowed those errors, so many members never won). The rewrite treats
+`400 PARTICIPANT_ID_INVALID` as "not a member".
 
 ## Additional runbooks
 

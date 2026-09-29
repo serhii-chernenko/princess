@@ -84,21 +84,20 @@ test('all package Worker deploy commands use the fail-closed wrapper', () => {
     assert.doesNotMatch(wrapperSource, /\.\.\.process\.env/);
 });
 
-test('stable deploy workflow supplies the protected database confirmation', () => {
+test('main workflow only validates and never deploys', () => {
     const workflowSource = fs.readFileSync(
         path.resolve(process.cwd(), '.github/workflows/main.yml'),
         'utf8'
     );
 
-    assert.match(
-        workflowSource,
-        /CLOUDFLARE_DATABASE_ID: \$\{\{ vars\.CLOUDFLARE_DATABASE_ID \}\}/
-    );
-    assert.match(workflowSource, /pnpm run worker:deploy:stable/);
-    assert.match(
-        workflowSource,
-        /TELEGRAM_WEBHOOK_PATH: \$\{\{ secrets\.TELEGRAM_WEBHOOK_PATH \}\}/
-    );
+    assert.match(workflowSource, /pnpm run check/);
+    assert.match(workflowSource, /wrangler deploy --env production --dry-run/);
+    assert.match(workflowSource, /wrangler deploy --env beta --dry-run/);
+    assert.doesNotMatch(workflowSource, /workflow_dispatch:/);
+    assert.doesNotMatch(workflowSource, /^\s+deploy:/m);
+    assert.doesNotMatch(workflowSource, /worker:deploy/);
+    assert.doesNotMatch(workflowSource, /CLOUDFLARE_API_TOKEN/);
+    assert.doesNotMatch(workflowSource, /secrets\./);
     assert.doesNotMatch(workflowSource, /\brg\b/);
 });
 

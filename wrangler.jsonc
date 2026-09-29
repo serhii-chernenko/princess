@@ -46,7 +46,7 @@
     ],
     "env": {
         "production": {
-            "name": "princess-stable",
+            "name": "princess",
             "workers_dev": false,
             "vars": {
                 "BOT_ENVIRONMENT": "stable",

@@ -307,7 +307,14 @@ test('webhook rejects invalid secrets, media types, JSON, and update IDs', async
         {
             request: createTelegramRequest(
                 '/telegram/test',
-                '{"update_id":42}'
+                '{"update_id":42,"my_chat_member":{}}'
+            ),
+            status: 200
+        },
+        {
+            request: createTelegramRequest(
+                '/telegram/test',
+                '{"my_chat_member":{}}'
             ),
             status: 400
         },

@@ -3,35 +3,89 @@
 Audit date: 2026-09-29  
 Repository: `/Users/inevix/dev/main/princess`
 
-This is the authoritative current-state audit and production cutover runbook. Use
+This is the authoritative current-state audit, cutover record, and (historical)
+cutover runbook. The cutover is done; the sequence below is kept for reference and
+any re-run. Use
 [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) for architectural history,
 [USER_MIGRATION_TODO.md](./USER_MIGRATION_TODO.md) for the live checklist, and
 [README.md](./README.md) for day-to-day commands.
 
 ## Executive Decision
 
-The rewrite is code-complete for cutover, but the production migration is **not
-finished**. Do not switch the stable Telegram webhook yet.
+The production cutover **happened on 2026-09-29**. The stable Worker `princess`
+serves the stable bot on D1 and the legacy VPS bot is stopped and removed. The
+observation window is now in progress; Mongo Atlas stays untouched as the rollback
+source until it ends. See the [Cutover record](#cutover-record).
 
-Code and repository gates are complete once the 2026-09-29 worktree changes on top
-of `be567a8` are reviewed and committed. Production cutover remains blocked only
-on operator steps:
+Remaining follow-ups (none block traffic):
 
-1. Enable Workers Paid (decided; required, see below).
-2. Real D1 IDs for production and the separate beta database, secrets, and the
-   GitHub `production` and `beta` environments.
-3. Cloudflare edge rate limiting for the webhook and `/health` paths.
-4. A fresh frozen Mongo export, the one-shot import, and a reviewed reconciliation.
-5. Beta validation against the copied data, then the stable webhook switch.
+1. Rotate the stable and beta bot tokens if desired (they were shared in chat).
+2. Decide on Mongo Atlas retirement after the observation window.
+3. Enable scheduled cleanup only after reviewing the deletion set.
+4. Configure the GitHub `beta` environment secrets/variables for the copy workflow.
+5. Switch the `princess-beta` Workers Build branch to `main` after the merge.
+6. Add Cloudflare edge rate limiting for the webhook and `/health` paths.
 
-The exact-parity design requires Workers Paid, and the owner chose it. For a vote in
-a group of N members the Worker makes 1 actor `getChatMember`, N reconciliation
-`getChatMember` calls, and 2 replies; `getMe` is cached per isolate and no longer
-adds a call per update. For the largest observed group (N=55) that is 56
-subrequests before replies and 58 in total, above the Workers Free limit of 50.
+Workers Paid is enabled (verified). The exact-parity design requires it: for a vote
+in a group of N members the Worker makes 1 actor `getChatMember`, N reconciliation
+`getChatMember` calls, and 2 replies; `getMe` is cached per isolate. For the largest
+observed group (N=55) that is 58 subrequests, above the Workers Free limit of 50.
 D1 queries also count toward per-invocation limits: about 8 in the base path, up to
 about 8+2N with membership drift. See the
 [Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
+## Cutover Record
+
+All times UTC, 2026-09-29.
+
+- **Legacy freeze.** VPS container `princess_bot` restart policy set to `no` and
+  stopped at 17:48:52Z. It was later removed together with image
+  `princess_bot_image` and `/home/inevix/apps/princess`; other containers on the
+  VPS were untouched. Legacy Mongo lives in MongoDB Atlas (not on the VPS) and is
+  the rollback source; nothing was deleted there.
+- **Post-freeze export.** The `backup-dbs` workflow (now has `workflow_dispatch`)
+  produced `princess-db` commit `d97cd8e7e072d6c13ab750238f4075f1da42de6c` at
+  17:49:43Z, the pinned import source.
+- **D1.** `princess-production` `19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1` and
+  `princess-beta` `9c10aa80-4512-4967-b016-f7364e9c48d9`, created with the `cf` CLI
+  (location hint `eeur`). Migrations were applied in `wrangler-login` mode; the first
+  production attempt returned a transient D1 7403 and the rerun found all three
+  migrations applied. Production was imported from the pinned SHA. Reconciliation
+  matched Mongo exactly: 217 channels, 886 players, 939 memberships, score sum
+  21192, 648 active, 920 auto, 44 channels with a vote, 0 foreign-key violations.
+  Beta was imported from the local backup and re-imported once after a beta `/reset`.
+- **Workers.** Stable Worker renamed to `princess` (briefly `princess-stable`,
+  deleted) on custom domain `princess.chernenko.dev` with the daily cron; cleanup
+  is still disabled. Beta `princess-beta` on `princess-beta.chernenko.dev`. Secrets
+  `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and `TELEGRAM_WEBHOOK_PATH` were set on
+  both via `cf workers secrets update`; local copies live in git-ignored
+  `.dev.vars.production` and `.dev.vars.beta`. `env/.env.d1` holds account and
+  database IDs plus `CLOUDFLARE_AUTH_MODE=wrangler-login` (no tokens).
+- **Webhooks.** Beta was set with `drop_pending_updates=true`. Stable was set at
+  17:52:44Z with `drop_pending_updates=false`, `max_connections=1`, and
+  `allowed_updates` `message`.
+- **Incident.** Queued non-message updates from the polling era (legacy received
+  all update types) got 400 from the Worker and stalled the queue (pending grew to
+  about 35). The hotfix makes updates without `message` return
+  `200 {ignored:true}`; the queue drained to 0 by 17:56:43Z with no further errors.
+  The 404s seen are internet scanners.
+- **CD.** Cloudflare Workers Builds is connected to `serhii-chernenko/princess`.
+  `princess` builds from `main` (build `pnpm run i18n:generate`, deploy
+  `pnpm exec wrangler deploy --env production`). `princess-beta` currently builds
+  from `feat/migration-to-v5` and is switched to `main` after the merge. The build
+  token is the account's generic "Workers Builds" token. The GitHub repo
+  secrets/variables of the old VPS deploy were deleted; GitHub CI only validates.
+
+### Finding: legacy winners were limited to resolvable members
+
+Legacy winners were effectively limited to members the bot could resolve via
+`getChatMember`. A non-admin bot only resolves recently seen users, and legacy
+swallowed lookup errors. Evidence: the legacy `/top` showed 6 of 14 point-holders,
+and statistically 15 of 29 active members never won in 166 votes. The rewrite with
+an administrator bot resolves all members.
+
+Operator note: keep the bot an administrator in groups for fair draws. The rewrite
+treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 
 ## Repository and Branch Evidence
 
@@ -43,7 +97,7 @@ about 8+2N with membership drift. See the
 - The 2026-09-29 follow-up work (review fixes, D1 integration tests, beta isolation
   tooling, webhook helper changes) is the current uncommitted worktree on top of
   `be567a8`.
-- None of this is evidence of a live production migration.
+- The cutover itself is recorded in the [Cutover record](#cutover-record).
 
 ## Main Compared with the Rewrite
 
@@ -53,19 +107,19 @@ about 8+2N with membership drift. See the
 | Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                  |
 | Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories               |
 | Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; proactive release fanout deliberately absent        |
-| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | Validated, serialized Wrangler deployment to stable/beta Workers        |
+| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy stable/beta   |
 | Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest |
 
 ## Readiness by Layer
 
-| Layer                  | Status                    | Meaning                                                                                                                                                                                          |
-| ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Rewrite implementation | Implemented               | Commands, D1 repositories, webhook runtime, durable update ledger, migration tooling, deployment scripts, and Workers-runtime D1 integration tests exist.                                        |
-| Repository readiness   | Pending review and commit | Phase 8 is committed in `be567a8` (WIP message); the 2026-09-29 follow-up is an uncommitted worktree on top of it and needs review, a proper commit, and a rerun of the gates.                   |
-| Remote provisioning    | Operator-blocked          | Stable and beta D1 IDs are still placeholders and the beta D1 does not exist yet; Workers Paid is decided but not proven enabled; secrets and deployed routes are not proven by this repo audit. |
-| Data migration         | Tooling verified only     | A historical backup transformed and imported locally; production needs a fresh export and reconciliation.                                                                                        |
-| Traffic cutover        | Not started               | No audit evidence shows that the stable bot token now points at the Worker webhook.                                                                                                              |
-| Legacy retirement      | Deferred                  | Repo deployment artifacts are removed, but Mongo polling and the VPS must remain recoverable until live validation and delta reconciliation are complete.                                        |
+| Layer                  | Status                    | Meaning                                                                                                                                        |
+| ---------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rewrite implementation | Live                      | Commands, D1 repositories, webhook runtime, update ledger, migration tooling, and Workers-runtime D1 integration tests exist and serve stable. |
+| Repository readiness   | Pending review and commit | The follow-up worktree (hotfix, workflow and docs changes) needs review, a proper commit, and the merge to `main`.                             |
+| Remote provisioning    | Done                      | Real D1 IDs, Workers on custom domains, secrets, and Workers Paid are in place; Workers Builds deploys both Workers.                           |
+| Data migration         | Done                      | Frozen export imported into production D1 and reconciled exactly against Mongo.                                                                |
+| Traffic cutover        | Done                      | Stable webhook points at `princess` since 17:52:44Z; queue drained, no further errors.                                                         |
+| Legacy retirement      | Partly done               | VPS container, image, and app directory removed. Mongo Atlas retained as rollback source until the observation window ends.                    |
 
 ## Verified Historical Backup Evidence
 
@@ -139,13 +193,11 @@ verification:
 - **CI, check, format, and deployment hardening.** Oxfmt excludes generated
   binding/release/i18n artifacts, canonical checks run on pull requests and pushes,
   CI regenerates i18n, release, Wrangler-binding, and Drizzle artifacts and rejects
-  tracked or untracked drift, and deploy dry-runs are checked before deployment.
-  Third-party actions are pinned to full commit SHAs. A manual dispatch from `main`
-  can deploy only the stable Worker through the `production` GitHub environment,
-  without applying D1 migrations or changing Telegram webhooks. Stable deployment
-  is serialized without cancelling an in-flight release. Repository administrators
-  must separately configure required reviewers and `main` deployment protection;
-  referencing the environment alone does not enforce those rules.
+  tracked or untracked drift, and deploy dry-runs run in CI.
+  Third-party actions are pinned to full commit SHAs. The workflow only validates:
+  the manual GitHub deploy job was removed because Cloudflare Workers Builds now
+  deploys stable and beta. D1 migrations and Telegram webhook changes remain
+  separate operator actions.
 - **Release migration.** A major v5 Changeset exists. `CHANGELOG.md` remains the
   human history and `releases.generated.json` remains generated; it is not edited
   by hand.
@@ -175,6 +227,8 @@ Runtime parity fixes made against the legacy behavior:
   the claim; the claim is kept (at-most-once).
 - The route returns 200 after a terminalized dispatch failure; `botInfo` is cached
   per isolate.
+- Post-cutover hotfix: updates without `message` return `200 {ignored:true}`
+  instead of 400 (see the incident in the Cutover record).
 
 Intentional remaining differences from legacy:
 
@@ -236,17 +290,16 @@ If it returns later, use a Cloudflare
 [Workflow](https://developers.cloudflare.com/workflows/) with per-channel durable
 progress, bounded concurrency, retries, and idempotent release markers.
 
-### 4. Workers Paid — Decided, Must Be Enabled
+### 4. Workers Paid — Enabled
 
-The owner chose Workers Paid. Exact parity needs it: a 55-member group makes 56
+Workers Paid is enabled (verified). Exact parity needs it: a 55-member group makes 56
 Telegram subrequests before replies (58 total), above Free's 50, and D1 queries
-count toward the same per-invocation limits. Enable Paid before any production
-traffic. Do not silently ship partial reconciliation or assume D1 batching fixes
+count toward the same per-invocation limits. Do not silently ship partial reconciliation or assume D1 batching fixes
 the external Telegram subrequest count.
 
-### 5. Stable/Beta Isolation — Decided, Needs Provisioning
+### 5. Stable/Beta Isolation — Provisioned
 
-Beta gets its own D1 database, `princess-beta`, configured in `wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
+Beta has its own D1 database, `princess-beta`, configured in `wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
 the GitHub `beta` environment in CI). Migrate it with `pnpm db:migrate:beta`.
 
 `pnpm db:copy:production-to-beta --confirm-overwrite-beta`, or the manual workflow
@@ -272,7 +325,7 @@ Caveats:
   retention, and consider lowering beta log sampling. Erasure on production does
   not reach beta until the next copy.
 
-Restrict the GitHub `beta` environment to deployment branch `main` with required
+The GitHub `beta` environment secrets/variables are not configured yet. Restrict the environment to deployment branch `main` with required
 reviewers; the workflow's `if` guard alone does not stop a branch-edited workflow
 from using beta secrets. Consider CODEOWNERS or branch protection on
 `.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`. Store the copy's
@@ -281,16 +334,15 @@ split into a production-D1 read token (export) and a beta-D1 edit token
 (wipe/import); with one shared token, code guards are the only thing preventing
 production writes.
 
-Until the beta D1 exists, do not deploy beta against the production database. The
+Never deploy beta against the production database. The
 copy direction is production to beta only. Wrangler environments create distinct
 Workers, not distinct resources; see
 [Wrangler environments](https://developers.cloudflare.com/workers/wrangler/environments/).
 
-### 6. Cloudflare Edge Rate Limiting — Operator Hardening
+### 6. Cloudflare Edge Rate Limiting — Operator Hardening (open)
 
 Secret authentication and bounded bodies protect Worker code, but repository code
-cannot enforce a trustworthy distributed source rate limit. Before cutover, add and
-verify Cloudflare edge rate-limiting rules for the custom-domain webhook and
+cannot enforce a trustworthy distributed source rate limit. Add and verify Cloudflare edge rate-limiting rules for the custom-domain webhook and
 `/health` paths without blocking valid Telegram delivery. See
 [Cloudflare rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/).
 
@@ -300,11 +352,14 @@ URL, so disable `invocation_logs` or treat the path as non-secret; `/health` reu
 
 ### 7. Final Legacy Removal — Post-Cutover
 
-Remove the polling code, Mongoose dependency, Mongo configuration, and live VPS
+The VPS deployment is already removed. Remove the polling code, Mongoose dependency, Mongo configuration, and Mongo Atlas
 only after stable Worker validation, an agreed observation window, and explicit
 confirmation that no D1 writes need to be reconciled back to Mongo.
 
-## Safe Cutover Sequence
+## Safe Cutover Sequence (executed 2026-09-29)
+
+This is the sequence that was followed; see the Cutover record for what actually
+happened. Reuse it for any re-run.
 
 1. **Enable capacity.** Enable Workers Paid (decided) before any production
    traffic changes.
@@ -315,10 +370,9 @@ confirmation that no D1 writes need to be reconciled back to Mongo.
    and webhook secrets as secrets,
    not Wrangler `vars`; follow the
    [Workers secrets guide](https://developers.cloudflare.com/workers/configuration/secrets/).
-   Create the GitHub `production` and `beta` environments and configure required
-   reviewers and a `main` deployment-branch rule before relying on the manual
-   deploy and copy jobs. `TELEGRAM_WEBHOOK_PATH` is a GitHub secret, not a
-   variable.
+   Create the GitHub `beta` environment and configure required reviewers and a
+   `main` deployment-branch rule before relying on the copy workflow. Runtime
+   secrets live on the Workers, not in GitHub.
 3. **Take a fresh Mongo export.** Follow
    [the MongoDB-to-D1 data runbook](./MONGO_TO_D1_RUNBOOK.md): export channels,
    players, scores, and statuses from the current source, publish only the four
@@ -343,9 +397,9 @@ confirmation that no D1 writes need to be reconciled back to Mongo.
    status/membership, and inactive counts. Check foreign-key violations, unique
    constraints, score totals/distribution, active/auto flags, timestamps, release
    versions, languages, and several known large/small/sample groups.
-9. **Deploy without switching Telegram.** Deploy the beta and stable Worker code
-   and bindings. Package scripts and CI intentionally keep D1 migration, Worker
-   deployment, and Telegram webhook registration as separate operations.
+9. **Deploy without switching Telegram.** Cloudflare Workers Builds deploys the
+   beta and stable Worker code and bindings. D1 migration and Telegram webhook
+   registration remain separate operator actions.
 10. **Check readiness.** Require a successful authenticated `/health` response with
     the webhook-secret header, configuration and D1 checks, inspect Workers Logs,
     and run read-only smoke checks.
@@ -386,6 +440,7 @@ confirmation that no D1 writes need to be reconciled back to Mongo.
   can restore D1 itself and is destructive; it cannot copy accepted D1 writes back
   into Mongo or reconstruct Telegram side effects.
 
-Keep the VPS/Mongo recovery path available until the stable observation window and
-delta review are complete. Legacy retirement is the final step, not the rollback
+The VPS bot is already removed, so a rollback now means redeploying the legacy code
+from `main` history against Mongo Atlas (retained, untouched). Keep Atlas until the
+observation window and delta review are complete. Legacy retirement is the final step, not the rollback
 mechanism for the first cutover.

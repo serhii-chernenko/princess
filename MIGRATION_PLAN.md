@@ -17,7 +17,9 @@ Before starting each next phase, reread this file and confirm:
 
 ## Current State Summary
 
-The migration is **implemented in large part but not cut over to production**.
+The migration is **implemented and cut over to production (2026-09-29)**; the
+observation window is in progress. See
+[MIGRATION_STATUS.md](./MIGRATION_STATUS.md#cutover-record).
 
 - `main` and `origin/main` remain at legacy baseline `243967c`: long-running
   Telegraf polling, MongoDB/Mongoose, and GitHub Actions to Ansible/Docker/VPS.
@@ -479,8 +481,8 @@ Phase 6 intentional deferrals:
 
 ### Phase 7: Deployment Migration
 
-Status: repository implementation complete; remote provisioning and production
-cutover pending
+Status: complete; production cutover done 2026-09-29 (stable and beta are deployed by
+Cloudflare Workers Builds)
 
 Goals:
 
@@ -505,7 +507,7 @@ Phase 7 repository implementation result:
 1. Replaced the GitHub Actions VPS/Ansible deploy workflow with a Cloudflare Worker deploy workflow in `.github/workflows/main.yml`
 2. Simplified deploy back to direct Wrangler commands with `--secrets-file`
 3. Added two production Workers in `wrangler.jsonc`:
-    - stable Worker: `princess-stable`
+    - stable Worker: `princess`
     - beta Worker: `princess-beta`
 4. Attached distinct production custom domains:
     - stable: `princess.chernenko.dev`
@@ -572,7 +574,8 @@ Phase 8 implementation:
 5. Tightened the stable GitHub Actions workflow so it now:
     - prepares `.dev.vars.production`
     - validates pushes and pull requests without deploying
-    - deploys only the stable Worker on a manual dispatch from `main`
+    - originally deployed stable on manual dispatch; that job was removed after
+      cutover in favor of Cloudflare Workers Builds, so the workflow only validates
     - never applies D1 migrations or changes Telegram webhooks
     - no longer carries unused `ADMIN_ID`
 6. Updated operator docs for:
@@ -730,15 +733,14 @@ For this bot, the practical setup is now:
 
 ## Next Step
 
-Finish the pre-cutover repository gates in this order:
+Post-cutover, in this order:
 
-1. Rerun the full verification suite, then review and commit the 2026-09-29
-   worktree (and reword or squash `be567a8`).
-2. Enable Workers Paid and provision real production and beta D1 IDs, secrets,
-   GitHub environments, and routes.
-3. Copy production data into beta and validate there.
-4. Follow the fresh-export, freeze, migrate, reconcile, beta-only validation, and
-   stable switch sequence in [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
+1. Review and commit the worktree, merge to `main`, and switch the `princess-beta`
+   Workers Build branch to `main`.
+2. Observe stable; keep MongoDB Atlas untouched as the rollback source.
+3. Review the deletion set before enabling scheduled cleanup.
+4. Decide on Mongo Atlas retirement and legacy code removal after the observation
+   window. See [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
 
 Do not equate a coded phase with a migrated production service. Legacy retirement
 comes only after live stable validation and D1 delta review.
