@@ -83,7 +83,7 @@ const createReadinessDatabase = (readyValue: number | null) => {
 
 const createBindings = (
     DB: D1Database,
-    botEnvironment: 'local' | 'stable' | 'beta' = 'local'
+    botEnvironment: 'local' | 'production' | 'beta' = 'local'
 ): WorkerBindings => {
     return {
         DB,
@@ -645,7 +645,7 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
 
     await runScheduledTasks(
         controller,
-        createBindings(database, 'stable'),
+        createBindings(database, 'production'),
         context,
         dependencies
     );

@@ -58,7 +58,7 @@
             "name": "princess",
             "workers_dev": false,
             "vars": {
-                "BOT_ENVIRONMENT": "stable",
+                "BOT_ENVIRONMENT": "production",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
                 "ENABLE_RELEASE_BROADCAST": "true",
                 "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",

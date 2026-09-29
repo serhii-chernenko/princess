@@ -285,9 +285,9 @@ Phase 3 implementation result:
 10. Added DB scripts:
     - `db:generate`
     - `db:migrate:local`
-    - `db:migrate:production`
+    - `db:migrate:prod`
     - `db:query:local`
-    - `db:query:production`
+    - `db:query:prod`
 11. Moved the new Worker/D1 flow to root-level `.dev.vars` and `.dev.vars.production`
 12. Prepared `wrangler.jsonc` with:
     - top-level local development config
@@ -337,7 +337,7 @@ Phase 4 implementation result:
 4. Added scripts:
     - `db:import:prepare`
     - `db:import:local`
-    - `db:import:production`
+    - `db:import:prod`
 5. Import statements are chunked conservatively for D1:
     - players: `20`
     - channels: `20`
@@ -404,7 +404,7 @@ Phase 5 implementation result:
 7. Switched the primary local scripts to the Worker path:
     - `dev`
     - `start`
-    - kept `legacy:dev` and `legacy:start` as fallback aliases
+    - kept `legacy:dev` and `legacy:start` as fallback aliases (removed after the cutover)
 8. Removed `MONGODB_URI` from the active Worker env examples
 9. Switched tests to `tsx --test` and added TypeScript runtime smoke coverage
 
@@ -481,7 +481,7 @@ Phase 6 intentional deferrals:
 
 ### Phase 7: Deployment Migration
 
-Status: complete; production cutover done 2026-09-29 (stable and beta are deployed by
+Status: complete; production cutover done 2026-09-29 (production and beta are deployed by
 Cloudflare Workers Builds)
 
 Goals:
@@ -507,19 +507,19 @@ Phase 7 repository implementation result:
 1. Replaced the GitHub Actions VPS/Ansible deploy workflow with a Cloudflare Worker deploy workflow in `.github/workflows/main.yml`
 2. Simplified deploy back to direct Wrangler commands with `--secrets-file`
 3. Added two production Workers in `wrangler.jsonc`:
-    - stable Worker: `princess`
+    - production Worker: `princess`
     - beta Worker: `princess-beta`
 4. Attached distinct production custom domains:
-    - stable: `princess.chernenko.dev`
+    - production: `princess.chernenko.dev`
     - beta: `princess-beta.chernenko.dev`
-5. Kept stable and beta on the same D1 binding (superseded 2026-09-29 by a
+5. Kept production and beta on the same D1 binding (superseded 2026-09-29 by a
    separate beta D1)
-6. Kept the cron trigger only on stable:
+6. Kept the cron trigger only on production:
     - `0 0 * * *`
 7. Added local tunnel-aware dev orchestration in `scripts/cloudflare/dev-with-tunnel.ts`
-8. Added local, stable, and beta webhook helpers in `scripts/telegram/webhook.ts`
+8. Added local, production, and beta webhook helpers in `scripts/telegram/webhook.ts`
 9. Added direct ops scripts for:
-    - stable deploy/tail/webhook
+    - production deploy/tail/webhook
     - beta deploy/tail/webhook
     - local webhook registration and deletion
 10. Switched local public webhook guidance to a stable Cloudflare Tunnel hostname:
@@ -571,15 +571,15 @@ Phase 8 implementation:
     - `.changeset/*.md` for unreleased notes
     - `CHANGELOG.md` for human release history
     - `releases.generated.json` for runtime `/releases`
-5. Tightened the stable GitHub Actions workflow so it now:
+5. Tightened the production GitHub Actions workflow so it now:
     - prepares `.dev.vars.production`
     - validates pushes and pull requests without deploying
-    - originally deployed stable on manual dispatch; that job was removed after
+    - originally deployed production on manual dispatch; that job was removed after
       cutover in favor of Cloudflare Workers Builds, so the workflow only validates
     - never applies D1 migrations or changes Telegram webhooks
     - no longer carries unused `ADMIN_ID`
 6. Updated operator docs for:
-    - stable workflow behavior
+    - production workflow behavior
     - release artifact ownership
     - beta safety (later replaced by a separate beta D1)
 7. Added a durable Telegram update ledger with:
@@ -588,7 +588,7 @@ Phase 8 implementation:
     - lease-matched terminalization after success or caught dispatch failure
     - no automatic deletion or release after Telegraf dispatch starts
     - five-minute stale-lease reclamation
-    - a stable-owned job that prunes processed rows after seven days and abandoned
+    - a production-owned job that prunes processed rows after seven days and abandoned
       processing rows after 24 hours
 8. Hardened the Worker boundary with a 1 MiB authenticated body cap, message-update
    validation, authenticated D1 readiness, service-level cleanup authorization,
@@ -598,7 +598,7 @@ Verification notes:
 
 - The complete suite reports 122 passing tests, including Workers-runtime D1
   integration tests.
-- Generated-binding verification and local/stable/beta deployment dry-runs pass;
+- Generated-binding verification and local/production/beta deployment dry-runs pass;
   rerun these gates after further code or configuration changes.
 
 Important readiness note:
@@ -737,10 +737,10 @@ Post-cutover, in this order:
 
 1. Review and commit the worktree, merge to `main`, and switch the `princess-beta`
    Workers Build branch to `main`.
-2. Observe stable; keep MongoDB Atlas untouched as the rollback source.
+2. Observe production; keep MongoDB Atlas untouched as a backup source.
 3. Review the deletion set before enabling scheduled cleanup.
-4. Decide on Mongo Atlas retirement and legacy code removal after the observation
+4. Decide on Mongo Atlas retirement (legacy code is already removed) after the observation
    window. See [MIGRATION_STATUS.md](./MIGRATION_STATUS.md).
 
 Do not equate a coded phase with a migrated production service. Legacy retirement
-comes only after live stable validation and D1 delta review.
+comes only after live production validation and D1 delta review.

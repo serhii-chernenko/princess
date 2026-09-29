@@ -7,14 +7,14 @@ import test from 'node:test';
 import { parse } from 'dotenv';
 
 import {
-    formatStableRuntimeSecrets,
-    writeStableRuntimeSecrets
+    formatProductionRuntimeSecrets,
+    writeProductionRuntimeSecrets
 } from '../scripts/cloudflare/write-runtime-secrets';
 
 const runtimeEnvironment = {
     BOT_TOKEN: '123456:test-token',
-    TELEGRAM_WEBHOOK_PATH: '/telegram/princess-stable',
-    TELEGRAM_WEBHOOK_SECRET: 'stable_secret-token'
+    TELEGRAM_WEBHOOK_PATH: '/telegram/princess-production',
+    TELEGRAM_WEBHOOK_SECRET: 'production_secret-token'
 };
 
 const validEnvironment = {
@@ -33,7 +33,7 @@ test('runtime secret generator writes a private dotenv file without changing val
         fs.rmSync(directory, { recursive: true, force: true });
     });
 
-    writeStableRuntimeSecrets(outputPath, validEnvironment);
+    writeProductionRuntimeSecrets(outputPath, validEnvironment);
 
     assert.deepEqual(parse(fs.readFileSync(outputPath)), runtimeEnvironment);
     assert.equal(fs.statSync(outputPath).mode & 0o777, 0o600);
@@ -50,7 +50,7 @@ test('runtime secret generator rejects missing, blank, and multiline values', ()
     ] as const) {
         assert.throws(
             () => {
-                formatStableRuntimeSecrets({
+                formatProductionRuntimeSecrets({
                     ...validEnvironment,
                     [key]: value
                 });
@@ -61,7 +61,7 @@ test('runtime secret generator rejects missing, blank, and multiline values', ()
 
     assert.throws(
         () => {
-            formatStableRuntimeSecrets({
+            formatProductionRuntimeSecrets({
                 CLOUDFLARE_API_TOKEN: validEnvironment.CLOUDFLARE_API_TOKEN,
                 CLOUDFLARE_ACCOUNT_ID: validEnvironment.CLOUDFLARE_ACCOUNT_ID,
                 BOT_TOKEN: validEnvironment.BOT_TOKEN,
@@ -77,7 +77,7 @@ test('runtime secret generator safely quotes dotenv metacharacters', () => {
         ...validEnvironment,
         TELEGRAM_WEBHOOK_SECRET: 'secret#with spaces'
     };
-    const content = formatStableRuntimeSecrets(environment);
+    const content = formatProductionRuntimeSecrets(environment);
 
     assert.deepEqual(parse(content), {
         ...runtimeEnvironment,

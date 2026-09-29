@@ -30,17 +30,17 @@ the authoritative audit, cutover sequence, and rollback policy. Use
       and 1,045 memberships with zero skips. This read-only run was not made under a
       source freeze and is not cutover input.
 - [x] Replace the checked-in VPS deploy workflow with validation-only GitHub
-      Actions; stable and beta are deployed by Cloudflare Workers Builds. Keep D1
+      Actions; production and beta are deployed by Cloudflare Workers Builds. Keep D1
       migration and Telegram webhook changes as separate operator actions.
 - [x] Add compare-and-set daily-run claiming, atomic score increments, a single
       membership reconciliation, set-based cleanup, D1-safe orphan chunks, a
       fail-closed webhook boundary, readiness checks, cleanup gating, and structured
       observability in the current worktree.
-- [x] Restore the legacy polling loader for ignored `env/.env.dev` and
-      `env/.env.production` recovery files.
+- [x] Restore then remove the legacy polling loader for `env/.env.dev` and
+      `env/.env.production` (legacy code deleted after the cutover).
 - [x] Add a bot-specific D1 `update_id` ledger with atomic claims, terminalized
       update deduplication, matching-lease terminalization, no automatic release after
-      dispatch starts, five-minute stale-claim recovery, and a stable-owned pruning
+      dispatch starts, five-minute stale-claim recovery, and a production-owned pruning
       job after seven days. Caught failures that terminalize cannot replay; this is
       an explicit at-most-once reliability decision rather than general recovery.
 - [x] Bound authenticated webhook JSON to 1 MiB, validate message-update shape,
@@ -55,12 +55,12 @@ the authoritative audit, cutover sequence, and rollback policy. Use
       concurrency and stale reclaim, compare-and-set daily claim, atomic score
       increments, cleanup chunking and cascades, Mongo import SQL and rerun
       rejection, and webhook dispatch with duplicate and concurrent delivery.
-- [x] Run `pnpm run check`, generated-binding verification, and local/stable/beta
+- [x] Run `pnpm run check`, generated-binding verification, and local/production/beta
       deployment dry-runs. The latest `pnpm test` reports 211/211 passing tests;
       rerun all gates after further code or configuration changes.
 - [x] Apply the 2026-09-29 review fixes for legacy parity (see
       [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#2026-09-29-review)).
-- [x] Decide stable/beta isolation: separate beta D1 `princess-beta`, with a
+- [x] Decide production/beta isolation: separate beta D1 `princess-beta`, with a
       production-to-beta copy command and manual workflow.
 - [ ] Review and commit the current worktree. Phase 8 is already committed in
       `be567a8`, a WIP commit ("chore: in progress"); give it a proper message or
@@ -72,7 +72,7 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 - [x] Enable Workers Paid (verified).
 - [x] Create the production D1 and the separate beta D1 `princess-beta`, replace all
-      D1 placeholders in `wrangler.jsonc`, and attach stable/beta custom domains.
+      D1 placeholders in `wrangler.jsonc`, and attach production/beta custom domains.
 - [x] Configure per-bot runtime secrets on both Workers; local copies in ignored
       `.dev.vars.production` / `.dev.vars.beta`; `env/.env.d1` in
       `wrangler-login` mode.
@@ -81,7 +81,7 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 - [x] Apply the production schema migrations (rerun after a transient D1 7403).
 - [x] Run the one-shot production import from the pinned SHA and reconcile: 217
       channels, 886 players, 939 memberships, score sum 21192, 0 FK violations.
-- [x] Deploy stable and beta; set the beta webhook, then the stable webhook
+- [x] Deploy production and beta; set the beta webhook, then the production webhook
       (17:52:44Z, `max_connections=1`, `allowed_updates` `message`).
 - [x] Fix the non-message update stall (`200 {ignored:true}`); queue drained.
 - [x] Connect Cloudflare Workers Builds to the repo; remove the old VPS deploy
@@ -91,11 +91,11 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 ## Open Follow-ups
 
 - [ ] Before merging to `main`, apply migration `20260929183002_mysterious_freak`
-      to `princess-production` with `pnpm db:migrate:production`; Workers Builds
+      to `princess-production` with `pnpm db:migrate:prod`; Workers Builds
       deploys code but does not run migrations.
 - [ ] Review and commit the current worktree, merge to `main`, then switch the
       `princess-beta` Workers Build branch from `feat/migration-to-v5` to `main`.
-- [ ] Rotate the stable and beta bot tokens if desired (shared in chat).
+- [ ] Rotate the production and beta bot tokens if desired (shared in chat).
 - [ ] Configure the GitHub `beta` environment secrets/variables and protections
       (required reviewers, `main` deployment-branch rule, D1-scoped token) for the
       copy workflow; consider CODEOWNERS on `.github/workflows/`, `scripts/db/`,
@@ -115,17 +115,16 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 ## Post-Cutover
 
-- [ ] Keep Mongo Atlas (rollback source) untouched through the observation window, then decide on retirement; `backup-dbs` princess step works while Atlas exists.
-- [ ] If rollback is required after D1 writes, stop webhook traffic and reconcile
-      exported D1 deltas into Mongo before restarting polling. There is no automatic
-      zero-loss rollback.
+- [ ] Keep Mongo Atlas (backup and re-import source) untouched through the observation window, then decide on retirement; `backup-dbs` princess step works while Atlas exists.
+- [ ] If recovery is required after D1 writes, use a Worker version rollback, D1 Time
+      Travel, or a re-import from Atlas backups. The legacy bot is not redeployable.
 - [ ] Replace the webhook lease ledger with a durable Queue-backed inbox before
       promising stronger retry or exactly-once behavior.
 - [ ] Make D1 effects deterministic and keyed by Telegram update ID, especially
       privileged `/sudorun` mutations, before allowing automatic replay.
 - [ ] Add an ordered Telegram outbox that retains ambiguous sends for explicit
       operator inspection and resolution instead of automatically resending them.
-- [ ] After live validation and delta review, remove legacy polling code, Mongoose,
-      Mongo env support, (the VPS deployment is already removed).
+- [x] Remove legacy polling code, Mongoose, and Mongo env support (the VPS deployment
+      is already removed).
 - [ ] Review the v5 Changeset, version the release, regenerate
       `releases.generated.json`, and never edit the generated file by hand.

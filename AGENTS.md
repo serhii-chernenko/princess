@@ -33,9 +33,9 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - Treat `100` bound parameters per statement as the safety ceiling unless verified otherwise.
 - Prefer chunk sizes derived from `floor(100 / columnCount)` or smaller.
 
-## Stable and Beta Data
+## Production and Beta Data
 
-- Stable and beta use separate D1 databases (`princess-production` and `princess-beta`) (both provisioned).
+- Production and beta use separate D1 databases (`princess-production` and `princess-beta`) (both provisioned).
 - Never deploy beta against the production database.
 - Data is copied production to beta only (`pnpm db:copy:production-to-beta --confirm-overwrite-beta`); never the other direction.
 - Beta holds production user data after a copy; restrict access to it.
@@ -44,7 +44,7 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 
 ## Deployment
 
-- Cloudflare Workers Builds deploys stable (`princess`, from `main`) and beta (`princess-beta`).
+- Cloudflare Workers Builds deploys production (`princess`, from `main`) and beta (`princess-beta`).
 - GitHub Actions only validate; do not add a deploy job.
 
 ## Releases

@@ -114,7 +114,7 @@ const createRecordingDatabase = (
 
 const createTestWorkerBindings = (
     database: D1Database,
-    botEnvironment: 'local' | 'stable' | 'beta' = 'local',
+    botEnvironment: 'local' | 'production' | 'beta' = 'local',
     enableScheduledCleanup: 'true' | 'false' = 'true'
 ) => {
     return {
@@ -248,7 +248,7 @@ test('global cleanup rejects disabled and beta execution before querying D1', as
     const disabled = createRecordingDatabase(() => []);
     const beta = createRecordingDatabase(() => []);
     const disabledGame = createGameService(
-        createTestWorkerBindings(disabled.database, 'stable', 'false')
+        createTestWorkerBindings(disabled.database, 'production', 'false')
     );
     const betaGame = createGameService(
         createTestWorkerBindings(beta.database, 'beta', 'true')
@@ -261,7 +261,7 @@ test('global cleanup rejects disabled and beta execution before querying D1', as
     );
     await assert.rejects(
         betaGame.cleanupInactiveChannels(cutoff),
-        /forbidden outside the local or stable owner environment/
+        /forbidden outside the local or production owner environment/
     );
     assert.equal(disabled.statements.length, 0);
     assert.equal(beta.statements.length, 0);

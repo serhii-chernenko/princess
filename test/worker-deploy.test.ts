@@ -67,12 +67,8 @@ test('all package Worker deploy commands use the fail-closed wrapper', () => {
     );
 
     assert.equal(
-        packageJson.scripts['worker:deploy:stable'],
+        packageJson.scripts['worker:deploy:prod'],
         'tsx scripts/cloudflare/deploy-worker.ts production'
-    );
-    assert.equal(
-        packageJson.scripts['worker:deploy:production'],
-        'pnpm run worker:deploy:stable'
     );
     assert.equal(
         packageJson.scripts['worker:deploy:beta'],

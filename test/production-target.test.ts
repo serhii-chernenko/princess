@@ -401,12 +401,12 @@ test('package production migration uses the fail-closed target wrapper', () => {
     );
 
     assert.equal(
-        packageJson.scripts['db:migrate:production'],
+        packageJson.scripts['db:migrate:prod'],
         'tsx scripts/db/migrate-production.ts'
     );
     assert.match(drizzleConfigSource, /resolveProductionD1DatabaseId/);
     assert.doesNotMatch(
-        packageJson.scripts['db:migrate:production'] ?? '',
+        packageJson.scripts['db:migrate:prod'] ?? '',
         /\$CLOUDFLARE_DATABASE_ID|CLOUDFLARE_DATABASE_ID=/
     );
 });

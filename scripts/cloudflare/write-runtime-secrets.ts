@@ -6,19 +6,19 @@ import { parse } from 'dotenv';
 
 import { workerRuntimeSecretKeys } from './runtime-env';
 
-const stableDeployEnvironmentKeys = [
+const productionDeployEnvironmentKeys = [
     'CLOUDFLARE_API_TOKEN',
     'CLOUDFLARE_ACCOUNT_ID',
     ...workerRuntimeSecretKeys
 ] as const;
 
-type StableDeployEnvironment = Partial<
-    Record<(typeof stableDeployEnvironmentKeys)[number], string>
+type ProductionDeployEnvironment = Partial<
+    Record<(typeof productionDeployEnvironmentKeys)[number], string>
 >;
 
 const readRequiredSingleLineValue = (
-    environment: StableDeployEnvironment,
-    key: (typeof stableDeployEnvironmentKeys)[number]
+    environment: ProductionDeployEnvironment,
+    key: (typeof productionDeployEnvironmentKeys)[number]
 ) => {
     const value = environment[key];
 
@@ -50,10 +50,10 @@ const serializeDotenvValue = (key: string, value: string) => {
     throw new Error(`${key} cannot be represented safely in a dotenv file`);
 };
 
-export const formatStableRuntimeSecrets = (
-    environment: StableDeployEnvironment
+export const formatProductionRuntimeSecrets = (
+    environment: ProductionDeployEnvironment
 ) => {
-    for (const key of stableDeployEnvironmentKeys) {
+    for (const key of productionDeployEnvironmentKeys) {
         readRequiredSingleLineValue(environment, key);
     }
 
@@ -66,12 +66,12 @@ export const formatStableRuntimeSecrets = (
     return `${lines.join('\n')}\n`;
 };
 
-export const writeStableRuntimeSecrets = (
+export const writeProductionRuntimeSecrets = (
     outputPath: string,
-    environment: StableDeployEnvironment = process.env
+    environment: ProductionDeployEnvironment = process.env
 ) => {
     const resolvedOutputPath = path.resolve(outputPath);
-    const content = formatStableRuntimeSecrets(environment);
+    const content = formatProductionRuntimeSecrets(environment);
 
     fs.writeFileSync(resolvedOutputPath, content, {
         encoding: 'utf8',
@@ -91,7 +91,7 @@ const run = () => {
         );
     }
 
-    writeStableRuntimeSecrets(outputPath);
+    writeProductionRuntimeSecrets(outputPath);
 };
 
 const scriptPath = process.argv[1];

@@ -51,7 +51,7 @@ test('Telegram helper rejects redirects and attaches a timeout signal', async ()
 });
 
 test('Telegram helper returns a validated getWebhookInfo result', async () => {
-    const secretPath = '/telegram/princess-stable';
+    const secretPath = '/telegram/princess-production';
     const expectedWebhookUrl = `https://worker.example${secretPath}`;
     const botToken = '123456:test-token';
     const webhookInfo = {

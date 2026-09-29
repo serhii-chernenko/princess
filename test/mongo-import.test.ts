@@ -405,7 +405,7 @@ test('package import scripts use the one-shot local and production wrapper', () 
         'tsx scripts/db/run-mongo-import.ts local'
     );
     assert.equal(
-        packageJson.scripts['db:import:production'],
+        packageJson.scripts['db:import:prod'],
         'tsx scripts/db/run-mongo-import.ts production'
     );
     assert.match(runnerSource, /preflightImportTarget\(target\)/);

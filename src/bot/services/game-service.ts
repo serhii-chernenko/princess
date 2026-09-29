@@ -103,9 +103,12 @@ export const isAdmin = (member: Pick<ChatMember, 'status'>) => {
 export const assertGlobalCleanupAllowed = (
     env: Pick<WorkerBindings, 'BOT_ENVIRONMENT' | 'ENABLE_SCHEDULED_CLEANUP'>
 ) => {
-    if (env.BOT_ENVIRONMENT !== 'local' && env.BOT_ENVIRONMENT !== 'stable') {
+    if (
+        env.BOT_ENVIRONMENT !== 'local' &&
+        env.BOT_ENVIRONMENT !== 'production'
+    ) {
         throw new Error(
-            'Global cleanup is forbidden outside the local or stable owner environment'
+            'Global cleanup is forbidden outside the local or production owner environment'
         );
     }
 

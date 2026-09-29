@@ -256,7 +256,7 @@ test('the release cron runs only the broadcast task', async () => {
 
     await runScheduledTasks(
         controller,
-        createEnv('true', 'stable'),
+        createEnv('true', 'production'),
         {} as ExecutionContext,
         {
             async broadcastRelease() {

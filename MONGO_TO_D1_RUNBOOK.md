@@ -124,10 +124,10 @@ Then run:
 
 ```sh
 export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
-pnpm run db:migrate:production
+pnpm run db:migrate:prod
 
 export MONGO_BACKUP_REF="<reviewed-40-character-commit-sha>"
-pnpm run db:import:production
+pnpm run db:import:prod
 ```
 
 The production wrapper explicitly selects `wrangler.jsonc`, environment
@@ -151,13 +151,13 @@ Compare the report's source/transformed counts with the frozen Mongo counts and
 the remote D1 results:
 
 ```sh
-pnpm run db:query:production -- --command='SELECT (SELECT COUNT(*) FROM channels) AS channels, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM channel_members) AS channel_members, (SELECT COUNT(*) FROM telegram_updates) AS telegram_updates;'
+pnpm run db:query:prod -- --command='SELECT (SELECT COUNT(*) FROM channels) AS channels, (SELECT COUNT(*) FROM players) AS players, (SELECT COUNT(*) FROM channel_members) AS channel_members, (SELECT COUNT(*) FROM telegram_updates) AS telegram_updates;'
 
-pnpm run db:query:production -- --command='PRAGMA foreign_key_check;'
+pnpm run db:query:prod -- --command='PRAGMA foreign_key_check;'
 
-pnpm run db:query:production -- --command='SELECT COUNT(*) AS memberships, SUM(score) AS score_total, SUM(is_active) AS active_total, SUM(is_auto_joined) AS auto_joined_total FROM channel_members;'
+pnpm run db:query:prod -- --command='SELECT COUNT(*) AS memberships, SUM(score) AS score_total, SUM(is_active) AS active_total, SUM(is_auto_joined) AS auto_joined_total FROM channel_members;'
 
-pnpm run db:query:production -- --command='SELECT language, release_version, COUNT(*) AS channels FROM channels GROUP BY language, release_version ORDER BY language, release_version;'
+pnpm run db:query:prod -- --command='SELECT language, release_version, COUNT(*) AS channels FROM channels GROUP BY language, release_version ORDER BY language, release_version;'
 ```
 
 Require all of the following before deploying or registering webhooks:
@@ -171,7 +171,7 @@ Require all of the following before deploying or registering webhooks:
 
 Archive the report and reconciliation evidence with the recorded freeze time,
 backup commit SHA, D1 recovery point, and operator identity. Only then continue
-with Worker deployment and the beta/stable webhook sequence in the main cutover
+with Worker deployment and the beta/production webhook sequence in the main cutover
 runbook.
 
 ## 7. Beta data and pending updates
@@ -188,6 +188,6 @@ wiped, so rerun. Beta then holds production PII; restrict access to it.
 At each webhook switch, decide what happens to updates Telegram queued while the
 webhook was unset. `set` and `delete` for production and beta require
 `--drop-pending-updates=true|false`: for example,
-`pnpm telegram:webhook:set:stable --drop-pending-updates=false` preserves and
+`pnpm telegram:webhook:set:prod --drop-pending-updates=false` preserves and
 processes the queue, while `=true` discards it. Local may omit the flag. Make the
-choice deliberately for beta and again for stable.
+choice deliberately for beta and again for production.

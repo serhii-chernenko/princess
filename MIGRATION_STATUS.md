@@ -12,14 +12,19 @@ any re-run. Use
 
 ## Executive Decision
 
-The production cutover **happened on 2026-09-29**. The stable Worker `princess`
-serves the stable bot on D1 and the legacy VPS bot is stopped and removed. The
-observation window is now in progress; Mongo Atlas stays untouched as the rollback
-source until it ends. See the [Cutover record](#cutover-record).
+The production cutover **happened on 2026-09-29**. The production Worker `princess`
+serves the production bot on D1 and the legacy VPS bot is stopped and removed. The
+observation window is now in progress; Mongo Atlas stays untouched as a backup and
+re-import source. See the [Cutover record](#cutover-record).
+
+`BOT_ENVIRONMENT` for the production Worker changed from `stable` to `production`.
+The update-ledger bot key is `sha256(BOT_ENVIRONMENT:BOT_TOKEN)`, so processed-update
+deduplication restarts at the deploy that carries this change; older ledger rows are
+pruned by the normal seven-day maintenance.
 
 Remaining follow-ups (none block traffic):
 
-1. Rotate the stable and beta bot tokens if desired (they were shared in chat).
+1. Rotate the production and beta bot tokens if desired (they were shared in chat).
 2. Decide on Mongo Atlas retirement after the observation window.
 3. Enable scheduled cleanup only after reviewing the deletion set.
 4. Configure the GitHub `beta` environment secrets/variables for the copy workflow.
@@ -54,14 +59,14 @@ All times UTC, 2026-09-29.
   matched Mongo exactly: 217 channels, 886 players, 939 memberships, score sum
   21192, 648 active, 920 auto, 44 channels with a vote, 0 foreign-key violations.
   Beta was imported from the local backup and re-imported once after a beta `/reset`.
-- **Workers.** Stable Worker renamed to `princess` (briefly `princess-stable`,
+- **Workers.** Production Worker renamed to `princess` (briefly `princess-stable`,
   deleted) on custom domain `princess.chernenko.dev` with the daily cron; cleanup
   is still disabled. Beta `princess-beta` on `princess-beta.chernenko.dev`. Secrets
   `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and `TELEGRAM_WEBHOOK_PATH` were set on
   both via `cf workers secrets update`; local copies live in git-ignored
   `.dev.vars.production` and `.dev.vars.beta`. `env/.env.d1` holds account and
   database IDs plus `CLOUDFLARE_AUTH_MODE=wrangler-login` (no tokens).
-- **Webhooks.** Beta was set with `drop_pending_updates=true`. Stable was set at
+- **Webhooks.** Beta was set with `drop_pending_updates=true`. Production was set at
   17:52:44Z with `drop_pending_updates=false`, `max_connections=1`, and
   `allowed_updates` `message`.
 - **Incident.** Queued non-message updates from the polling era (legacy received
@@ -101,25 +106,25 @@ treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 
 ## Main Compared with the Rewrite
 
-| Concern           | `main` at `243967c`                               | Rewrite worktree                                                        |
-| ----------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
-| Runtime           | Long-running Node.js process on a VPS             | Cloudflare Worker with Hono and strict TypeScript                       |
-| Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                  |
-| Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories               |
-| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; release announcements via Cloudflare Queues         |
-| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy stable/beta   |
-| Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest |
+| Concern           | `main` at `243967c`                               | Rewrite worktree                                                          |
+| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| Runtime           | Long-running Node.js process on a VPS             | Cloudflare Worker with Hono and strict TypeScript                         |
+| Telegram delivery | Telegraf long polling                             | Telegraf webhook behind an exact, secret-checked route                    |
+| Data              | MongoDB with Mongoose documents                   | Normalized Cloudflare D1 schema with Drizzle repositories                 |
+| Maintenance       | Cleanup and release fanout during process startup | Gated cron cleanup; release announcements via Cloudflare Queues           |
+| Deployment        | GitHub Actions to Ansible, Docker, and VPS        | GitHub Actions validate; Cloudflare Workers Builds deploy production/beta |
+| Content/releases  | Hand-written JS i18n and `changelog.json`         | `typesafe-i18n`, Changesets, `CHANGELOG.md`, generated runtime manifest   |
 
 ## Readiness by Layer
 
-| Layer                  | Status                    | Meaning                                                                                                                                        |
-| ---------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rewrite implementation | Live                      | Commands, D1 repositories, webhook runtime, update ledger, migration tooling, and Workers-runtime D1 integration tests exist and serve stable. |
-| Repository readiness   | Pending review and commit | The follow-up worktree (hotfix, workflow and docs changes) needs review, a proper commit, and the merge to `main`.                             |
-| Remote provisioning    | Done                      | Real D1 IDs, Workers on custom domains, secrets, and Workers Paid are in place; Workers Builds deploys both Workers.                           |
-| Data migration         | Done                      | Frozen export imported into production D1 and reconciled exactly against Mongo.                                                                |
-| Traffic cutover        | Done                      | Stable webhook points at `princess` since 17:52:44Z; queue drained, no further errors.                                                         |
-| Legacy retirement      | Partly done               | VPS container, image, and app directory removed. Mongo Atlas retained as rollback source until the observation window ends.                    |
+| Layer                  | Status                    | Meaning                                                                                                                                            |
+| ---------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rewrite implementation | Live                      | Commands, D1 repositories, webhook runtime, update ledger, migration tooling, and Workers-runtime D1 integration tests exist and serve production. |
+| Repository readiness   | Pending review and commit | The follow-up worktree (hotfix, workflow and docs changes) needs review, a proper commit, and the merge to `main`.                                 |
+| Remote provisioning    | Done                      | Real D1 IDs, Workers on custom domains, secrets, and Workers Paid are in place; Workers Builds deploys both Workers.                               |
+| Data migration         | Done                      | Frozen export imported into production D1 and reconciled exactly against Mongo.                                                                    |
+| Traffic cutover        | Done                      | Production webhook points at `princess` since 17:52:44Z; queue drained, no further errors.                                                         |
+| Legacy retirement      | Partly done               | VPS container, image, and app directory removed. Legacy code removed from the repository. Mongo Atlas retained as a backup and re-import source.   |
 
 ## Verified Historical Backup Evidence
 
@@ -183,7 +188,7 @@ verification:
   both success and a caught dispatch failure attempt to terminalize the matching
   lease; the failure path never deletes the claim. Successful terminalization
   makes the next delivery a duplicate. An abandoned processing claim can be
-  reclaimed after five minutes. Stable maintenance prunes processed ledger rows
+  reclaimed after five minutes. Production maintenance prunes processed ledger rows
   after seven days and processing rows abandoned for more than 24 hours with
   separate status-and-time-qualified deletes.
 - **Operational gates and observability.** Cleanup is explicitly gated;
@@ -196,17 +201,16 @@ verification:
   tracked or untracked drift, and deploy dry-runs run in CI.
   Third-party actions are pinned to full commit SHAs. The workflow only validates:
   the manual GitHub deploy job was removed because Cloudflare Workers Builds now
-  deploys stable and beta. D1 migrations and Telegram webhook changes remain
+  deploys production and beta. D1 migrations and Telegram webhook changes remain
   separate operator actions.
 - **Release migration.** The v5.0.0 release is cut with bilingual (Ukrainian and
   English) notes. `CHANGELOG.md` remains the human history and
   `releases.generated.json` remains generated; it is not edited by hand.
-- **Legacy recovery loader.** The polling runtime again reads ignored
-  `env/.env.dev` or `env/.env.production`, including `MONGODB_URI`, rather than
-  Worker `.dev.vars*` files.
+- **Legacy removal.** The legacy polling code (`bot/`), its Mongoose dependency,
+  its env loader, and its smoke tests are deleted; git history keeps them.
 
-The full `pnpm test` suite passes (211 tests, including the integration tests), with
-fresh generated Wrangler bindings and successful local, stable, and beta
+The full `pnpm test` suite passes (221 tests, including the integration tests), with
+fresh generated Wrangler bindings and successful local, production, and beta
 deployment dry-runs. The test script quotes its globs so nested test directories
 run. Rerun these gates after any further code or configuration change.
 
@@ -233,7 +237,7 @@ Runtime parity fixes made against the legacy behavior:
 Intentional remaining differences from legacy:
 
 - `/run` answers a lost compare-and-set race with its own reply.
-- Cron cleanup stays off on stable until the deletion set is reviewed.
+- Cron cleanup stays off on production until the deletion set is reviewed.
 - Release broadcast is restored through Cloudflare Queues; `/lang` is new; names are
   HTML-escaped.
 - Chats that block or remove the bot are marked `skipped` on the announcement row
@@ -271,7 +275,7 @@ data reconciliation, and a stop-and-inspect response to
 `telegram_update_dispatch_failed`, `telegram_update_terminalization_failed`,
 `telegram_update_lease_lost`, or `telegram_update_claim_reclaimed`. Operators must
 accept the remaining possibility of a lost command or reply before switching the
-stable webhook.
+production webhook.
 
 The ledger still cannot put D1 mutations, Telegram API calls, and its terminal
 record in one transaction. A Worker crash, timeout, lost response, or lease expiry
@@ -286,7 +290,7 @@ Telegram send methods still provide no application idempotency key. See
 
 The legacy startup loop is replaced by a queue-based announcement pipeline.
 
-- **Producer.** A `*/10 * * * *` cron on stable and beta runs when
+- **Producer.** A `*/10 * * * *` cron on production and beta runs when
   `ENABLE_RELEASE_BROADCAST` is `"true"` (`"false"` locally). It selects channels
   whose `release_version` is semver-lower than the newest manifest version and that
   have no `release_announcements` row for it, inserts rows with insert-or-ignore
@@ -311,7 +315,7 @@ The legacy startup loop is replaced by a queue-based announcement pipeline.
   acknowledged.
 - **Stale recovery.** The cron re-enqueues `queued` rows older than 3 hours and marks
   `sending` rows older than 3 hours `skipped`.
-- **Queues.** Stable: `princess-release-announcements`, DLQ
+- **Queues.** Production: `princess-release-announcements`, DLQ
   `princess-release-announcements-dlq`. Beta: `princess-beta-release-announcements`,
   DLQ `princess-beta-release-announcements-dlq`. Local:
   `princess-local-release-announcements`. Consumers use batch size 10, batch timeout
@@ -328,7 +332,7 @@ Telegram subrequests before replies (58 total), above Free's 50, and D1 queries
 count toward the same per-invocation limits. Do not silently ship partial reconciliation or assume D1 batching fixes
 the external Telegram subrequest count.
 
-### 5. Stable/Beta Isolation — Provisioned
+### 5. Production/Beta Isolation — Provisioned
 
 Beta has its own D1 database, `princess-beta`, configured in `wrangler.jsonc`. Its ID is `CLOUDFLARE_BETA_DATABASE_ID` (`env/.env.d1` locally,
 the GitHub `beta` environment in CI). Migrate it with `pnpm db:migrate:beta`.
@@ -381,11 +385,12 @@ Related security notes: invocation logs at 100% may record the secret webhook pa
 URL, so disable `invocation_logs` or treat the path as non-secret; `/health` reuses
 `TELEGRAM_WEBHOOK_SECRET`, so consider a separate token.
 
-### 7. Final Legacy Removal — Post-Cutover
+### 7. Final Legacy Removal — Done
 
-The VPS deployment is already removed. Remove the polling code, Mongoose dependency, Mongo configuration, and Mongo Atlas
-only after stable Worker validation, an agreed observation window, and explicit
-confirmation that no D1 writes need to be reconciled back to Mongo.
+The VPS deployment and the legacy polling code, Mongoose dependency, and legacy
+Mongo env loader are removed. Only the Mongo to D1 import tooling in `scripts/db`
+remains. Retiring Mongo Atlas itself is a separate decision after the observation
+window.
 
 ## Safe Cutover Sequence (executed 2026-09-29)
 
@@ -396,7 +401,7 @@ happened. Reuse it for any re-run.
    traffic changes.
 2. **Provision Cloudflare.** Create the beta D1 `princess-beta` and replace every
    production/beta D1 placeholder in `wrangler.jsonc`; set
-   `CLOUDFLARE_BETA_DATABASE_ID` and run `pnpm db:migrate:beta`; verify the stable/beta Workers, custom domains, D1 binding,
+   `CLOUDFLARE_BETA_DATABASE_ID` and run `pnpm db:migrate:beta`; verify the production/beta Workers, custom domains, D1 binding,
    disabled `workers.dev` endpoints, account IDs, and API tokens. Store bot tokens
    and webhook secrets as secrets,
    not Wrangler `vars`; follow the
@@ -429,7 +434,7 @@ happened. Reuse it for any re-run.
    constraints, score totals/distribution, active/auto flags, timestamps, release
    versions, languages, and several known large/small/sample groups.
 9. **Deploy without switching Telegram.** Cloudflare Workers Builds deploys the
-   beta and stable Worker code and bindings. D1 migration and Telegram webhook
+   beta and production Worker code and bindings. D1 migration and Telegram webhook
    registration remain separate operator actions.
 10. **Check readiness.** Require a successful authenticated `/health` response with
     the webhook-secret header, configuration and D1 checks, inspect Workers Logs,
@@ -444,12 +449,12 @@ happened. Reuse it for any re-run.
     exactly once.
 12. **Validate beta only.** Use the separate beta bot with the beta D1. Verify
     commands, one daily vote, duplicate delivery behavior, scores, membership
-    changes, errors, and logs. Never put stable and beta in the same group; the
+    changes, errors, and logs. Never put production and beta in the same group; the
     databases are separate but the bots would still both answer.
-13. **Switch stable and monitor.** Point the stable bot at the stable Worker, keep
-    `max_connections=1` initially, pass the explicit stable
+13. **Switch production and monitor.** Point the production bot at the production Worker, keep
+    `max_connections=1` initially, pass the explicit production
     `--drop-pending-updates=true|false` choice (for example
-    `pnpm telegram:webhook:set:stable --drop-pending-updates=false`), verify `getWebhookInfo`, and monitor webhook errors, D1 errors, Telegram
+    `pnpm telegram:webhook:set:prod --drop-pending-updates=false`), verify `getWebhookInfo`, and monitor webhook errors, D1 errors, Telegram
     rate/permission errors, latency, and score changes.
 14. **Review cleanup separately.** Generate the fresh deletion set, review channel
     and orphan-player IDs, take another bookmark/export, and only then change
@@ -471,7 +476,7 @@ happened. Reuse it for any re-run.
   can restore D1 itself and is destructive; it cannot copy accepted D1 writes back
   into Mongo or reconstruct Telegram side effects.
 
-The VPS bot is already removed, so a rollback now means redeploying the legacy code
-from `main` history against Mongo Atlas (retained, untouched). Keep Atlas until the
-observation window and delta review are complete. Legacy retirement is the final step, not the rollback
-mechanism for the first cutover.
+The VPS is deleted and the legacy code is removed from the repository, so
+redeploying the legacy bot is no longer a supported rollback. Recovery means a
+Worker version rollback plus D1 Time Travel, or re-importing from Mongo Atlas backups
+with the import tooling (Atlas is retained, untouched, as a backup source).

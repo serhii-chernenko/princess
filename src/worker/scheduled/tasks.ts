@@ -108,7 +108,7 @@ export const runScheduledTasks = async (
     }
 
     if (
-        env.BOT_ENVIRONMENT === 'stable' &&
+        env.BOT_ENVIRONMENT === 'production' &&
         !taskNames.includes(TASKS.releaseBroadcast)
     ) {
         const pruneProcessed =
