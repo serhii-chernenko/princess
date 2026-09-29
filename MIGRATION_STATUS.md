@@ -466,6 +466,14 @@ happened. Reuse it for any re-run.
     and orphan-player IDs, take another bookmark/export, and only then change
     `ENABLE_SCHEDULED_CLEANUP` from its remote default of `false`.
 
+## Worker Previews
+
+Wrangler is pinned to 4.143.1. The beta Worker has `preview_urls` enabled and an
+`env.beta.previews` block: separate `princess-preview` D1 database, a producer-only
+`princess-preview-release-announcements` queue, `BOT_ENVIRONMENT="preview"`, broadcast and
+cleanup off, and no crons, consumers, or routes. The database id is a placeholder until
+the preview database is provisioned. See the README "Worker Previews" section.
+
 ## Rollback Rules
 
 - **Before the webhook switch:** the source is frozen but authoritative. Roll back

@@ -47,6 +47,13 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - Cloudflare Workers Builds deploys production (`princess`, from `main`) and beta (`princess-beta`).
 - GitHub Actions only validate; do not add a deploy job.
 
+## Worker Previews
+
+- Worker Previews (`env.beta.previews`) use their own D1 database, `princess-preview`.
+- Previews never get production or beta data and never get a real bot token.
+- Never register a Telegram webhook for a preview.
+- Previews run with `BOT_ENVIRONMENT="preview"`: no cron, no cleanup, no release broadcast.
+
 ## Releases
 
 - `CHANGELOG.md` is the human-owned release history.

@@ -116,6 +116,7 @@
         "beta": {
             "name": "princess-beta",
             "workers_dev": false,
+            "preview_urls": true,
             "vars": {
                 "BOT_ENVIRONMENT": "beta",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
@@ -170,7 +171,56 @@
                     "database_id": "9c10aa80-4512-4967-b016-f7364e9c48d9",
                     "migrations_dir": "drizzle"
                 }
-            ]
+            ],
+            "previews": {
+                "vars": {
+                    "BOT_ENVIRONMENT": "preview",
+                    "ENABLE_SCHEDULED_CLEANUP": "false",
+                    "ENABLE_RELEASE_BROADCAST": "false",
+                    "AUTHOR_TWITTER_LINK": "https://twitter.com/giraffender",
+                    "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
+                    "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",
+                    "TG_CHANNEL": "https://t.me/serhii_chernenko",
+                    "TG_GROUP": "https://t.me/serhii_chernenko_chat",
+                    "YT_CHANNEL": "https://youtube.com/@serhii.chernenko",
+                    "MAIL": "contact@chernenko.digital"
+                },
+                "secrets": {
+                    "required": [
+                        "BOT_TOKEN",
+                        "TELEGRAM_WEBHOOK_SECRET",
+                        "TELEGRAM_WEBHOOK_PATH"
+                    ]
+                },
+                "d1_databases": [
+                    {
+                        "binding": "DB",
+                        "database_name": "princess-preview",
+                        "database_id": "b9a13fb8-8745-4d33-a5a2-f067b7b35220",
+                        "migrations_dir": "drizzle"
+                    }
+                ],
+                "queues": {
+                    "producers": [
+                        {
+                            "binding": "RELEASE_QUEUE",
+                            "queue": "princess-preview-release-announcements"
+                        }
+                    ]
+                },
+                "observability": {
+                    "enabled": true,
+                    "logs": {
+                        "enabled": true,
+                        "head_sampling_rate": 1,
+                        "invocation_logs": true
+                    },
+                    "traces": {
+                        "enabled": true,
+                        "head_sampling_rate": 0.05
+                    }
+                }
+            }
         }
     }
 }

@@ -22,6 +22,7 @@
         "db:migrate:local": "tsx scripts/db/migrate-local.ts",
         "db:migrate:prod": "tsx scripts/db/migrate-production.ts",
         "db:migrate:beta": "tsx scripts/db/migrate-beta.ts",
+        "db:migrate:preview": "tsx scripts/db/migrate-preview.ts",
         "db:copy:production-to-beta": "tsx scripts/db/copy-production-to-beta.ts",
         "db:query:local": "wrangler d1 execute DB --local",
         "db:query:prod": "pnpm exec wrangler d1 execute DB --remote --env production",
@@ -31,6 +32,7 @@
         "worker:dev:production": "wrangler dev --env production",
         "worker:dev:beta": "wrangler dev --env beta",
         "cloudflared:dev": "cloudflared tunnel --config cloudflared.yml run",
+        "worker:preview": "wrangler preview --env beta",
         "worker:deploy": "pnpm run worker:deploy:prod",
         "worker:deploy:prod": "tsx scripts/cloudflare/deploy-worker.ts production",
         "worker:deploy:beta": "tsx scripts/cloudflare/deploy-worker.ts beta",
@@ -80,6 +82,6 @@
         "oxlint": "^1.62.0",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
-        "wrangler": "4.90.0"
+        "wrangler": "4.143.1"
     }
 }

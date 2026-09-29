@@ -426,6 +426,45 @@ repository; the VPS is gone, so there is no supported rollback to it. MongoDB At
 data is kept as a backup source for re-importing with the Mongo to D1 tooling in
 `scripts/db`. See [the rollback rules](./MIGRATION_STATUS.md#rollback-rules).
 
+## Worker Previews
+
+Worker Previews give each git branch its own isolated deployment of the beta Worker
+(Cloudflare open beta, Wrangler 4.143 or newer). `env.beta.previews` in
+`wrangler.jsonc` defines what a preview gets, and `env.beta.preview_urls` enables the
+URLs.
+
+What is isolated:
+
+- Its own D1 database, `princess-preview`, migrated with `pnpm run db:migrate:preview`
+  after setting `CLOUDFLARE_PREVIEW_DATABASE_ID` (or `CLOUDFLARE_AUTH_MODE=wrangler-login`).
+  It never holds production or beta data, and the tooling refuses an id or name shared
+  with production or beta.
+- Its own queue producer, `princess-preview-release-announcements`. No consumers, so
+  nothing is delivered.
+- `BOT_ENVIRONMENT="preview"`, `ENABLE_RELEASE_BROADCAST="false"`,
+  `ENABLE_SCHEDULED_CLEANUP="false"`. No crons and no routes: global cleanup and ledger
+  pruning are refused, and `POST /admin/release-broadcast` answers 409.
+- Secrets come from the Preview base config, never from the beta Worker.
+
+Create a preview from the current branch:
+
+```bash
+pnpm run worker:preview
+```
+
+The URL has the shape `<branch>-princess-beta.<subdomain>.workers.dev`. Set the
+secrets once with a dummy bot token that is not a real bot:
+
+```bash
+pnpm exec wrangler preview base-config secret put BOT_TOKEN --env beta
+pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_SECRET --env beta
+pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env beta
+```
+
+Previews receive no Telegram traffic: never register a webhook for one. Exercise
+`/health` (with the `X-Telegram-Bot-Api-Secret-Token` header) and hand-crafted webhook
+requests only.
+
 ## Beta safety
 
 Beta has its own D1 database, `princess-beta`, so its data is isolated from production.

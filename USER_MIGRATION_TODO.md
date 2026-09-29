@@ -94,6 +94,11 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
       before merging (Workers Builds deploys code but does not run migrations).
 - [x] Merge to `main` (PR #1), announce 5.0.0 (90 sent, 127 skipped, 0 failed),
       and move the `princess-beta` Workers Build to the `beta` branch.
+- [ ] Enable Worker Previews: create the `princess-preview` D1 database, put its id in
+      `env.beta.previews.d1_databases` (replace `REPLACE_WITH_PREVIEW_DATABASE_ID`),
+      run `pnpm run db:migrate:preview`, create the `princess-preview-release-announcements`
+      queue, and set the Preview base-config secrets with a dummy bot token
+      (see README "Worker Previews").
 - [ ] Investigate why registered Cron Triggers are not invoked (no `scheduled`
       events in Workers Observability); the daily ledger prune depends on them.
 - [ ] Rotate the production and beta bot tokens if desired (shared in chat).

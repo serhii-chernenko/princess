@@ -13,7 +13,10 @@ import type { WorkerBindings } from '../src/worker/env';
 const SECRET = 'test-webhook-secret';
 const SECRET_HEADER = 'X-Telegram-Bot-Api-Secret-Token';
 
-const createBindings = (enableBroadcast: 'true' | 'false' = 'true') => {
+const createBindings = (
+    enableBroadcast: 'true' | 'false' = 'true',
+    botEnvironment: WorkerBindings['BOT_ENVIRONMENT'] = 'beta'
+) => {
     const touched: string[] = [];
     const guard = (name: string) => {
         return new Proxy(
@@ -29,7 +32,7 @@ const createBindings = (enableBroadcast: 'true' | 'false' = 'true') => {
     const env = {
         DB: guard('DB'),
         RELEASE_QUEUE: guard('RELEASE_QUEUE'),
-        BOT_ENVIRONMENT: 'beta',
+        BOT_ENVIRONMENT: botEnvironment,
         ENABLE_SCHEDULED_CLEANUP: 'false',
         ENABLE_RELEASE_BROADCAST: enableBroadcast,
         BOT_TOKEN: '123456:test-token',
@@ -115,6 +118,25 @@ test('admin broadcast answers 409 when the broadcast is disabled', async () => {
     assert.equal(response.status, 409);
     assert.match(body.error, /disabled/);
     assert.equal(broadcasts, 0);
+});
+
+test('admin broadcast answers 409 for the preview environment without touching bindings', async () => {
+    const { env, touched } = createBindings('false', 'preview');
+    let broadcasts = 0;
+    const app = createApp(
+        { secretsMatch },
+        {
+            broadcastRelease: async () => {
+                broadcasts += 1;
+                return summary;
+            }
+        }
+    );
+    const response = await postAdmin(app, env, { [SECRET_HEADER]: SECRET });
+
+    assert.equal(response.status, 409);
+    assert.equal(broadcasts, 0);
+    assert.deepEqual(touched, []);
 });
 
 test('admin broadcast returns the summary from the injected broadcast', async () => {

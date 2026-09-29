@@ -16,6 +16,7 @@
 !drizzle.config.ts
 !drizzle.production.config.ts
 !drizzle.beta.config.ts
+!drizzle.preview.config.ts
 !/drizzle
 !/drizzle/*
 !/drizzle/*/migration.sql

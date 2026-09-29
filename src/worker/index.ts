@@ -1,4 +1,5 @@
 import { createApp } from './app';
+import type { WorkerBindings } from './env';
 import type { ReleaseAnnouncementJob } from './queues/release-announcement-job';
 import { handleReleaseAnnouncementQueue } from './queues/release-announcements-handler';
 import { runScheduledTasks } from './scheduled/tasks';
@@ -15,4 +16,4 @@ export default {
     queue(batch, env) {
         return handleReleaseAnnouncementQueue(batch, env);
     }
-} satisfies ExportedHandler<Env, ReleaseAnnouncementJob>;
+} satisfies ExportedHandler<WorkerBindings, ReleaseAnnouncementJob>;

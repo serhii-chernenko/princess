@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createWranglerChildEnvironment } from './d1-child-environment';
 import {
     d1DatabaseIdEnvironmentNames,
+    d1DatabaseNames,
     resolveD1DatabaseId,
     type D1DatabaseTarget
 } from './production-d1-target';
@@ -116,13 +117,15 @@ export const getD1ExecuteArguments = (
         'wrangler',
         'd1',
         'execute',
-        'DB',
+        target === 'preview' ? d1DatabaseNames.preview : 'DB',
         '--config',
         configPath
     ];
 
     if (target === 'local') {
         arguments_.push('--local');
+    } else if (target === 'preview') {
+        arguments_.push('--remote');
     } else {
         arguments_.push('--env', target, '--remote');
     }
