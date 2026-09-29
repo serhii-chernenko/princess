@@ -11,6 +11,7 @@ import {
     buildMigrationHashesSql,
     copiedTablesInInsertOrder,
     copyProductionToPreview,
+    countInsertStatements,
     deleteChunkSize,
     getPreviewImportArguments,
     getExportArguments,
@@ -51,11 +52,19 @@ interface FakeOptions {
     previewCountsAfterImport?: number;
     exportFails?: boolean;
     deleteChanges?: number[];
+    exportedRowsOverride?: Record<string, number>;
 }
+
+const productionRowCounts: Record<string, number> = {
+    players: 3,
+    channels: 2,
+    channel_members: 5
+};
 
 const createFakeRunner = (options: FakeOptions = {}) => {
     const calls: string[][] = [];
     const exportedFiles: string[] = [];
+    const importedFiles: string[] = [];
     const deleteChanges = [...(options.deleteChanges ?? [0, 0, 0])];
     const runWrangler = (arguments_: string[]): WranglerRunResult => {
         calls.push(arguments_);
@@ -73,9 +82,26 @@ const createFakeRunner = (options: FakeOptions = {}) => {
                 arguments_[arguments_.indexOf('--output') + 1] ?? '';
 
             exportedFiles.push(outputPath);
-            fs.writeFileSync(outputPath, 'INSERT INTO "players" VALUES (1);');
+            const table = arguments_[arguments_.indexOf('--table') + 1] ?? '';
+            const rowTotal =
+                options.exportedRowsOverride?.[table] ??
+                productionRowCounts[table] ??
+                0;
+
+            fs.writeFileSync(
+                outputPath,
+                Array.from({ length: rowTotal }, (_, index) => {
+                    return `INSERT INTO "${table}" VALUES (${String(index + 1)});`;
+                }).join('\n')
+            );
 
             return ok();
+        }
+
+        if (arguments_.includes('--file')) {
+            importedFiles.push(
+                arguments_[arguments_.indexOf('--file') + 1] ?? ''
+            );
         }
 
         const environment =
@@ -117,7 +143,7 @@ const createFakeRunner = (options: FakeOptions = {}) => {
         return ok();
     };
 
-    return { calls, exportedFiles, runWrangler };
+    return { calls, exportedFiles, importedFiles, runWrangler };
 };
 
 test('copy arguments require the explicit overwrite confirmation flag', () => {
@@ -240,18 +266,55 @@ test('copy runs migrations check, wipe in FK order, import, verify, and cleans u
         deleteCommands.map(command => command?.split('"')[1]),
         ['channel_members', 'channels', 'players']
     );
-    assert.equal(fake.calls.filter(call => call.includes('--file')).length, 1);
+    assert.deepEqual(
+        fake.importedFiles.map(file => path.basename(file)),
+        ['players.sql', 'channels.sql', 'channel_members.sql']
+    );
     assert.deepEqual(result.counts, {
         players: 3,
         channels: 2,
         channel_members: 5
     });
-    assert.equal(fake.exportedFiles.length, 1);
+    assert.equal(fake.exportedFiles.length, 3);
     assert.equal(fs.existsSync(fake.exportedFiles[0] ?? ''), false);
     assert.equal(
         fs.existsSync(path.dirname(fake.exportedFiles[0] ?? '')),
         false
     );
+});
+
+test('copy aborts before wiping preview when an export lacks production rows', () => {
+    const fake = createFakeRunner({
+        exportedRowsOverride: { channel_members: 0 }
+    });
+
+    assert.throws(() => {
+        copyProductionToPreview({
+            runWrangler: fake.runWrangler,
+            ...databaseIds,
+            configPath,
+            log: () => undefined
+        });
+    }, /channel_members export has 0 INSERT statements but production has 5 rows/);
+    assert.equal(
+        fake.calls.some(call => {
+            return call[call.indexOf('--command') + 1]?.startsWith('DELETE');
+        }),
+        false
+    );
+    assert.equal(fake.importedFiles.length, 0);
+});
+
+test('insert statements are counted per table at line starts', () => {
+    const sql = [
+        'INSERT INTO "players" VALUES (1);',
+        'INSERT INTO "players" VALUES (2);',
+        'INSERT INTO "channels" VALUES (1);'
+    ].join('\n');
+
+    assert.equal(countInsertStatements(sql, 'players'), 2);
+    assert.equal(countInsertStatements(sql, 'channels'), 1);
+    assert.equal(countInsertStatements(sql, 'channel_members'), 0);
 });
 
 test('copy keeps deleting while chunks are full', () => {
@@ -380,7 +443,7 @@ test('export failures redact signed URLs from the error', () => {
         },
         (error: Error) => {
             return (
-                /production export failed/.test(error.message) &&
+                /production players export failed/.test(error.message) &&
                 !error.message.includes('signed.example')
             );
         }

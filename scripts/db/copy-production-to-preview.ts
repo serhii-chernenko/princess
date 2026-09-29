@@ -38,7 +38,6 @@ export const copiedTablesInInsertOrder = [
 export const deleteChunkSize = 1000;
 
 const maximumDeleteIterations = 10_000;
-const exportedSqlFileName = 'production-data.sql';
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 export const parseCopyArguments = (rawArguments: string[]) => {
@@ -95,6 +94,14 @@ export const selectCopyTables = (databaseTables: string[]) => {
     }
 
     return [...copiedTablesInInsertOrder];
+};
+
+export const getExportSqlFileName = (table: string) => `${table}.sql`;
+
+export const countInsertStatements = (sql: string, table: string) => {
+    const insertLine = new RegExp(`^INSERT INTO "${table}" `, 'gm');
+
+    return sql.match(insertLine)?.length ?? 0;
 };
 
 export const getWipeOrder = (tables: string[]) => [...tables].reverse();
@@ -374,29 +381,46 @@ export const copyProductionToPreview = (dependencies: CopyDependencies) => {
     const temporaryDirectory = fs.mkdtempSync(
         path.join(os.tmpdir(), 'princess-d1-copy-')
     );
-    const sqlPath = path.join(temporaryDirectory, exportedSqlFileName);
 
     try {
         dependencies.log('Exporting production data (production is blocked)');
-        runChecked(
-            dependencies,
-            'production export',
-            getExportArguments(
-                dependencies.configPath,
-                sqlPath,
-                productionTables
-            )
-        );
 
-        if (!fs.existsSync(sqlPath)) {
-            throw new Error('Production export did not produce a SQL file');
-        }
+        const exportedFiles = productionTables.map(table => {
+            const sqlPath = path.join(
+                temporaryDirectory,
+                getExportSqlFileName(table)
+            );
+
+            runChecked(
+                dependencies,
+                `production ${table} export`,
+                getExportArguments(dependencies.configPath, sqlPath, [table])
+            );
+
+            if (!fs.existsSync(sqlPath)) {
+                throw new Error(
+                    `Production ${table} export did not produce a SQL file`
+                );
+            }
+
+            return { table, sqlPath, sql: fs.readFileSync(sqlPath, 'utf8') };
+        });
 
         const productionCounts = readTableCounts(
             dependencies,
             'production',
             productionTables
         );
+
+        for (const { table, sql } of exportedFiles) {
+            const exportedRows = countInsertStatements(sql, table);
+
+            if (exportedRows !== productionCounts[table]) {
+                throw new Error(
+                    `Production ${table} export has ${String(exportedRows)} INSERT statements but production has ${String(productionCounts[table])} rows. Preview was not modified.`
+                );
+            }
+        }
 
         try {
             dependencies.log('Wiping preview application tables');
@@ -405,13 +429,20 @@ export const copyProductionToPreview = (dependencies: CopyDependencies) => {
                 wipePreviewTable(dependencies, table);
             }
 
-            if (fs.readFileSync(sqlPath, 'utf8').includes('INSERT INTO')) {
-                dependencies.log('Importing production data into preview');
-                runChecked(
-                    dependencies,
-                    'preview import',
-                    getPreviewImportArguments(dependencies.configPath, sqlPath)
-                );
+            for (const { table, sqlPath, sql } of exportedFiles) {
+                if (countInsertStatements(sql, table) > 0) {
+                    dependencies.log(
+                        `Importing production ${table} into preview`
+                    );
+                    runChecked(
+                        dependencies,
+                        `preview ${table} import`,
+                        getPreviewImportArguments(
+                            dependencies.configPath,
+                            sqlPath
+                        )
+                    );
+                }
             }
 
             const previewCounts = readTableCounts(
