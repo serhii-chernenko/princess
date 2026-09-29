@@ -25,17 +25,17 @@ const baseSource = {
 };
 const projectRoot = path.resolve(process.cwd());
 
-test('committed wrangler.jsonc resolves distinct real production and beta databases', () => {
+test('committed wrangler.jsonc resolves distinct real production and preview databases', () => {
     const configSource = fs.readFileSync(
         path.join(projectRoot, 'wrangler.jsonc'),
         'utf8'
     );
     const production = parseD1Target(configSource, 'production');
-    const beta = parseD1Target(configSource, 'beta');
+    const preview = parseD1Target(configSource, 'preview');
 
     assert.equal(production.databaseId, '19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1');
-    assert.equal(beta.databaseId, '9c10aa80-4512-4967-b016-f7364e9c48d9');
-    assert.notEqual(production.databaseId, beta.databaseId);
+    assert.equal(preview.databaseId, 'b9a13fb8-8745-4d33-a5a2-f067b7b35220');
+    assert.notEqual(production.databaseId, preview.databaseId);
     assert.doesNotMatch(configSource, /REPLACE_WITH_/);
 });
 
@@ -49,13 +49,14 @@ test('auth mode defaults to token and keeps the API token requirement', () => {
         'token'
     );
     assert.equal(
-        createWranglerChildEnvironment(baseSource, 'beta').CLOUDFLARE_API_TOKEN,
+        createWranglerChildEnvironment(baseSource, 'preview')
+            .CLOUDFLARE_API_TOKEN,
         'api-token'
     );
     assert.throws(() => {
         createWranglerChildEnvironment(
             { ...baseSource, CLOUDFLARE_API_TOKEN: undefined },
-            'beta'
+            'preview'
         );
     }, /CLOUDFLARE_API_TOKEN is required and invalid/);
 });
@@ -63,7 +64,7 @@ test('auth mode defaults to token and keeps the API token requirement', () => {
 test('wrangler-login mode drops the API token but keeps OAuth config lookup variables', () => {
     const environment = createWranglerChildEnvironment(
         { ...baseSource, CLOUDFLARE_AUTH_MODE: 'wrangler-login' },
-        'beta'
+        'preview'
     );
 
     assert.deepEqual(environment, {
@@ -79,7 +80,7 @@ test('wrangler-login mode drops the API token but keeps OAuth config lookup vari
                 CLOUDFLARE_ACCOUNT_ID: undefined,
                 CLOUDFLARE_AUTH_MODE: 'wrangler-login'
             },
-            'beta'
+            'preview'
         );
     }, /CLOUDFLARE_ACCOUNT_ID is required and invalid/);
 });
@@ -134,9 +135,9 @@ test('import input directory argument accepts only --input-dir with a value', ()
     }, /Usage/);
 });
 
-test('beta import source resolves a local backup directory', context => {
+test('preview import source resolves a local backup directory', context => {
     const directory = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'princess-beta-source-test-')
+        path.join(os.tmpdir(), 'princess-preview-source-test-')
     );
 
     context.after(() => {
@@ -144,14 +145,14 @@ test('beta import source resolves a local backup directory', context => {
     });
 
     assert.deepEqual(
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot,
             environment: { MONGO_BACKUP_DIR: directory }
         }),
         { kind: 'directory', directory }
     );
     assert.deepEqual(
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot,
             environment: {},
             inputDirectory: directory
@@ -160,9 +161,9 @@ test('beta import source resolves a local backup directory', context => {
     );
 });
 
-test('beta import source defaults to princess-db under the project root', context => {
+test('preview import source defaults to princess-db under the project root', context => {
     const root = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'princess-beta-default-test-')
+        path.join(os.tmpdir(), 'princess-preview-default-test-')
     );
 
     context.after(() => {
@@ -170,7 +171,7 @@ test('beta import source defaults to princess-db under the project root', contex
     });
 
     assert.throws(() => {
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot: root,
             environment: {}
         });
@@ -179,7 +180,7 @@ test('beta import source defaults to princess-db under the project root', contex
     fs.mkdirSync(path.join(root, 'princess-db'));
 
     assert.deepEqual(
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot: root,
             environment: {}
         }),
@@ -187,15 +188,15 @@ test('beta import source defaults to princess-db under the project root', contex
     );
 });
 
-test('beta import rejects a missing directory and ambiguous sources', () => {
+test('preview import rejects a missing directory and ambiguous sources', () => {
     assert.throws(() => {
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot,
             environment: { MONGO_BACKUP_DIR: '/nonexistent/princess-db' }
         });
     }, /backup directory does not exist/);
     assert.throws(() => {
-        resolveMongoImportSource('beta', {
+        resolveMongoImportSource('preview', {
             projectRoot,
             environment: {
                 MONGO_BACKUP_DIR: projectRoot,
@@ -233,7 +234,7 @@ test('production import stays pinned to an immutable GitHub SHA and never uses a
             environment: { MONGO_BACKUP_REF: 'main' },
             inputDirectory: projectRoot
         });
-    }, /--input-dir is only supported for the beta import target/);
+    }, /--input-dir is only supported for the preview import target/);
     assert.throws(() => {
         resolveMongoImportSource('production', {
             projectRoot,

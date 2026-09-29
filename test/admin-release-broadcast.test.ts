@@ -15,7 +15,7 @@ const SECRET_HEADER = 'X-Telegram-Bot-Api-Secret-Token';
 
 const createBindings = (
     enableBroadcast: 'true' | 'false' = 'true',
-    botEnvironment: WorkerBindings['BOT_ENVIRONMENT'] = 'beta'
+    botEnvironment: WorkerBindings['BOT_ENVIRONMENT'] = 'production'
 ) => {
     const touched: string[] = [];
     const guard = (name: string) => {
@@ -191,7 +191,7 @@ test('admin route does not swallow the Telegram webhook route', async () => {
 
 test('broadcast script validates its target argument', () => {
     assert.equal(parseBroadcastTarget('production'), 'production');
-    assert.equal(parseBroadcastTarget('beta'), 'beta');
+    assert.throws(() => parseBroadcastTarget('preview'), /Usage/);
     assert.throws(() => parseBroadcastTarget('local'), /Usage/);
     assert.throws(() => parseBroadcastTarget(undefined), /Usage/);
 });
@@ -276,7 +276,7 @@ test('broadcast credentials prefer process environment over env files', () => {
 
 test('broadcast credentials name missing variables without values', () => {
     assert.throws(() => {
-        return resolveBroadcastCredentials('beta', {
+        return resolveBroadcastCredentials('production', {
             WORKER_BASE_URL: 'https://env.example.com'
         });
     }, /TELEGRAM_WEBHOOK_SECRET/);

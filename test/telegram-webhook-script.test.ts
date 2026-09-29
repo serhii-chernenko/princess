@@ -5,6 +5,8 @@ import {
     callTelegramApi,
     createDropPendingUpdatesParameters,
     parseDropPendingUpdates,
+    parsePreviewBaseUrl,
+    parseWebhookArguments,
     formatTelegramWebhookInfo,
     TELEGRAM_API_MAX_RESPONSE_BYTES
 } from '../scripts/telegram/webhook';
@@ -260,7 +262,7 @@ test('Telegram helper aborts requests that exceed its timeout', async () => {
 });
 
 test('webhook set and delete require an explicit pending-update decision on remote targets', () => {
-    for (const target of ['production', 'beta'] as const) {
+    for (const target of ['production', 'preview'] as const) {
         for (const action of ['set', 'delete'] as const) {
             assert.throws(() => {
                 parseDropPendingUpdates(action, target, []);
@@ -275,16 +277,18 @@ test('webhook set and delete require an explicit pending-update decision on remo
         true
     );
     assert.equal(
-        parseDropPendingUpdates('delete', 'beta', [
+        parseDropPendingUpdates('delete', 'preview', [
             '--drop-pending-updates=false'
         ]),
         false
     );
     assert.throws(() => {
-        parseDropPendingUpdates('set', 'beta', ['--drop-pending-updates=yes']);
+        parseDropPendingUpdates('set', 'preview', [
+            '--drop-pending-updates=yes'
+        ]);
     }, /Use --drop-pending-updates=true or =false/);
     assert.throws(() => {
-        parseDropPendingUpdates('info', 'beta', [
+        parseDropPendingUpdates('info', 'preview', [
             '--drop-pending-updates=true'
         ]);
     }, /does not accept flags/);
@@ -306,4 +310,80 @@ test('local webhook commands may omit the pending-update flag', () => {
         createDropPendingUpdatesParameters(false).get('drop_pending_updates'),
         'false'
     );
+});
+
+test('preview webhook set and info require an explicit workers.dev https URL', () => {
+    const url = 'https://feat-x-princess.acme.workers.dev';
+
+    assert.deepEqual(
+        parseWebhookArguments('set', 'preview', [
+            '--',
+            '--url',
+            `${url}/`,
+            '--drop-pending-updates=true'
+        ]),
+        { dropPendingUpdates: true, baseUrl: url }
+    );
+    assert.deepEqual(
+        parseWebhookArguments('info', 'preview', [`--url=${url}`]),
+        { dropPendingUpdates: undefined, baseUrl: url }
+    );
+    assert.throws(() => {
+        parseWebhookArguments('set', 'preview', [
+            '--drop-pending-updates=true'
+        ]);
+    }, /requires --url/);
+    assert.throws(() => {
+        parseWebhookArguments('set', 'preview', ['--url', url]);
+    }, /requires an explicit --drop-pending-updates/);
+    assert.throws(() => {
+        parseWebhookArguments('set', 'preview', ['--url']);
+    }, /--url requires a value/);
+});
+
+test('preview webhook delete takes no URL and other targets reject one', () => {
+    assert.deepEqual(
+        parseWebhookArguments('delete', 'preview', [
+            '--drop-pending-updates=false'
+        ]),
+        { dropPendingUpdates: false, baseUrl: undefined }
+    );
+    assert.throws(() => {
+        parseWebhookArguments('delete', 'preview', [
+            '--url',
+            'https://a.b.workers.dev',
+            '--drop-pending-updates=false'
+        ]);
+    }, /does not accept --url/);
+    assert.throws(() => {
+        parseWebhookArguments('set', 'production', [
+            '--url',
+            'https://a.b.workers.dev',
+            '--drop-pending-updates=false'
+        ]);
+    }, /only supported for the preview target/);
+});
+
+test('preview base URL validation rejects non-workers.dev, non-https and decorated URLs', () => {
+    assert.equal(
+        parsePreviewBaseUrl('https://a.b.workers.dev'),
+        'https://a.b.workers.dev'
+    );
+
+    for (const invalid of [
+        'not a url',
+        'http://a.b.workers.dev',
+        'https://princess.chernenko.dev',
+        'https://workers.dev',
+        'https://evilworkers.dev',
+        'https://a.b.workers.dev.evil.com',
+        'https://user:pass@a.b.workers.dev',
+        'https://a.b.workers.dev:8443',
+        'https://a.b.workers.dev/path',
+        'https://a.b.workers.dev/?q=1'
+    ]) {
+        assert.throws(() => {
+            parsePreviewBaseUrl(invalid);
+        }, /--url/);
+    }
 });

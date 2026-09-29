@@ -13,10 +13,10 @@ import { loadD1Environment } from './d1-child-environment';
 import { getDefaultGithubRepository, prepareMongoImport } from './mongo-import';
 
 const usage =
-    'Usage: run-mongo-import.ts <local|production|beta> [--input-dir <absolute-path>]';
+    'Usage: run-mongo-import.ts <local|production|preview> [--input-dir <absolute-path>]';
 
 const parseTarget = (value: string | undefined): ImportTarget => {
-    if (value === 'local' || value === 'production' || value === 'beta') {
+    if (value === 'local' || value === 'production' || value === 'preview') {
         return value;
     }
 
@@ -65,16 +65,16 @@ export const resolveMongoImportSource = (
     const directoryOverride =
         inputDirectory ?? (environment.MONGO_BACKUP_DIR || undefined);
 
-    if (inputDirectory !== undefined && target !== 'beta') {
+    if (inputDirectory !== undefined && target !== 'preview') {
         throw new Error(
-            `--input-dir is only supported for the beta import target, not ${target}`
+            `--input-dir is only supported for the preview import target, not ${target}`
         );
     }
 
-    if (target === 'beta') {
+    if (target === 'preview') {
         if (ref && directoryOverride) {
             throw new Error(
-                'Choose either MONGO_BACKUP_DIR/--input-dir or MONGO_BACKUP_REF for the beta import, not both'
+                'Choose either MONGO_BACKUP_DIR/--input-dir or MONGO_BACKUP_REF for the preview import, not both'
             );
         }
 
@@ -99,7 +99,7 @@ export const resolveMongoImportSource = (
             !fs.statSync(directory).isDirectory()
         ) {
             throw new Error(
-                `Beta import backup directory does not exist: ${directory}. Set MONGO_BACKUP_DIR or pass --input-dir with an absolute path`
+                `Preview import backup directory does not exist: ${directory}. Set MONGO_BACKUP_DIR or pass --input-dir with an absolute path`
             );
         }
 

@@ -3,12 +3,12 @@ import path from 'node:path';
 import { config } from 'dotenv';
 
 export type EnvTarget = 'local' | 'production';
-export type AppEnvTarget = 'local' | 'production' | 'beta';
+export type AppEnvTarget = 'local' | 'production' | 'preview';
 
 const envFileByTarget: Record<AppEnvTarget, string> = {
     local: path.resolve('.dev.vars'),
     production: path.resolve('.dev.vars.production'),
-    beta: path.resolve('.dev.vars.beta')
+    preview: path.resolve('.dev.vars.preview')
 };
 
 export const workerRuntimeSecretKeys = [
@@ -55,8 +55,10 @@ export const getWorkerRuntimeSecrets = () => {
     );
 };
 
-export const createWebhookUrl = () => {
-    const workerBaseUrl = requireEnv('WORKER_BASE_URL').replace(/\/+$/, '');
+export const createWebhookUrl = (
+    baseUrl: string = requireEnv('WORKER_BASE_URL')
+) => {
+    const workerBaseUrl = baseUrl.replace(/\/+$/, '');
     const webhookPathValue = requireEnv('TELEGRAM_WEBHOOK_PATH');
     const webhookPath = webhookPathValue.startsWith('/')
         ? webhookPathValue

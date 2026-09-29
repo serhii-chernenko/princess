@@ -49,7 +49,6 @@ export const hasRequiredWorkerConfiguration = (env: RuntimeConfiguration) => {
     const hasValidEnvironment =
         env.BOT_ENVIRONMENT === 'local' ||
         env.BOT_ENVIRONMENT === 'production' ||
-        env.BOT_ENVIRONMENT === 'beta' ||
         env.BOT_ENVIRONMENT === 'preview';
     const hasValidCleanupFlag =
         env.ENABLE_SCHEDULED_CLEANUP === 'true' ||

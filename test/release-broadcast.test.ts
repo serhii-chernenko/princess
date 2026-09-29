@@ -16,7 +16,7 @@ import type { WorkerBindings } from '../src/worker/env';
 
 const currentVersion = '5.0.0';
 
-const createEnv = (flag: 'true' | 'false', environment = 'beta') => {
+const createEnv = (flag: 'true' | 'false', environment = 'preview') => {
     return {
         BOT_ENVIRONMENT: environment,
         ENABLE_RELEASE_BROADCAST: flag
@@ -256,7 +256,7 @@ test('the release cron runs only the broadcast task', async () => {
 
     await runScheduledTasks(
         controller,
-        createEnv('true', 'production'),
+        createEnv('true', 'preview'),
         {} as ExecutionContext,
         {
             async broadcastRelease() {
@@ -290,7 +290,7 @@ test('the daily cron does not run the release broadcast', async () => {
 
     await runScheduledTasks(
         controller,
-        createEnv('true', 'beta'),
+        createEnv('true', 'preview'),
         {} as ExecutionContext,
         {
             async broadcastRelease() {

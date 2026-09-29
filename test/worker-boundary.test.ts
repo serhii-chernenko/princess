@@ -90,11 +90,9 @@ const createBindings = (
         BOT_ENVIRONMENT: botEnvironment,
         ENABLE_SCHEDULED_CLEANUP: botEnvironment === 'local' ? 'true' : 'false',
         ENABLE_RELEASE_BROADCAST:
-            botEnvironment === 'production' || botEnvironment === 'beta'
-                ? 'true'
-                : 'false',
+            botEnvironment === 'production' ? 'true' : 'false',
         RELEASE_QUEUE: {} as WorkerBindings['RELEASE_QUEUE'],
-        AUTHOR_TWITTER_LINK: 'https://twitter.com/giraffender',
+        AUTHOR_TWITTER_LINK: 'https://x.com/serhiichernenko',
         WISHLIST_TG_URL: 'https://t.me/wishlist_ua_bot',
         CHATGPT_GITHUB_REPO_URL:
             'https://github.com/serhii-chernenko/chatgpt-telegram-bot',

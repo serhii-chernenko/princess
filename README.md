@@ -39,7 +39,6 @@ pnpm install
 ```sh
 cp .dev.vars.example .dev.vars
 cp .dev.vars.production.example .dev.vars.production
-cp .dev.vars.beta.example .dev.vars.beta
 ```
 
 3. Fill at least these local values:
@@ -170,28 +169,19 @@ Create the production database:
 pnpm exec wrangler d1 create princess-production --env production --binding DB
 ```
 
-Create the separate beta database the same way:
-
-```sh
-pnpm exec wrangler d1 create princess-beta --env beta --binding DB
-```
-
 The real `database_id` values are committed in [wrangler.jsonc](./wrangler.jsonc)
-under `env.production.d1_databases[0]` and `env.beta.d1_databases[0]`. Neither
-environment defines `preview_database_id`, so `wrangler dev --remote` cannot reach a
-remote database by accident.
-
-Production and beta use separate D1 databases. Wrangler environments create distinct
-Workers but do not automatically isolate their bound resources; see the
-[Wrangler environments documentation](https://developers.cloudflare.com/workers/wrangler/environments/).
+under `env.production.d1_databases[0]`. The production environment does not define
+`preview_database_id`, so `wrangler dev --remote` cannot reach a remote database by
+accident. Worker Previews use a separate D1 database, `princess-preview` (see
+[Testing with Worker Previews](#testing-with-worker-previews)).
 
 Local operators without an API token can run the D1 and deploy scripts through
 `wrangler login` by setting `CLOUDFLARE_AUTH_MODE=wrangler-login` (plus
 `CLOUDFLARE_ACCOUNT_ID`). The mode is rejected when `CI` or `GITHUB_ACTIONS` is set;
-CI keeps using API tokens. Beta accepts a local backup for
-`pnpm db:import:beta` via `MONGO_BACKUP_DIR` or `--input-dir <absolute-path>`.
+CI keeps using API tokens. `pnpm db:import:preview` accepts a local backup via
+`MONGO_BACKUP_DIR` or `--input-dir <absolute-path>` (`princess-db/` by default).
 
-Only production owns the cron trigger. Beta does not.
+Only production owns cron triggers and queue consumers. Previews have neither.
 
 Fill `.dev.vars.production` for the production bot:
 
@@ -200,15 +190,6 @@ BOT_TOKEN="123456:telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
 TELEGRAM_WEBHOOK_PATH="/telegram/princess"
 WORKER_BASE_URL="https://princess.chernenko.dev"
-```
-
-Fill `.dev.vars.beta` for the beta bot:
-
-```dotenv
-BOT_TOKEN="123456:telegram-bot-token"
-TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
-TELEGRAM_WEBHOOK_PATH="/telegram/princess-beta"
-WORKER_BASE_URL="https://princess-beta.chernenko.dev"
 ```
 
 Apply production migrations:
@@ -220,7 +201,7 @@ pnpm run db:migrate:prod
 
 The command fails before Drizzle unless the confirmation UUID exactly matches the
 single `DB` binding in `env.production`, its `database_name` is
-`princess-production`. It also rejects a beta binding that shares the production database.
+`princess-production`.
 
 Query production D1:
 
@@ -236,8 +217,8 @@ export MONGO_BACKUP_REF="<reviewed-40-character-backup-commit-sha>"
 pnpm run db:import:prod
 ```
 
-There is intentionally no beta Mongo import; beta is filled from production (see
-[Beta safety](#beta-safety)). For the first production migration, take a fresh Mongo
+The preview database can be filled from production or from a local backup (see
+[Testing with Worker Previews](#testing-with-worker-previews)). For the first production migration, take a fresh Mongo
 export, freeze polling writes, create a D1 Time Travel bookmark/export, import
 once, and reconcile the data by following
 [the data runbook](./MONGO_TO_D1_RUNBOOK.md) and
@@ -246,7 +227,7 @@ the insert-only import against populated application tables.
 
 ## Production deploy
 
-Production and beta are deployed by Cloudflare Workers Builds (see
+Production is deployed by Cloudflare Workers Builds (see
 [Cloudflare deployment](#cloudflare-deployment)). Production migration, manual Worker
 deployment, and webhook registration are deliberately separate operations.
 
@@ -257,8 +238,8 @@ export CLOUDFLARE_DATABASE_ID="<exact-production-database-uuid>"
 pnpm run worker:deploy:prod
 ```
 
-Production and beta deploy scripts validate the confirmed D1 target
-(`CLOUDFLARE_DATABASE_ID` or `CLOUDFLARE_BETA_DATABASE_ID`) before Wrangler starts and forward only the Cloudflare account/API token
+The production deploy script validates the confirmed D1 target
+(`CLOUDFLARE_DATABASE_ID`) before Wrangler starts and forwards only the Cloudflare account/API token
 plus OS essentials. Runtime bot/webhook values are read from the fixed
 `--secrets-file`, not inherited by the child process.
 
@@ -274,30 +255,8 @@ pnpm run telegram:webhook:delete:prod --drop-pending-updates=false
 pnpm run worker:tail:prod
 ```
 
-`set` and `delete` for production and beta require an explicit
+`set` and `delete` for production and preview require an explicit
 `--drop-pending-updates=true|false`; local may omit it.
-
-## Beta production deploy
-
-Beta uses its own D1 database (`princess-beta`), Worker, bot token, webhook secret,
-webhook path, and domain:
-
-```sh
-export CLOUDFLARE_BETA_DATABASE_ID="<exact-beta-database-uuid>"
-pnpm run db:migrate:beta
-pnpm run worker:deploy:beta
-```
-
-Beta deployment does not migrate, import, or change its webhook. Test it only in a
-beta-only Telegram group. Register or inspect the webhook deliberately when the
-runbook calls for it:
-
-```sh
-pnpm run telegram:webhook:set:beta --drop-pending-updates=false
-pnpm run telegram:webhook:info:beta
-pnpm run telegram:webhook:delete:beta --drop-pending-updates=false
-pnpm run worker:tail:beta
-```
 
 ## Cloudflare deployment
 
@@ -305,10 +264,10 @@ Cloudflare Workers Builds is connected to `serhii-chernenko/princess`:
 
 - `princess` builds from `main` (build command `pnpm run i18n:generate`, deploy
   command `pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`)
-- `princess-beta` builds from the `beta` branch (push any commit there to test it)
+- Pull requests and non-production branches get automatic Worker Previews of `princess` when preview builds are enabled (see [Testing with Worker Previews](#testing-with-worker-previews))
 
 Runtime secrets (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`) are
-set on each Worker, not in GitHub. Builds do not apply D1 migrations or change
+set on the Worker (and in the Preview base config for previews), not in GitHub. Builds do not apply D1 migrations or change
 Telegram webhooks.
 
 ## GitHub Actions
@@ -316,11 +275,12 @@ Telegram webhooks.
 [`.github/workflows/main.yml`](./.github/workflows/main.yml) only validates pushes and
 pull requests to `main`. It installs with `pnpm`, runs the canonical checks,
 regenerates i18n, release, Wrangler-binding, and Drizzle artifacts, fails on tracked
-or untracked drift, and performs production and beta deployment dry-runs. It never
+or untracked drift, and performs a production deployment dry-run. It never
 deploys and holds no deployment secrets.
 
-[`copy-production-to-beta.yml`](./.github/workflows/copy-production-to-beta.yml) is
-the only workflow that uses secrets; see [Beta safety](#beta-safety).
+[`copy-production-to-preview.yml`](./.github/workflows/copy-production-to-preview.yml) is
+the only workflow that uses secrets; see
+[Testing with Worker Previews](#testing-with-worker-previews).
 
 ## Telegram webhook notes
 
@@ -333,7 +293,7 @@ the only workflow that uses secrets; see [Beta safety](#beta-safety).
 - authenticated webhook bodies are capped at 1 MiB before parsing and must contain
   a nonnegative safe `update_id` plus a minimally valid `message` update
 - webhook helpers set `max_connections=1` to reduce cutover concurrency
-- `set` and `delete` for production and beta require
+- `set` and `delete` for production and preview require
   `--drop-pending-updates=true|false`; preserving or discarding the pending queue
   is an operator decision (local may omit the flag)
 - the Worker claims each `update_id` in a bot-specific D1 ledger before Telegraf
@@ -409,15 +369,15 @@ Changeset bullets are written in Ukrainian and may carry an optional nested Engl
 
 Every new release is announced to each community once, through Cloudflare Queues:
 
-- A `*/10 * * * *` cron (production and beta) compares the newest manifest version with every channel's `release_version`. Channels on a lower version get one `release_announcements` row (unique per version and channel) and one queue job.
+- A `*/10 * * * *` cron (production only) compares the newest manifest version with every channel's `release_version`. Channels on a lower version get one `release_announcements` row (unique per version and channel) and one queue job.
 - The queue consumer sends the announcement in the community language and then stores the version on the channel. `/start` also stores the current version, so new communities never receive old announcements.
 - Delivery is at-most-once on ambiguity: a duplicate announcement is worse than a missed one. The consumer first moves the row `queued` to `sending` (compare-and-set), then calls Telegram. A network error or timeout with no Telegram response, or a redelivery of a row still in `sending`, is marked `skipped` (no error code) and never resent. If the post-send state write still fails after three tries, the message is acknowledged and logged (`release_announcement_state_write_failed`), never resent.
 - Chats that block or remove the bot (403, or 400 with a permanent description such as `chat not found`) are marked `skipped` and the channel is kept; channels are never deleted. A 400 with `migrate_to_chat_id` updates the channel's chat id and sends once more, or is skipped (`release_announcement_chat_migrated_conflict`) when another channel already has that id. Any other 400 marks the row `failed` without bumping the channel version. 429 re-enqueues a fresh job after `retry_after + 1` seconds, so it never counts toward `max_retries`. Any 5xx is treated as ambiguous (Telegram may have delivered before the error): the row is marked `skipped` with the status code, the channel version is bumped, and the message is never resent (`release_announcement_ambiguous`).
 - Kill switch: setting the `ENABLE_RELEASE_BROADCAST` variable to anything but `"true"` requires a redeploy. While off, the consumer sends nothing and changes no state, retries every message after 600 seconds, and jobs land in the dead-letter queue after about 50 minutes while rows stay `queued`. The fast emergency stop is `pnpm exec wrangler queues pause-delivery princess-release-announcements` (resume with `resume-delivery`). Jobs with a malformed body or a version that is not the latest release are acknowledged and logged.
 - Stale recovery: each cron run re-enqueues `queued` rows for the current version untouched for over 3 hours (longer than the retry chain) and marks `sending` rows stuck over 3 hours as `skipped` (ambiguous).
-- Queues: production `princess-release-announcements` with DLQ `princess-release-announcements-dlq`; beta `princess-beta-release-announcements` with DLQ `princess-beta-release-announcements-dlq`. Local development uses `princess-local-release-announcements` with the broadcast switched off.
-- `ENABLE_RELEASE_BROADCAST` (`"true"` on production and beta, `"false"` locally) gates the producer. Beta holds production user data after a copy, so only enable it on beta when the beta bot is not sitting in real production groups.
-- Manual trigger: Cloudflare cannot run a cron on demand, so `POST /admin/release-broadcast` runs the same producer as the cron. It requires the `X-Telegram-Bot-Api-Secret-Token` header (the webhook secret) and answers 401 on a wrong secret and 409 while `ENABLE_RELEASE_BROADCAST` is off. Use `pnpm run releases:broadcast:beta` or `pnpm run releases:broadcast:prod`; they read `WORKER_BASE_URL` and `TELEGRAM_WEBHOOK_SECRET` from `.dev.vars.beta` or `.dev.vars.production` and print the JSON summary. When `WORKER_BASE_URL` and `TELEGRAM_WEBHOOK_SECRET` are already set in the environment (for example as Cloudflare Workers Builds build variables, where the script runs right after `wrangler deploy`), they take precedence and no `.dev.vars` file is needed. The script retries (12 attempts, 5s apart) until the Worker reports the `package.json` version, exits 0 with a notice on 409 (broadcast disabled), and fails immediately on 401/503.
+- Queues: production `princess-release-announcements` with DLQ `princess-release-announcements-dlq`; previews use the producer-only `princess-preview-release-announcements` (no consumer). Local development uses `princess-local-release-announcements` with the broadcast switched off.
+- `ENABLE_RELEASE_BROADCAST` (`"true"` on production, `"false"` locally and in previews) gates the producer.
+- Manual trigger: Cloudflare cannot run a cron on demand, so `POST /admin/release-broadcast` runs the same producer as the cron. It requires the `X-Telegram-Bot-Api-Secret-Token` header (the webhook secret) and answers 401 on a wrong secret and 409 while `ENABLE_RELEASE_BROADCAST` is off. Use `pnpm run releases:broadcast:prod`; it reads `WORKER_BASE_URL` and `TELEGRAM_WEBHOOK_SECRET` from `.dev.vars.production` and prints the JSON summary. When `WORKER_BASE_URL` and `TELEGRAM_WEBHOOK_SECRET` are already set in the environment (for example as Cloudflare Workers Builds build variables, where the script runs right after `wrangler deploy`), they take precedence and no `.dev.vars` file is needed. The script retries (12 attempts, 5s apart) until the Worker reports the `package.json` version, exits 0 with a notice on 409 (broadcast disabled), and fails immediately on 401/503.
 
 ## Legacy removal
 
@@ -426,91 +386,112 @@ repository; the VPS is gone, so there is no supported rollback to it. MongoDB At
 data is kept as a backup source for re-importing with the Mongo to D1 tooling in
 `scripts/db`. See [the rollback rules](./MIGRATION_STATUS.md#rollback-rules).
 
-## Worker Previews
+## Testing with Worker Previews
 
-Worker Previews give each git branch its own isolated deployment of the beta Worker
-(Cloudflare open beta, Wrangler 4.143 or newer). `env.beta.previews` in
-`wrangler.jsonc` defines what a preview gets, and `env.beta.preview_urls` enables the
-URLs.
+All testing uses Worker Previews of the production Worker `princess`
+(Cloudflare open beta, Wrangler 4.143 or newer). `env.production.previews` in
+`wrangler.jsonc` defines what a preview gets, and `env.production.preview_urls`
+enables the URLs (`workers_dev` stays `false`). A preview is created per name, by
+default from the git branch.
 
-What is isolated:
+What a preview gets:
 
 - Its own D1 database, `princess-preview`, migrated with `pnpm run db:migrate:preview`
   after setting `CLOUDFLARE_PREVIEW_DATABASE_ID` (or `CLOUDFLARE_AUTH_MODE=wrangler-login`).
-  It never holds production or beta data, and the tooling refuses an id or name shared
-  with production or beta.
-- Its own queue producer, `princess-preview-release-announcements`. No consumers, so
-  nothing is delivered.
+  The tooling refuses an id or name shared with production.
+- Its own producer-only queue, `princess-preview-release-announcements`.
 - `BOT_ENVIRONMENT="preview"`, `ENABLE_RELEASE_BROADCAST="false"`,
-  `ENABLE_SCHEDULED_CLEANUP="false"`. No crons and no routes: global cleanup and ledger
-  pruning are refused, and `POST /admin/release-broadcast` answers 409.
-- Secrets come from the Preview base config, never from the beta Worker.
+  `ENABLE_SCHEDULED_CLEANUP="false"`: global cleanup and ledger pruning are refused,
+  and `POST /admin/release-broadcast` answers 409.
+- Secrets from the Preview base config, never from the production Worker.
 
-Create a preview from the current branch:
+Flow:
 
-```bash
-pnpm run worker:preview
-```
+1. Create a preview, either manually or through automatic PR previews from Workers
+   Builds:
 
-The URL has the shape `<branch>-princess-beta.<subdomain>.workers.dev`. Set the
-secrets once with a dummy bot token that is not a real bot:
+    ```sh
+    pnpm run worker:preview -- --name <name>
+    ```
 
-```bash
-pnpm exec wrangler preview base-config secret put BOT_TOKEN --env beta
-pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_SECRET --env beta
-pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env beta
-```
+2. Set the base-config secrets once. `BOT_TOKEN` is the real debug bot token, so keep
+   that bot out of production groups:
 
-Previews receive no Telegram traffic: never register a webhook for one. Exercise
-`/health` (with the `X-Telegram-Bot-Api-Secret-Token` header) and hand-crafted webhook
-requests only.
+    ```sh
+    pnpm exec wrangler preview base-config secret put BOT_TOKEN --env production
+    pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_SECRET --env production
+    pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env production
+    ```
 
-## Beta safety
+3. Migrate the preview database:
 
-Beta has its own D1 database, `princess-beta`, so its data is isolated from production.
-Never deploy beta against the production database.
-Beta also uses its own bot token, webhook path, and domain, and is tested in a
-beta-only Telegram group; do not add both bots to the same group.
+    ```sh
+    pnpm run db:migrate:preview
+    ```
 
-Refresh beta from production (production to beta only):
+4. Optionally fill it, from a local backup (the target must be empty) or from
+   production:
 
-```sh
-pnpm run db:migrate:beta
-pnpm run db:copy:production-to-beta --confirm-overwrite-beta
-```
+    ```sh
+    pnpm run db:import:preview
+    pnpm run db:copy:production-to-preview --confirm-overwrite-preview
+    ```
 
-The same copy is available as the manual workflow
-[`copy-production-to-beta.yml`](./.github/workflows/copy-production-to-beta.yml)
-(`main` only, `beta` environment, typed confirmation `OVERWRITE BETA`). It needs
-the `CLOUDFLARE_API_TOKEN` secret with D1 edit on both databases and the
-`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_BETA_DATABASE_ID`
-variables. Locally, `CLOUDFLARE_BETA_DATABASE_ID` lives in `env/.env.d1`.
+    The copy is also available as the manual workflow
+    [`copy-production-to-preview.yml`](./.github/workflows/copy-production-to-preview.yml)
+    (`main` only, `preview` environment, typed confirmation `OVERWRITE PREVIEW`). It
+    needs the `CLOUDFLARE_API_TOKEN` secret with D1 edit on both databases and the
+    `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and
+    `CLOUDFLARE_PREVIEW_DATABASE_ID` variables. Locally, `CLOUDFLARE_PREVIEW_DATABASE_ID`
+    lives in `env/.env.d1`.
+
+5. Point the debug bot webhook at the preview. Fill `.dev.vars.preview` from
+   `.dev.vars.preview.example` (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+   `TELEGRAM_WEBHOOK_PATH`), then:
+
+    ```sh
+    pnpm run telegram:webhook:set:preview -- --url https://<name>.<account>.workers.dev --drop-pending-updates=true
+    pnpm run telegram:webhook:info:preview -- --url https://<name>.<account>.workers.dev
+    pnpm run telegram:webhook:delete:preview -- --drop-pending-updates=true
+    ```
+
+    `--url` must be `https` with a host ending in `.workers.dev`; the script never
+    derives it from the branch. `set` and `delete` require an explicit
+    `--drop-pending-updates=true|false`.
+
+6. Test only in preview-only Telegram groups. Never add both bots to the same group.
+   Preview logs are in the Cloudflare dashboard observability; Wrangler 4.143.1
+   cannot tail a preview.
+
+Copy safety (production to preview only, hard-coded direction):
 
 - It copies `players`, `channels`, and `channel_members` only (not
-  `__drizzle_migrations` or `telegram_updates`), requires matching migrations,
-  wipes beta, and verifies counts.
+  `__drizzle_migrations` or `telegram_updates`), requires distinct database ids and
+  matching migrations, wipes preview in foreign-key-safe chunks, and verifies counts.
 - The remote export makes production D1 unavailable to queries while it runs; use a
   low-traffic window. Production writes after the export are not copied and may
-  cause a count mismatch, so rerun. A mid-way failure leaves beta partly wiped;
+  cause a count mismatch, so rerun. A mid-way failure leaves preview partly wiped;
   rerunning is safe.
-- Beta then holds production PII (Telegram IDs, names, usernames, group titles) and
-  beta logs at 100%. Restrict access to the beta D1 and logs, define retention, and
-  consider lowering beta log sampling. Erasure on production does not reach beta
-  until the next copy.
-- Restrict the `beta` environment to `main` with required reviewers, scope the token
-  to D1 only (ideally a production-read token for export and a beta-edit token for
-  wipe/import), and consider CODEOWNERS or branch protection on
-  `.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`.
+- After a copy the preview D1 holds production PII (Telegram IDs, names, usernames,
+  group titles). Restrict access to it and to preview logs, and define retention.
+  Erasure on production does not reach preview until the next copy.
+- Restrict the `preview` GitHub environment to `main` with required reviewers, scope
+  the token to D1 only (ideally a production-read token for export and a
+  preview-edit token for wipe/import), and consider CODEOWNERS or branch protection
+  on `.github/workflows/`, `scripts/db/`, and `wrangler.jsonc`.
 
-Before the first real beta deploy, verify:
+Limitations:
 
-- `wrangler.jsonc` no longer contains placeholder D1 IDs
-- the `princess-beta.chernenko.dev` route is attached in Cloudflare
-- `.dev.vars.beta` contains the beta bot token and beta webhook secret
-- the beta bot is invited only to a beta-only Telegram group
-- `pnpm run db:migrate:beta` has already been applied to the beta D1 database
+- Previews never run cron triggers or queue consumers: the queue is producer-only and
+  there is no release broadcast. Only production owns cron triggers and queue
+  consumers.
+- All previews share the single `princess-preview` D1 and the debug bot's single
+  webhook, so only one preview can receive Telegram traffic at a time.
+- `preview_urls: true` also exposes production version URLs on `workers.dev`. They are
+  protected only by the same secret gating (webhook secret header and path), so keep
+  those secrets strong.
 
-Scheduled cleanup defaults to `false` for production and beta. Keep it disabled until
+Scheduled cleanup defaults to `false` for production and previews. Keep it disabled until
 the deletion set is reviewed: generate a fresh stale-channel/orphan-player review set, take a D1
 bookmark/export, and approve the deletion set explicitly.
 

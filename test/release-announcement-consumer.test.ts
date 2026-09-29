@@ -374,12 +374,10 @@ test('queue delivery limits match the committed wrangler consumers', () => {
         fs.readFileSync(path.join(process.cwd(), 'wrangler.jsonc'), 'utf8')
     );
 
-    for (const environment of ['production', 'beta']) {
-        const consumers = config.env[environment].queues.consumers;
+    const consumers = config.env.production.queues.consumers;
 
-        assert.equal(consumers.length, 1);
-        assert.equal(consumers[0].max_retries, QUEUE_MAX_RETRIES);
-    }
+    assert.equal(consumers.length, 1);
+    assert.equal(consumers[0].max_retries, QUEUE_MAX_RETRIES);
 
     assert.equal(QUEUE_MAX_DELIVERIES, QUEUE_MAX_RETRIES + 1);
 });

@@ -15,14 +15,16 @@ const CREDENTIAL_KEYS = ['WORKER_BASE_URL', 'TELEGRAM_WEBHOOK_SECRET'] as const;
 const DEFAULT_MAX_ATTEMPTS = 12;
 const DEFAULT_RETRY_DELAY_MILLISECONDS = 5_000;
 
-export type BroadcastTarget = Extract<AppEnvTarget, 'production' | 'beta'>;
+export type BroadcastTarget = Extract<AppEnvTarget, 'production'>;
 
-export const parseBroadcastTarget = (value: string | undefined) => {
-    if (value === 'production' || value === 'beta') {
-        return value satisfies BroadcastTarget;
+export const parseBroadcastTarget = (
+    value: string | undefined
+): BroadcastTarget => {
+    if (value === 'production') {
+        return value;
     }
 
-    throw new Error('Usage: trigger-broadcast.ts <production|beta>');
+    throw new Error('Usage: trigger-broadcast.ts <production>');
 };
 
 export const triggerReleaseBroadcast = async (

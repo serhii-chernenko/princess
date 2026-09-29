@@ -1,10 +1,10 @@
-name: Copy Production Data to Beta
+name: Copy Production Data to Preview
 
 on:
     workflow_dispatch:
         inputs:
             confirmation:
-                description: Type OVERWRITE BETA to replace all beta D1 data with production data
+                description: Type OVERWRITE PREVIEW to replace all preview D1 data with production data
                 required: true
                 type: string
 
@@ -13,12 +13,12 @@ permissions:
 
 jobs:
     copy:
-        if: github.ref == 'refs/heads/main' && inputs.confirmation == 'OVERWRITE BETA'
+        if: github.ref == 'refs/heads/main' && inputs.confirmation == 'OVERWRITE PREVIEW'
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        environment: beta
+        environment: preview
         concurrency:
-            group: princess-copy-production-to-beta
+            group: princess-copy-production-to-preview
             cancel-in-progress: false
         steps:
             - name: Checkout
@@ -40,15 +40,15 @@ jobs:
 
             - name: Verify D1 resource IDs are configured
               run: |
-                  if grep -Eq 'REPLACE_WITH_(PRODUCTION|BETA)_' wrangler.jsonc; then
+                  if grep -Eq 'REPLACE_WITH_(PRODUCTION|PREVIEW)_' wrangler.jsonc; then
                       echo '::error file=wrangler.jsonc::Replace all REPLACE_WITH_ D1 ID placeholders before copying data.'
                       exit 1
                   fi
 
-            - name: Copy production data to beta
+            - name: Copy production data to preview
               env:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
                   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
                   CLOUDFLARE_DATABASE_ID: ${{ vars.CLOUDFLARE_DATABASE_ID }}
-                  CLOUDFLARE_BETA_DATABASE_ID: ${{ vars.CLOUDFLARE_BETA_DATABASE_ID }}
-              run: pnpm run db:copy:production-to-beta --confirm-overwrite-beta
+                  CLOUDFLARE_PREVIEW_DATABASE_ID: ${{ vars.CLOUDFLARE_PREVIEW_DATABASE_ID }}
+              run: pnpm run db:copy:production-to-preview --confirm-overwrite-preview

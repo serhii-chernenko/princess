@@ -23,7 +23,7 @@ export interface WranglerRunResult {
 
 export type WranglerRunner = (arguments_: string[]) => WranglerRunResult;
 
-export const confirmOverwriteBetaFlag = '--confirm-overwrite-beta';
+export const confirmOverwritePreviewFlag = '--confirm-overwrite-preview';
 export const migrationsTableName = '__drizzle_migrations';
 export const excludedTableNames = [
     migrationsTableName,
@@ -44,31 +44,31 @@ const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 export const parseCopyArguments = (rawArguments: string[]) => {
     const arguments_ = rawArguments.filter(argument => argument !== '--');
     const unknownArguments = arguments_.filter(argument => {
-        return argument !== confirmOverwriteBetaFlag;
+        return argument !== confirmOverwritePreviewFlag;
     });
 
     if (unknownArguments.length > 0) {
         throw new Error(
-            `Unknown arguments: ${unknownArguments.join(' ')}. Usage: copy-production-to-beta.ts ${confirmOverwriteBetaFlag}`
+            `Unknown arguments: ${unknownArguments.join(' ')}. Usage: copy-production-to-preview.ts ${confirmOverwritePreviewFlag}`
         );
     }
 
-    if (!arguments_.includes(confirmOverwriteBetaFlag)) {
+    if (!arguments_.includes(confirmOverwritePreviewFlag)) {
         throw new Error(
-            `Copying production data replaces ALL beta data. Re-run with ${confirmOverwriteBetaFlag} to confirm.`
+            `Copying production data replaces ALL preview data. Re-run with ${confirmOverwritePreviewFlag} to confirm.`
         );
     }
 
-    return { confirmOverwriteBeta: true as const };
+    return { confirmOverwritePreview: true as const };
 };
 
 export const assertDistinctCopyDatabases = (
     productionDatabaseId: string,
-    betaDatabaseId: string
+    previewDatabaseId: string
 ) => {
-    if (productionDatabaseId === betaDatabaseId) {
+    if (productionDatabaseId === previewDatabaseId) {
         throw new Error(
-            'Refusing to copy: production and beta resolve to the same D1 database'
+            'Refusing to copy: production and preview resolve to the same D1 database'
         );
     }
 };
@@ -90,7 +90,7 @@ export const selectCopyTables = (databaseTables: string[]) => {
 
     if (unexpectedTables.length > 0 || missingTables.length > 0) {
         throw new Error(
-            `Production table set changed (unexpected: ${unexpectedTables.join(', ') || 'none'}; missing: ${missingTables.join(', ') || 'none'}). Update copy-production-to-beta.ts before copying.`
+            `Production table set changed (unexpected: ${unexpectedTables.join(', ') || 'none'}; missing: ${missingTables.join(', ') || 'none'}). Update copy-production-to-preview.ts before copying.`
         );
     }
 
@@ -124,15 +124,18 @@ export const getExportArguments = (
 };
 
 export const getQueryArguments = (
-    target: 'production' | 'beta',
+    target: 'production' | 'preview',
     configPath: string,
     command: string
 ) => {
     return getD1ExecuteArguments(target, configPath, { command });
 };
 
-export const getBetaImportArguments = (configPath: string, sqlPath: string) => {
-    return getD1ExecuteArguments('beta', configPath, { file: sqlPath });
+export const getPreviewImportArguments = (
+    configPath: string,
+    sqlPath: string
+) => {
+    return getD1ExecuteArguments('preview', configPath, { file: sqlPath });
 };
 
 export const buildTableDiscoverySql = () => {
@@ -227,18 +230,18 @@ export const parseTableCounts = (stdout: string) => {
 
 export const findCountMismatches = (
     productionCounts: Record<string, number>,
-    betaCounts: Record<string, number>,
+    previewCounts: Record<string, number>,
     tables: string[]
 ) => {
     return tables.filter(table => {
-        return productionCounts[table] !== betaCounts[table];
+        return productionCounts[table] !== previewCounts[table];
     });
 };
 
 export interface CopyDependencies {
     runWrangler: WranglerRunner;
     productionDatabaseId: string;
-    betaDatabaseId: string;
+    previewDatabaseId: string;
     configPath: string;
     log: (message: string) => void;
 }
@@ -265,7 +268,7 @@ const runChecked = (
 
 const queryRows = (
     dependencies: CopyDependencies,
-    target: 'production' | 'beta',
+    target: 'production' | 'preview',
     description: string,
     sql: string
 ) => {
@@ -280,7 +283,7 @@ const queryRows = (
 
 const readMigrationHashes = (
     dependencies: CopyDependencies,
-    target: 'production' | 'beta'
+    target: 'production' | 'preview'
 ) => {
     return queryRows(
         dependencies,
@@ -292,7 +295,7 @@ const readMigrationHashes = (
 
 const readTableCounts = (
     dependencies: CopyDependencies,
-    target: 'production' | 'beta',
+    target: 'production' | 'preview',
     tables: string[]
 ) => {
     return parseTableCounts(
@@ -310,27 +313,27 @@ const readTableCounts = (
 
 export const assertMigrationsMatch = (
     productionHashes: string[],
-    betaHashes: string[]
+    previewHashes: string[]
 ) => {
     const matches =
-        productionHashes.length === betaHashes.length &&
-        productionHashes.every((hash, index) => hash === betaHashes[index]);
+        productionHashes.length === previewHashes.length &&
+        productionHashes.every((hash, index) => hash === previewHashes[index]);
 
     if (!matches) {
         throw new Error(
-            `Beta migrations (${betaHashes.length}) do not match production (${productionHashes.length}). Run "pnpm db:migrate:beta" first.`
+            `Preview migrations (${previewHashes.length}) do not match production (${productionHashes.length}). Run "pnpm db:migrate:preview" first.`
         );
     }
 };
 
-const wipeBetaTable = (dependencies: CopyDependencies, table: string) => {
+const wipePreviewTable = (dependencies: CopyDependencies, table: string) => {
     for (let iteration = 0; iteration < maximumDeleteIterations; iteration++) {
         const changes = parseChangedRows(
             runChecked(
                 dependencies,
-                `beta ${table} wipe`,
+                `preview ${table} wipe`,
                 getQueryArguments(
-                    'beta',
+                    'preview',
                     dependencies.configPath,
                     buildChunkedDeleteSql(table)
                 )
@@ -342,16 +345,16 @@ const wipeBetaTable = (dependencies: CopyDependencies, table: string) => {
         }
     }
 
-    throw new Error(`Beta ${table} wipe did not converge`);
+    throw new Error(`Preview ${table} wipe did not converge`);
 };
 
-const betaRestoreNotice =
-    'Beta is now empty or only partially filled. Re-run "pnpm db:copy:production-to-beta --confirm-overwrite-beta" to restore it.';
+const previewRestoreNotice =
+    'Preview is now empty or only partially filled. Re-run "pnpm db:copy:production-to-preview --confirm-overwrite-preview" to restore it.';
 
-export const copyProductionToBeta = (dependencies: CopyDependencies) => {
+export const copyProductionToPreview = (dependencies: CopyDependencies) => {
     assertDistinctCopyDatabases(
         dependencies.productionDatabaseId,
-        dependencies.betaDatabaseId
+        dependencies.previewDatabaseId
     );
 
     const productionTables = selectCopyTables(
@@ -365,7 +368,7 @@ export const copyProductionToBeta = (dependencies: CopyDependencies) => {
 
     assertMigrationsMatch(
         readMigrationHashes(dependencies, 'production'),
-        readMigrationHashes(dependencies, 'beta')
+        readMigrationHashes(dependencies, 'preview')
     );
 
     const temporaryDirectory = fs.mkdtempSync(
@@ -396,29 +399,29 @@ export const copyProductionToBeta = (dependencies: CopyDependencies) => {
         );
 
         try {
-            dependencies.log('Wiping beta application tables');
+            dependencies.log('Wiping preview application tables');
 
             for (const table of getWipeOrder(productionTables)) {
-                wipeBetaTable(dependencies, table);
+                wipePreviewTable(dependencies, table);
             }
 
             if (fs.readFileSync(sqlPath, 'utf8').includes('INSERT INTO')) {
-                dependencies.log('Importing production data into beta');
+                dependencies.log('Importing production data into preview');
                 runChecked(
                     dependencies,
-                    'beta import',
-                    getBetaImportArguments(dependencies.configPath, sqlPath)
+                    'preview import',
+                    getPreviewImportArguments(dependencies.configPath, sqlPath)
                 );
             }
 
-            const betaCounts = readTableCounts(
+            const previewCounts = readTableCounts(
                 dependencies,
-                'beta',
+                'preview',
                 productionTables
             );
             const mismatches = findCountMismatches(
                 productionCounts,
-                betaCounts,
+                previewCounts,
                 productionTables
             );
 
@@ -426,7 +429,7 @@ export const copyProductionToBeta = (dependencies: CopyDependencies) => {
                 throw new Error(
                     `Row counts differ after copy for: ${mismatches
                         .map(table => {
-                            return `${table} (production=${String(productionCounts[table])}, beta=${String(betaCounts[table])})`;
+                            return `${table} (production=${String(productionCounts[table])}, preview=${String(previewCounts[table])})`;
                         })
                         .join(
                             ', '
@@ -434,12 +437,12 @@ export const copyProductionToBeta = (dependencies: CopyDependencies) => {
                 );
             }
 
-            return { tables: productionTables, counts: betaCounts };
+            return { tables: productionTables, counts: previewCounts };
         } catch (error) {
             const reason =
                 error instanceof Error ? error.message : String(error);
 
-            throw new Error(`${reason}\n${betaRestoreNotice}`, {
+            throw new Error(`${reason}\n${previewRestoreNotice}`, {
                 cause: error
             });
         }
@@ -475,7 +478,7 @@ const createSpawnRunner = (
     };
 };
 
-export const runCopyProductionToBeta = (arguments_: string[]) => {
+export const runCopyProductionToPreview = (arguments_: string[]) => {
     parseCopyArguments(arguments_);
 
     const projectRoot = getProjectRoot();
@@ -483,17 +486,17 @@ export const runCopyProductionToBeta = (arguments_: string[]) => {
     loadD1Environment(projectRoot);
 
     const productionDatabaseId = assertRemoteD1Target('production');
-    const betaDatabaseId = assertRemoteD1Target('beta');
+    const previewDatabaseId = assertRemoteD1Target('preview');
 
     const wranglerLogDirectory = fs.mkdtempSync(
         path.join(os.tmpdir(), 'princess-d1-copy-logs-')
     );
 
     try {
-        const summary = copyProductionToBeta({
+        const summary = copyProductionToPreview({
             runWrangler: createSpawnRunner(projectRoot, wranglerLogDirectory),
             productionDatabaseId,
-            betaDatabaseId,
+            previewDatabaseId,
             configPath: getWranglerConfigPath(),
             log: message => {
                 console.log(message);
@@ -501,7 +504,10 @@ export const runCopyProductionToBeta = (arguments_: string[]) => {
         });
 
         console.log(
-            JSON.stringify({ event: 'production_copied_to_beta', ...summary })
+            JSON.stringify({
+                event: 'production_copied_to_preview',
+                ...summary
+            })
         );
     } finally {
         fs.rmSync(wranglerLogDirectory, { recursive: true, force: true });
@@ -515,7 +521,7 @@ if (
     import.meta.url === pathToFileURL(path.resolve(scriptPath)).href
 ) {
     try {
-        runCopyProductionToBeta(process.argv.slice(2));
+        runCopyProductionToPreview(process.argv.slice(2));
     } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;

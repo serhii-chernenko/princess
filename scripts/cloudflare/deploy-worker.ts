@@ -12,7 +12,7 @@ import {
     resolveD1DatabaseId
 } from '../db/production-d1-target';
 
-export type WorkerDeployTarget = 'production' | 'beta';
+export type WorkerDeployTarget = 'production';
 
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const projectRoot = path.resolve(
@@ -23,11 +23,11 @@ const projectRoot = path.resolve(
 export const parseWorkerDeployTarget = (
     value: string | undefined
 ): WorkerDeployTarget => {
-    if (value === 'production' || value === 'beta') {
+    if (value === 'production') {
         return value;
     }
 
-    throw new Error('Usage: deploy-worker.ts <production|beta>');
+    throw new Error('Usage: deploy-worker.ts <production>');
 };
 
 export const getWorkerDeployArguments = (
@@ -59,10 +59,7 @@ export const runWorkerDeploy = (target: WorkerDeployTarget) => {
         process.env[d1DatabaseIdEnvironmentNames[target]]
     );
 
-    const secretsFilePath = path.join(
-        projectRoot,
-        target === 'production' ? '.dev.vars.production' : '.dev.vars.beta'
-    );
+    const secretsFilePath = path.join(projectRoot, '.dev.vars.production');
 
     if (
         !fs.existsSync(secretsFilePath) ||

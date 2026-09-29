@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type D1DatabaseTarget = 'production' | 'beta' | 'preview';
+export type D1DatabaseTarget = 'production' | 'preview';
 
 const d1DatabaseIdPattern =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -9,13 +9,11 @@ const zeroDatabaseId = '00000000-0000-0000-0000-000000000000';
 
 export const d1DatabaseNames: Record<D1DatabaseTarget, string> = {
     production: 'princess-production',
-    beta: 'princess-beta',
     preview: 'princess-preview'
 };
 
 export const d1DatabaseIdEnvironmentNames: Record<D1DatabaseTarget, string> = {
     production: 'CLOUDFLARE_DATABASE_ID',
-    beta: 'CLOUDFLARE_BETA_DATABASE_ID',
     preview: 'CLOUDFLARE_PREVIEW_DATABASE_ID'
 };
 
@@ -47,8 +45,8 @@ const readDatabaseBindingRecord = (
     target: D1DatabaseTarget
 ) => {
     const environment = readRecord(
-        environments[target === 'preview' ? 'beta' : target],
-        `Wrangler ${target} environment`
+        environments.production,
+        'Wrangler production environment'
     );
     const databaseHolder =
         target === 'preview'
@@ -145,19 +143,6 @@ export const parseD1Target = (
         }
     }
 
-    if (target === 'preview') {
-        const betaBinding = readDatabaseBindingRecord(environments, 'beta');
-
-        if (
-            betaBinding.database_id === resolvedTarget.databaseId ||
-            betaBinding.database_name === resolvedTarget.databaseName
-        ) {
-            throw new Error(
-                'Wrangler preview DB binding must not share the beta database'
-            );
-        }
-    }
-
     return resolvedTarget;
 };
 
@@ -204,13 +189,6 @@ export const resolveProductionD1DatabaseId = (
     environmentDatabaseId?: string
 ) => {
     return resolveD1DatabaseId(configPath, 'production', environmentDatabaseId);
-};
-
-export const resolveBetaD1DatabaseId = (
-    configPath: string,
-    environmentDatabaseId?: string
-) => {
-    return resolveD1DatabaseId(configPath, 'beta', environmentDatabaseId);
 };
 
 export const resolvePreviewD1DatabaseId = (
