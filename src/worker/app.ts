@@ -1,6 +1,10 @@
 import { Hono } from 'hono';
 
 import type { WorkerBindings } from './env';
+import {
+    registerAdminRoutes,
+    type AdminRouteDependencies
+} from './routes/admin';
 import { registerHealthRoutes } from './routes/health';
 import {
     registerTelegramRoutes,
@@ -10,7 +14,8 @@ import {
 export type WorkerApp = Hono<{ Bindings: WorkerBindings }>;
 
 export const createApp = (
-    telegramDependencies: TelegramRouteDependencies = {}
+    telegramDependencies: TelegramRouteDependencies = {},
+    adminDependencies: AdminRouteDependencies = {}
 ) => {
     const app = new Hono<{ Bindings: WorkerBindings }>();
 
@@ -24,6 +29,12 @@ export const createApp = (
     });
 
     registerHealthRoutes(app, telegramDependencies);
+    registerAdminRoutes(app, {
+        ...(telegramDependencies.secretsMatch && {
+            secretsMatch: telegramDependencies.secretsMatch
+        }),
+        ...adminDependencies
+    });
     registerTelegramRoutes(app, telegramDependencies);
 
     return app;

@@ -57,6 +57,8 @@
         "releases:sync": "tsx scripts/releases/sync-release-manifest.ts",
         "changeset:add": "changeset",
         "changeset:status": "changeset status",
+        "releases:broadcast:beta": "tsx scripts/releases/trigger-broadcast.ts beta",
+        "releases:broadcast:stable": "tsx scripts/releases/trigger-broadcast.ts production",
         "changeset:validate": "tsx scripts/releases/validate-changesets.ts",
         "changeset:version": "pnpm run changeset:validate && changeset version && tsx scripts/releases/stamp-changelog.ts && pnpm run releases:sync && pnpm install --lockfile-only",
         "lint": "oxlint .",
