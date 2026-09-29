@@ -11,7 +11,7 @@ import {
 test('Worker deploy wrapper accepts only only the fixed production target', () => {
     assert.equal(parseWorkerDeployTarget('production'), 'production');
     assert.throws(() => {
-        parseWorkerDeployTarget('beta');
+        parseWorkerDeployTarget('preview');
     }, /Usage/);
     assert.throws(() => {
         parseWorkerDeployTarget('staging');
@@ -57,7 +57,7 @@ test('all package Worker deploy commands use the fail-closed wrapper', () => {
         packageJson.scripts['worker:deploy:prod'],
         'tsx scripts/cloudflare/deploy-worker.ts production'
     );
-    assert.equal(packageJson.scripts['worker:deploy:beta'], undefined);
+    assert.equal(packageJson.scripts['worker:deploy:preview'], undefined);
     assert.match(wrapperSource, /resolveD1DatabaseId/);
     assert.match(wrapperSource, /createWranglerChildEnvironment/);
     assert.match(wrapperSource, /loadD1Environment/);
@@ -72,7 +72,7 @@ test('main workflow only validates and never deploys', () => {
 
     assert.match(workflowSource, /pnpm run check/);
     assert.match(workflowSource, /wrangler deploy --env production --dry-run/);
-    assert.doesNotMatch(workflowSource, /--env beta/);
+    assert.doesNotMatch(workflowSource, /--env preview/);
     assert.doesNotMatch(workflowSource, /workflow_dispatch:/);
     assert.doesNotMatch(workflowSource, /^\s+deploy:/m);
     assert.doesNotMatch(workflowSource, /worker:deploy/);

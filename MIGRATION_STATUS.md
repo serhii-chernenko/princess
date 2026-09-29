@@ -24,21 +24,18 @@ pruned by the normal seven-day maintenance.
 
 Remaining follow-ups (none block traffic):
 
-1. Rotate the production and debug bot tokens if desired (they were shared in chat).
+1. Rotate the production and preview bot tokens if desired (they were shared in chat).
 2. Decide on Mongo Atlas retirement after the observation window.
 3. Enable scheduled cleanup only after reviewing the deletion set.
 4. Configure the GitHub `preview` environment secrets/variables for the copy workflow
-   (supersedes the retired `beta` environment).
+   (used by the manual production-to-preview copy).
 5. Investigate Cron Triggers: the schedules are registered (the dashboard shows
    `*/10 * * * *` with a next run) but Cloudflare has not invoked them; Workers
    Observability shows no `scheduled` events. Release announcements do not depend
    on the cron, but the daily ledger prune does.
 6. Add Cloudflare edge rate limiting for the webhook and `/health` paths.
-7. Delete the retired beta resources in Cloudflare and GitHub (see
-   [Beta retirement](#beta-retirement)).
-8. Set the Preview base-config secrets with the debug bot token and provision or
-   migrate `princess-preview` and its queue if not done (see
-   [Worker Previews](#worker-previews)).
+7. Keep the Preview base-config secrets (preview bot token) and the `princess-preview`
+   D1 and queue current (see [Worker Previews](#worker-previews)).
 
 Workers Paid is enabled (verified). The exact-parity design requires it: for a vote
 in a group of N members the Worker makes 1 actor `getChatMember`, N reconciliation
@@ -61,21 +58,20 @@ All times UTC, 2026-09-29.
   produced `princess-db` commit `d97cd8e7e072d6c13ab750238f4075f1da42de6c` at
   17:49:43Z, the pinned import source.
 - **D1.** `princess-production` `19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1` and
-  `princess-beta` `9c10aa80-4512-4967-b016-f7364e9c48d9`, created with the `cf` CLI
+  `princess-preview` `b9a13fb8-8745-4d33-a5a2-f067b7b35220`, created with the `cf` CLI
   (location hint `eeur`). Migrations were applied in `wrangler-login` mode; the first
   production attempt returned a transient D1 7403 and the rerun found all three
   migrations applied. Production was imported from the pinned SHA. Reconciliation
   matched Mongo exactly: 217 channels, 886 players, 939 memberships, score sum
   21192, 648 active, 920 auto, 44 channels with a vote, 0 foreign-key violations.
-  Beta was imported from the local backup and re-imported once after a beta `/reset`.
+  The preview D1 was imported from the local backup.
 - **Workers.** Production Worker renamed to `princess` (briefly `princess-stable`,
   deleted) on custom domain `princess.chernenko.dev` with the daily cron; cleanup
-  is still disabled. Beta `princess-beta` on `princess-beta.chernenko.dev`. Secrets
-  `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and `TELEGRAM_WEBHOOK_PATH` were set on
-  both via `cf workers secrets update`; local copies live in git-ignored
-  `.dev.vars.production` and `.dev.vars.beta`. `env/.env.d1` holds account and
+  is still disabled. Secrets `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and
+  `TELEGRAM_WEBHOOK_PATH` were set via `cf workers secrets update`; local copies live
+  in git-ignored `.dev.vars.production` and `.dev.vars.preview`. `env/.env.d1` holds account and
   database IDs plus `CLOUDFLARE_AUTH_MODE=wrangler-login` (no tokens).
-- **Webhooks.** Beta was set with `drop_pending_updates=true`. Production was set at
+- **Webhooks.** Production was set at
   17:52:44Z with `drop_pending_updates=false`, `max_connections=1`, and
   `allowed_updates` `message`.
 - **Incident.** Queued non-message updates from the polling era (legacy received
@@ -87,7 +83,7 @@ All times UTC, 2026-09-29.
   `princess` builds from `main` (build `pnpm run i18n:generate`, deploy
   `pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`,
   with build variables `WORKER_BASE_URL` and secret `TELEGRAM_WEBHOOK_SECRET`).
-  `princess-beta` builds from the `beta` branch. The build token is the account's
+  Workers Builds also creates a preview for every other branch. The build token is the account's
   generic "Workers Builds" token. The GitHub repo secrets/variables of the old VPS
   deploy were deleted; GitHub CI only validates.
 - **Go-live of 5.0.0.** Migration `20260929183002_mysterious_freak` was applied to
@@ -95,12 +91,9 @@ All times UTC, 2026-09-29.
   merged into `main` at 19:45:50Z as `24a17c6`, and the Workers Build deployed and
   enqueued 217 announcements. Delivery was resumed at 19:47:30Z and drained by
   19:51:38Z: 90 sent, 125 skipped with 400 (chat gone), 2 skipped with 403, 0
-  ambiguous, 0 failed. `feat/migration-to-v5` was deleted; a `beta` branch was
-  created from `main` (later retired, see [Beta retirement](#beta-retirement)).
-- **Beta retirement (later).** The beta environment recorded above (Worker
-  `princess-beta`, D1 `princess-beta`, its queues, the `beta` branch, and
-  `princess-beta.chernenko.dev`) was retired in favour of Worker Previews of the
-  production Worker; see [Beta retirement](#beta-retirement).
+  ambiguous, 0 failed. `feat/migration-to-v5` was deleted.
+- **Former beta retired.** On 2026-09-29 the former beta Worker, D1, queues, and
+  branch were retired in favour of previews and deleted.
 
 ### Finding: legacy winners were limited to resolvable members
 
@@ -117,8 +110,7 @@ treats `400 PARTICIPANT_ID_INVALID` as "not a member".
 
 - The rewrite was merged into `main` by PR #1 as merge commit `24a17c6`, keeping
   the per-phase history (including the WIP commit `be567a8`).
-- `main` deploys production. The former `beta` branch and Worker are retired; testing
-  uses Worker Previews.
+- `main` deploys production; testing uses Worker Previews.
 - The cutover itself is recorded in the [Cutover record](#cutover-record).
 
 ## Main Compared with the Rewrite
@@ -157,7 +149,7 @@ This proves the transformation against that snapshot only. The backup is stale
 and is **not valid cutover input**. Never add `princess-db/`, generated SQL, or
 backup reports to git.
 
-A fresh read-only GitHub-source smoke run resolved commit
+A fresh read-only GitHub-source test run resolved commit
 `4b9ebd56e45a52547258886866cfb943da03f620` and validated 223 channels, 979
 players, 1,045 scores, and 1,045 statuses, transforming them into 223 channels,
 979 players, and 1,045 memberships with no skipped records. This is evidence that
@@ -224,7 +216,7 @@ verification:
   English) notes. `CHANGELOG.md` remains the human history and
   `releases.generated.json` remains generated; it is not edited by hand.
 - **Legacy removal.** The legacy polling code (`bot/`), its Mongoose dependency,
-  its env loader, and its smoke tests are deleted; git history keeps them.
+  its env loader, and its tests are deleted; git history keeps them.
 
 The full `pnpm test` suite passes (221 tests, including the integration tests), with
 fresh generated Wrangler bindings and successful local and production
@@ -355,8 +347,7 @@ Worker Previews of the production Worker use their own D1 database,
 `princess-preview` (`b9a13fb8-8745-4d33-a5a2-f067b7b35220`), configured in
 `env.production.previews` in `wrangler.jsonc`. Its ID is
 `CLOUDFLARE_PREVIEW_DATABASE_ID` (`env/.env.d1` locally, the GitHub `preview`
-environment in CI). Migrate it with `pnpm db:migrate:preview`. The earlier beta
-Worker and D1 are retired (see [Beta retirement](#beta-retirement)).
+environment in CI). Migrate it with `pnpm db:migrate:preview`.
 
 `pnpm db:copy:production-to-preview --confirm-overwrite-preview`, or the manual
 workflow `.github/workflows/copy-production-to-preview.yml` (`main` only, `preview`
@@ -437,7 +428,7 @@ happened. Reuse it for any re-run.
    players, scores, and statuses from the current source, publish only the four
    required files to the private backup repository, and record its reviewed commit
    SHA, timestamps, hashes, and source counts. Do not reuse the May 9 backup or
-   treat the unfrozen GitHub smoke SHA as cutover input.
+   treat the unfrozen GitHub test SHA as cutover input.
 4. **Freeze the source.** Stop the legacy polling process and confirm that no
    Mongo-writing bot instance remains. Record the freeze time. Do not let polling
    and webhook runtimes write concurrently.
@@ -461,19 +452,19 @@ happened. Reuse it for any re-run.
    registration remain separate operator actions.
 10. **Check readiness.** Require a successful authenticated `/health` response with
     the webhook-secret header, configuration and D1 checks, inspect Workers Logs,
-    and run read-only smoke checks.
+    and run read-only checks.
 11. **Register the preview webhook deliberately.** Optionally refresh preview from
     production with `pnpm db:copy:production-to-preview --confirm-overwrite-preview`.
-    Set the debug bot webhook to a preview first with `--url`, and use
+    Set the preview bot webhook to a preview first with `--url`, and use
     `max_connections=1`. Decide whether pending updates are
     preserved or discarded: the helper requires
     `--drop-pending-updates=true|false` for production and preview (for example
     `pnpm telegram:webhook:set:preview -- --url <preview url> --drop-pending-updates=false`). Low
     concurrency complements the durable ledger but cannot make Telegram sends
     exactly once.
-12. **Validate in a preview only.** Use the debug bot with the preview D1. Verify
+12. **Validate in a preview only.** Use the preview bot (@princess_debug_bot) with the preview D1. Verify
     commands, one daily vote, duplicate delivery behavior, scores, membership
-    changes, errors, and logs. Never put the production and debug bots in the same group; the
+    changes, errors, and logs. Never put the production and preview bots in the same group; the
     databases are separate but the bots would still both answer.
 13. **Switch production and monitor.** Point the production bot at the production Worker, keep
     `max_connections=1` initially, pass the explicit production
@@ -492,34 +483,33 @@ Worker `princess`: `env.production.previews` in `wrangler.jsonc` and
 the separate `princess-preview` D1, the producer-only
 `princess-preview-release-announcements` queue, `BOT_ENVIRONMENT="preview"`, broadcast
 and cleanup off, and no crons, consumers, or routes. Secrets come from the Preview
-base config (the real debug bot token), and the debug bot's webhook is pointed at a
-preview URL with `pnpm telegram:webhook:set:preview -- --url <preview url>
+base config (the real preview bot token, @princess_debug_bot), and the preview bot's
+webhook is pointed at a preview URL with `pnpm telegram:webhook:set:preview -- --url <preview url>
 --drop-pending-updates=true|false`. See the README "Testing with Worker Previews"
 section.
+
+Infrastructure:
+
+- Worker `princess` (production) with Worker Previews; Workers Builds deploys `main`
+  and creates a preview per non-main branch, named after the branch.
+- D1: `princess-production` and `princess-preview`.
+- Queues: `princess-release-announcements` (+ `-dlq`) and
+  `princess-preview-release-announcements` (producer only).
+- The long-lived preview used by the preview bot is named `preview`
+  (https://preview-princess.chernenko.workers.dev); the preview bot webhook points
+  there. Redeploy it with `pnpm worker:preview -- --name preview`.
 
 Notes:
 
 - Previews never run cron triggers or queue consumers; only production owns them.
-- All previews share the single `princess-preview` D1 and the debug bot's single
+- All previews share the single `princess-preview` D1 and the preview bot's single
   webhook, so only one preview receives Telegram traffic at a time.
 - `preview_urls: true` also exposes production version URLs on `workers.dev`,
   protected only by the webhook secret gating.
 - Wrangler 4.143.1 cannot tail a preview; use Cloudflare dashboard observability.
 - Open investigation: the production `*/10` cron has not fired on Builds-deployed
-  versions, whereas the retired beta Worker's single-cron config fired at 19:50,
-  20:00, and 20:10. Production has two crons, `"0 0 * * *"` and `"*/10 * * * *"`.
+  versions. Production has two crons, `"0 0 * * *"` and `"*/10 * * * *"`.
   The cause is unknown.
-
-## Beta Retirement
-
-The beta environment (Worker `princess-beta`, D1 `princess-beta`, its queues, the
-`beta` branch, `princess-beta.chernenko.dev`, the GitHub `beta` environment,
-`.dev.vars.beta`, `CLOUDFLARE_BETA_DATABASE_ID`, the `*:beta` scripts, and
-`drizzle.beta.config.ts`) was retired in favour of Worker Previews. The repository
-no longer references it. Remaining owner cleanup, still open: delete Worker
-`princess-beta`, D1 `princess-beta`, queues `princess-beta-release-announcements` and
-its `-dlq`, the DNS/custom domain `princess-beta.chernenko.dev`, the `beta` branch,
-and its Workers Build.
 
 ## Rollback Rules
 

@@ -468,7 +468,7 @@ test('invalid job bodies are acknowledged and logged', async () => {
         {},
         { releaseVersion: '5.0', channelId: 1 },
         { releaseVersion: '05.0.0', channelId: 1 },
-        { releaseVersion: '5.0.0-beta', channelId: 1 },
+        { releaseVersion: '5.0.0-rc', channelId: 1 },
         { releaseVersion, channelId: 0 },
         { releaseVersion, channelId: -3 },
         { releaseVersion, channelId: 1.5 },

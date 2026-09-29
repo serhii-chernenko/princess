@@ -126,7 +126,7 @@ curl http://127.0.0.1:8787/health \
   -H "X-Telegram-Bot-Api-Secret-Token: ${TELEGRAM_WEBHOOK_SECRET}"
 ```
 
-Webhook smoke test:
+Webhook check:
 
 ```sh
 curl -X POST "http://127.0.0.1:8787${TELEGRAM_WEBHOOK_PATH}" \
@@ -389,10 +389,18 @@ data is kept as a backup source for re-importing with the Mongo to D1 tooling in
 ## Testing with Worker Previews
 
 All testing uses Worker Previews of the production Worker `princess`
-(Cloudflare open beta, Wrangler 4.143 or newer). `env.production.previews` in
+(Cloudflare Worker Previews, Wrangler 4.143 or newer). `env.production.previews` in
 `wrangler.jsonc` defines what a preview gets, and `env.production.preview_urls`
 enables the URLs (`workers_dev` stays `false`). A preview is created per name, by
 default from the git branch.
+
+Infrastructure: Worker `princess` with previews; D1 `princess-production` and
+`princess-preview`; queues `princess-release-announcements` (+ `-dlq`) and
+`princess-preview-release-announcements` (producer only). Workers Builds deploys `main`
+to production and creates a preview per non-main branch, named after the branch. The
+long-lived preview used by the preview bot (@princess_debug_bot) is named `preview`
+(https://preview-princess.chernenko.workers.dev), and its webhook points there.
+Redeploy it with `pnpm worker:preview -- --name preview`.
 
 What a preview gets:
 
@@ -414,7 +422,7 @@ Flow:
     pnpm run worker:preview -- --name <name>
     ```
 
-2. Set the base-config secrets once. `BOT_TOKEN` is the real debug bot token, so keep
+2. Set the base-config secrets once. `BOT_TOKEN` is the real preview bot token (@princess_debug_bot), so keep
    that bot out of production groups:
 
     ```sh
@@ -445,7 +453,7 @@ Flow:
     `CLOUDFLARE_PREVIEW_DATABASE_ID` variables. Locally, `CLOUDFLARE_PREVIEW_DATABASE_ID`
     lives in `env/.env.d1`.
 
-5. Point the debug bot webhook at the preview. Fill `.dev.vars.preview` from
+5. Point the preview bot webhook at the preview. Fill `.dev.vars.preview` from
    `.dev.vars.preview.example` (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
    `TELEGRAM_WEBHOOK_PATH`), then:
 
@@ -485,7 +493,7 @@ Limitations:
 - Previews never run cron triggers or queue consumers: the queue is producer-only and
   there is no release broadcast. Only production owns cron triggers and queue
   consumers.
-- All previews share the single `princess-preview` D1 and the debug bot's single
+- All previews share the single `princess-preview` D1 and the preview bot's single
   webhook, so only one preview can receive Telegram traffic at a time.
 - `preview_urls: true` also exposes production version URLs on `workers.dev`. They are
   protected only by the same secret gating (webhook secret header and path), so keep

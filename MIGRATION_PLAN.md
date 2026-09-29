@@ -26,7 +26,7 @@ observation window is in progress. See
 - Branch `feat/migration-to-v5` has checked-in baseline `be567a8`, a WIP commit
   ("chore: in progress", to be reworded or squashed before the PR) that records
   Phase 8 on top of Phase 7 (`076c2bd`).
-- The 2026-09-29 follow-up (review fixes, D1 integration tests, beta isolation,
+- The 2026-09-29 follow-up (review fixes, D1 integration tests, preview isolation,
   webhook helper changes) is an uncommitted worktree on top of `be567a8`.
 - The primary repository runtime is Cloudflare Workers + Hono + Telegraf webhooks,
   with Drizzle + D1, strict TypeScript, typed i18n, and Changesets.
@@ -36,12 +36,10 @@ observation window is in progress. See
 - The exact-parity vote path needs Workers Paid (chosen by the owner): for the
   55-member maximum group it makes 56 Telegram subrequests before replies, 58 in
   total, above the Free plan's 50.
-- Beta will use its own D1 database (`princess-beta`), refreshed from production
+- Previews use their own D1 database (`princess-preview`), refreshed from production
   by an explicit copy command.
-- Note 2026-09-29: the beta environment was later retired in favour of Worker
-  Previews of the production Worker (own D1 `princess-preview`); the beta
-  references below are historical. See
-  [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#beta-retirement).
+- Note 2026-09-29: previews are Worker Previews of the production Worker `princess`.
+  See [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#worker-previews).
 
 The daily product behavior remains message-triggered and rate-limited to once per
 24 hours; the cron trigger is for maintenance, not selection.
@@ -182,7 +180,7 @@ Scope:
 
 - Add a lockfile.
 - Define supported Node version and local/dev scripts.
-- Add minimal smoke checks or tests around core behavior.
+- Add minimal checks or tests around core behavior.
 - Install and configure TypeScript in strict mode.
 - Migrate from legacy `.eslintrc.js` toward Oxlint using the official migration path.
 - Replace Prettier formatting with Oxfmt.
@@ -201,7 +199,7 @@ Notes:
     2. Added `package-lock.json` and switched Docker builds to `npm ci`
     3. Replaced ESLint/Prettier with `oxlint` and `oxfmt`
     4. Added strict `tsconfig.json` scaffolding
-    5. Added smoke tests and a top-level `npm run check` validation pipeline
+    5. Added config tests and a top-level `npm run check` validation pipeline
     6. Pinned Docker images away from `node:latest`
 
 Exit criteria:
@@ -410,7 +408,7 @@ Phase 5 implementation result:
     - `start`
     - kept `legacy:dev` and `legacy:start` as fallback aliases (removed after the cutover)
 8. Removed `MONGODB_URI` from the active Worker env examples
-9. Switched tests to `tsx --test` and added TypeScript runtime smoke coverage
+9. Switched tests to `tsx --test` and added TypeScript runtime coverage
 
 Verification notes:
 
@@ -485,8 +483,8 @@ Phase 6 intentional deferrals:
 
 ### Phase 7: Deployment Migration
 
-Status: complete; production cutover done 2026-09-29 (production and beta are deployed by
-Cloudflare Workers Builds)
+Status: complete; production cutover done 2026-09-29 (production is deployed by
+Cloudflare Workers Builds, other branches get previews)
 
 Goals:
 
@@ -510,21 +508,17 @@ Phase 7 repository implementation result:
 
 1. Replaced the GitHub Actions VPS/Ansible deploy workflow with a Cloudflare Worker deploy workflow in `.github/workflows/main.yml`
 2. Simplified deploy back to direct Wrangler commands with `--secrets-file`
-3. Added two production Workers in `wrangler.jsonc`:
-    - production Worker: `princess`
-    - beta Worker: `princess-beta`
-4. Attached distinct production custom domains:
-    - production: `princess.chernenko.dev`
-    - beta: `princess-beta.chernenko.dev`
-5. Kept production and beta on the same D1 binding (superseded 2026-09-29 by a
-   separate beta D1)
+3. Added the production Worker `princess` in `wrangler.jsonc`, with Worker Previews
+   (`env.production.previews`) for testing
+4. Attached the production custom domain `princess.chernenko.dev`
+5. Gave previews their own D1 database, `princess-preview`
 6. Kept the cron trigger only on production:
     - `0 0 * * *`
 7. Added local tunnel-aware dev orchestration in `scripts/cloudflare/dev-with-tunnel.ts`
-8. Added local, production, and beta webhook helpers in `scripts/telegram/webhook.ts`
+8. Added local, production, and preview webhook helpers in `scripts/telegram/webhook.ts`
 9. Added direct ops scripts for:
     - production deploy/tail/webhook
-    - beta deploy/tail/webhook
+    - preview deploy/webhook
     - local webhook registration and deletion
 10. Switched local public webhook guidance to a stable Cloudflare Tunnel hostname:
     - `princess-dev.chernenko.dev`
@@ -585,7 +579,7 @@ Phase 8 implementation:
 6. Updated operator docs for:
     - production workflow behavior
     - release artifact ownership
-    - beta safety (later replaced by a separate beta D1)
+    - preview safety (separate preview D1)
 7. Added a durable Telegram update ledger with:
     - a unique bot-specific key plus `update_id`
     - atomic claim and terminalized-duplicate acknowledgement
@@ -596,18 +590,18 @@ Phase 8 implementation:
       processing rows after 24 hours
 8. Hardened the Worker boundary with a 1 MiB authenticated body cap, message-update
    validation, authenticated D1 readiness, service-level cleanup authorization,
-   and custom-domain-only production/beta Workers.
+   and a custom-domain-only production Worker.
 
 Verification notes:
 
 - The complete suite reports 122 passing tests, including Workers-runtime D1
   integration tests.
-- Generated-binding verification and local/production/beta deployment dry-runs pass;
+- Generated-binding verification and local/production deployment dry-runs pass;
   rerun these gates after further code or configuration changes.
 
 Important readiness note:
 
-- Superseded 2026-09-29: beta gets a separate D1 (`princess-beta`) filled by `pnpm db:copy:production-to-beta`. Until it is provisioned, beta must not be deployed against production. Beta still uses a separate bot token, webhook path, and domain.
+- Previews use a separate D1 (`princess-preview`) filled by `pnpm db:copy:production-to-preview`, and never run against the production database. The preview bot uses a separate bot token and webhook path.
 
 ## Risks and Watchpoints
 
@@ -739,8 +733,7 @@ For this bot, the practical setup is now:
 
 Post-cutover, in this order:
 
-1. Review and commit the worktree, merge to `main`, and switch the `princess-beta`
-   Workers Build branch to `main` (obsolete: the beta environment was retired).
+1. Review and commit the worktree and merge to `main`.
 2. Observe production; keep MongoDB Atlas untouched as a backup source.
 3. Review the deletion set before enabling scheduled cleanup.
 4. Decide on Mongo Atlas retirement (legacy code is already removed) after the observation
