@@ -1,10 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export type D1DatabaseTarget = 'production' | 'beta';
+
 const d1DatabaseIdPattern =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const zeroDatabaseId = '00000000-0000-0000-0000-000000000000';
-const productionDatabaseName = 'princess-production';
+
+export const d1DatabaseNames: Record<D1DatabaseTarget, string> = {
+    production: 'princess-production',
+    beta: 'princess-beta'
+};
+
+export const d1DatabaseIdEnvironmentNames: Record<D1DatabaseTarget, string> = {
+    production: 'CLOUDFLARE_DATABASE_ID',
+    beta: 'CLOUDFLARE_BETA_DATABASE_ID'
+};
 
 const readRecord = (value: unknown, location: string) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -14,10 +25,7 @@ const readRecord = (value: unknown, location: string) => {
     return value as Record<string, unknown>;
 };
 
-export const validateProductionD1DatabaseId = (
-    value: unknown,
-    location: string
-) => {
+export const validateD1DatabaseId = (value: unknown, location: string) => {
     if (
         typeof value !== 'string' ||
         value.startsWith('REPLACE_WITH_') ||
@@ -32,19 +40,19 @@ export const validateProductionD1DatabaseId = (
     return value;
 };
 
-const readDatabaseBinding = (
+const readDatabaseBindingRecord = (
     environments: Record<string, unknown>,
-    environmentName: 'production' | 'beta'
+    target: D1DatabaseTarget
 ) => {
     const environment = readRecord(
-        environments[environmentName],
-        `Wrangler ${environmentName} environment`
+        environments[target],
+        `Wrangler ${target} environment`
     );
     const databases = environment.d1_databases;
 
     if (!Array.isArray(databases)) {
         throw new Error(
-            `Wrangler ${environmentName} environment d1_databases must be an array`
+            `Wrangler ${target} environment d1_databases must be an array`
         );
     }
 
@@ -60,88 +68,125 @@ const readDatabaseBinding = (
 
     if (databaseBindings.length !== 1) {
         throw new Error(
-            `Wrangler ${environmentName} environment must define exactly one DB binding`
+            `Wrangler ${target} environment must define exactly one DB binding`
         );
     }
 
-    const databaseBinding = readRecord(
-        databaseBindings[0],
-        `Wrangler ${environmentName} DB binding`
-    );
-    const databaseId = validateProductionD1DatabaseId(
+    return readRecord(databaseBindings[0], `Wrangler ${target} DB binding`);
+};
+
+const readDatabaseBinding = (
+    environments: Record<string, unknown>,
+    target: D1DatabaseTarget
+) => {
+    const databaseBinding = readDatabaseBindingRecord(environments, target);
+    const databaseId = validateD1DatabaseId(
         databaseBinding.database_id,
-        `Wrangler ${environmentName} DB database_id`
+        `Wrangler ${target} DB database_id`
     );
 
-    if (databaseBinding.database_name !== productionDatabaseName) {
+    if (databaseBinding.database_name !== d1DatabaseNames[target]) {
         throw new Error(
-            `Wrangler ${environmentName} DB database_name must be ${productionDatabaseName}`
+            `Wrangler ${target} DB database_name must be ${d1DatabaseNames[target]}`
         );
     }
 
     return {
         databaseId,
-        databaseName: productionDatabaseName
+        databaseName: d1DatabaseNames[target]
     };
 };
 
-export const parseProductionD1Target = (configSource: string) => {
+const parseWranglerEnvironments = (configSource: string) => {
     let parsed: unknown;
 
     try {
         parsed = JSON.parse(configSource) as unknown;
     } catch (error) {
         throw new Error(
-            `wrangler.jsonc must remain strict JSON for production D1 target validation: ${String(error)}`
+            `wrangler.jsonc must remain strict JSON for D1 target validation: ${String(error)}`
         );
     }
 
     const config = readRecord(parsed, 'Wrangler config');
-    const environments = readRecord(config.env, 'Wrangler config env');
-    const productionTarget = readDatabaseBinding(environments, 'production');
-    const betaTarget = readDatabaseBinding(environments, 'beta');
 
-    if (
-        betaTarget.databaseId !== productionTarget.databaseId ||
-        betaTarget.databaseName !== productionTarget.databaseName
-    ) {
+    return readRecord(config.env, 'Wrangler config env');
+};
+
+export const parseD1Target = (
+    configSource: string,
+    target: D1DatabaseTarget
+) => {
+    const environments = parseWranglerEnvironments(configSource);
+    const resolvedTarget = readDatabaseBinding(environments, target);
+
+    if (target === 'beta') {
+        const productionBinding = readDatabaseBindingRecord(
+            environments,
+            'production'
+        );
+
+        if (
+            productionBinding.database_id === resolvedTarget.databaseId ||
+            productionBinding.database_name === resolvedTarget.databaseName
+        ) {
+            throw new Error(
+                'Wrangler beta DB binding must not share the production database'
+            );
+        }
+    }
+
+    return resolvedTarget;
+};
+
+export const parseD1DatabaseId = (
+    configSource: string,
+    target: D1DatabaseTarget
+) => {
+    return parseD1Target(configSource, target).databaseId;
+};
+
+export const resolveD1DatabaseId = (
+    configPath: string,
+    target: D1DatabaseTarget,
+    environmentDatabaseId?: string
+) => {
+    const environmentName = d1DatabaseIdEnvironmentNames[target];
+    const configDatabaseId = parseD1DatabaseId(
+        fs.readFileSync(path.resolve(configPath), 'utf8'),
+        target
+    );
+
+    if (environmentDatabaseId === undefined) {
         throw new Error(
-            'Wrangler beta DB binding must match the shared production DB binding'
+            `${environmentName} confirmation is required for destructive ${target} D1 operations`
         );
     }
 
-    return productionTarget;
-};
+    const validatedEnvironmentDatabaseId = validateD1DatabaseId(
+        environmentDatabaseId,
+        environmentName
+    );
 
-export const parseProductionD1DatabaseId = (configSource: string) => {
-    return parseProductionD1Target(configSource).databaseId;
+    if (validatedEnvironmentDatabaseId !== configDatabaseId) {
+        throw new Error(
+            `${environmentName} does not match the ${target} DB binding in wrangler.jsonc`
+        );
+    }
+
+    return configDatabaseId;
 };
 
 export const resolveProductionD1DatabaseId = (
     configPath: string,
     environmentDatabaseId?: string
 ) => {
-    const resolvedConfigPath = path.resolve(configPath);
-    const configDatabaseId = parseProductionD1DatabaseId(
-        fs.readFileSync(resolvedConfigPath, 'utf8')
-    );
+    return resolveD1DatabaseId(configPath, 'production', environmentDatabaseId);
+};
 
-    if (environmentDatabaseId === undefined) {
-        throw new Error(
-            'CLOUDFLARE_DATABASE_ID confirmation is required for destructive production D1 operations'
-        );
-    }
-
-    const validatedEnvironmentDatabaseId = validateProductionD1DatabaseId(
-        environmentDatabaseId,
-        'CLOUDFLARE_DATABASE_ID'
-    );
-
-    if (validatedEnvironmentDatabaseId !== configDatabaseId) {
-        throw new Error(
-            'CLOUDFLARE_DATABASE_ID does not match the production DB binding in wrangler.jsonc'
-        );
-    }
-
-    return configDatabaseId;
+export const resolveBetaD1DatabaseId = (
+    configPath: string,
+    environmentDatabaseId?: string
+) => {
+    return resolveD1DatabaseId(configPath, 'beta', environmentDatabaseId);
 };

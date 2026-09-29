@@ -70,6 +70,60 @@ const parseTarget = (value: string | undefined): EnvTarget => {
     throw new Error('Webhook target must be one of: local, production, beta');
 };
 
+const dropPendingUpdatesFlagPrefix = '--drop-pending-updates=';
+
+export const parseDropPendingUpdates = (
+    action: WebhookAction,
+    target: EnvTarget,
+    flags: string[]
+) => {
+    if (action === 'info') {
+        if (flags.length > 0) {
+            throw new Error('Webhook info does not accept flags');
+        }
+
+        return undefined;
+    }
+
+    const [flag, ...extraFlags] = flags;
+
+    if (extraFlags.length > 0) {
+        throw new Error('Only --drop-pending-updates=true|false is supported');
+    }
+
+    if (flag === undefined) {
+        if (target === 'local') {
+            return undefined;
+        }
+
+        throw new Error(
+            `Webhook ${action} for ${target} requires an explicit --drop-pending-updates=true|false`
+        );
+    }
+
+    const value = flag.startsWith(dropPendingUpdatesFlagPrefix)
+        ? flag.slice(dropPendingUpdatesFlagPrefix.length)
+        : undefined;
+
+    if (value !== 'true' && value !== 'false') {
+        throw new Error('Use --drop-pending-updates=true or =false');
+    }
+
+    return value === 'true';
+};
+
+export const createDropPendingUpdatesParameters = (
+    dropPendingUpdates: boolean | undefined
+) => {
+    const parameters = new URLSearchParams();
+
+    if (dropPendingUpdates !== undefined) {
+        parameters.set('drop_pending_updates', String(dropPendingUpdates));
+    }
+
+    return parameters;
+};
+
 const readBoundedResponseText = async (response: Response) => {
     const declaredLengthValue = response.headers.get('content-length');
 
@@ -107,11 +161,7 @@ const readBoundedResponseText = async (response: Response) => {
             byteLength += value.byteLength;
 
             if (byteLength > TELEGRAM_API_MAX_RESPONSE_BYTES) {
-                try {
-                    await reader.cancel();
-                } catch {
-                    // The bounded-response decision remains final.
-                }
+                await reader.cancel().catch(() => undefined);
 
                 throw new Error(
                     'Telegram API response exceeded the size limit'
@@ -304,6 +354,11 @@ export const formatTelegramWebhookInfo = (
 const run = async () => {
     const action = parseAction(process.argv[2]);
     const target = parseTarget(process.argv[3]);
+    const dropPendingUpdates = parseDropPendingUpdates(
+        action,
+        target,
+        process.argv.slice(4)
+    );
 
     loadOptionalEnvFile(target);
 
@@ -316,21 +371,21 @@ const run = async () => {
     }
 
     if (action === 'delete') {
-        await callTelegramApi('deleteWebhook', new URLSearchParams());
+        await callTelegramApi(
+            'deleteWebhook',
+            createDropPendingUpdatesParameters(dropPendingUpdates)
+        );
         return;
     }
 
     const webhookUrl = createWebhookUrl();
     const secretToken = requireEnv('TELEGRAM_WEBHOOK_SECRET');
-    const params = new URLSearchParams({
-        allowed_updates: JSON.stringify(['message']),
-        max_connections: '1',
-        url: webhookUrl,
-        secret_token: secretToken
-    });
+    const params = createDropPendingUpdatesParameters(dropPendingUpdates);
 
-    // Intentionally omit drop_pending_updates: cutover operators must decide
-    // whether Telegram should preserve or discard the existing update queue.
+    params.set('allowed_updates', JSON.stringify(['message']));
+    params.set('max_connections', '1');
+    params.set('url', webhookUrl);
+    params.set('secret_token', secretToken);
 
     await callTelegramApi('setWebhook', params);
 };

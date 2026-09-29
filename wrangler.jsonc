@@ -4,7 +4,7 @@
     "main": "src/worker/index.ts",
     "compatibility_date": "2026-05-09",
     "compatibility_flags": ["nodejs_compat"],
-    "workers_dev": true,
+    "workers_dev": false,
     "observability": {
         "enabled": true,
         "logs": {
@@ -115,9 +115,9 @@
             "d1_databases": [
                 {
                     "binding": "DB",
-                    "database_name": "princess-production",
-                    "database_id": "REPLACE_WITH_PRODUCTION_DATABASE_ID",
-                    "preview_database_id": "REPLACE_WITH_PRODUCTION_PREVIEW_DATABASE_ID",
+                    "database_name": "princess-beta",
+                    "database_id": "REPLACE_WITH_BETA_DATABASE_ID",
+                    "preview_database_id": "REPLACE_WITH_BETA_PREVIEW_DATABASE_ID",
                     "migrations_dir": "drizzle"
                 }
             ]

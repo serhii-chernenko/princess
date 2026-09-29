@@ -3,9 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createWranglerChildEnvironment } from './d1-child-environment';
-import { resolveProductionD1DatabaseId } from './production-d1-target';
+import {
+    d1DatabaseIdEnvironmentNames,
+    resolveD1DatabaseId,
+    type D1DatabaseTarget
+} from './production-d1-target';
 
 export type ImportTarget = 'local' | 'production';
+export type D1ExecuteTarget = 'local' | D1DatabaseTarget;
 
 export interface ApplicationTableCounts {
     channels: number;
@@ -102,7 +107,7 @@ export const assertApplicationTablesEmpty = (
 };
 
 export const getD1ExecuteArguments = (
-    target: ImportTarget,
+    target: D1ExecuteTarget,
     configPath: string,
     operation: { command: string } | { file: string }
 ) => {
@@ -116,10 +121,10 @@ export const getD1ExecuteArguments = (
         configPath
     ];
 
-    if (target === 'production') {
-        arguments_.push('--env', 'production', '--remote');
-    } else {
+    if (target === 'local') {
         arguments_.push('--local');
+    } else {
+        arguments_.push('--env', target, '--remote');
     }
 
     if ('command' in operation) {
@@ -140,12 +145,19 @@ const projectRoot = path.resolve(
 const wranglerConfigPath = path.join(projectRoot, 'wrangler.jsonc');
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
-export const assertProductionD1Target = () => {
-    return resolveProductionD1DatabaseId(
+export const assertRemoteD1Target = (target: D1DatabaseTarget) => {
+    return resolveD1DatabaseId(
         wranglerConfigPath,
-        process.env.CLOUDFLARE_DATABASE_ID
+        target,
+        process.env[d1DatabaseIdEnvironmentNames[target]]
     );
 };
+
+export const assertProductionD1Target = () => {
+    return assertRemoteD1Target('production');
+};
+
+export const getWranglerConfigPath = () => wranglerConfigPath;
 
 export const readApplicationTableCounts = (
     target: ImportTarget

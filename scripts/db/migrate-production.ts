@@ -7,7 +7,11 @@ import {
     loadD1Environment
 } from './d1-child-environment';
 import { getProjectRoot } from './d1-import-target';
-import { resolveProductionD1DatabaseId } from './production-d1-target';
+import {
+    d1DatabaseIdEnvironmentNames,
+    resolveD1DatabaseId,
+    type D1DatabaseTarget
+} from './production-d1-target';
 
 const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
@@ -21,19 +25,20 @@ export const getProductionMigrationArguments = (configPath: string) => {
     ];
 };
 
-export const runProductionMigration = () => {
+export const runRemoteMigration = (target: D1DatabaseTarget) => {
     const projectRoot = getProjectRoot();
 
     loadD1Environment(projectRoot);
 
     const wranglerConfigPath = path.join(projectRoot, 'wrangler.jsonc');
-    const productionDatabaseId = resolveProductionD1DatabaseId(
+    const databaseId = resolveD1DatabaseId(
         wranglerConfigPath,
-        process.env.CLOUDFLARE_DATABASE_ID
+        target,
+        process.env[d1DatabaseIdEnvironmentNames[target]]
     );
     const drizzleConfigPath = path.join(
         projectRoot,
-        'drizzle.production.config.ts'
+        `drizzle.${target}.config.ts`
     );
     const result = spawnSync(
         pnpmExecutable,
@@ -42,7 +47,8 @@ export const runProductionMigration = () => {
             cwd: projectRoot,
             env: createDrizzleChildEnvironment(
                 process.env,
-                productionDatabaseId
+                databaseId,
+                target
             ) as unknown as NodeJS.ProcessEnv,
             stdio: 'inherit'
         }
@@ -54,9 +60,13 @@ export const runProductionMigration = () => {
 
     if (result.status !== 0) {
         throw new Error(
-            `Production Drizzle migration exited with status ${result.status}`
+            `${target} Drizzle migration exited with status ${result.status}`
         );
     }
+};
+
+export const runProductionMigration = () => {
+    runRemoteMigration('production');
 };
 
 const scriptPath = process.argv[1];

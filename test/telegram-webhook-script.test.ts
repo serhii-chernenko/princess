@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
     callTelegramApi,
+    createDropPendingUpdatesParameters,
+    parseDropPendingUpdates,
     formatTelegramWebhookInfo,
     TELEGRAM_API_MAX_RESPONSE_BYTES
 } from '../scripts/telegram/webhook';
@@ -254,5 +256,54 @@ test('Telegram helper aborts requests that exceed its timeout', async () => {
             timeoutMilliseconds: 5
         }),
         /timed out after 5ms/
+    );
+});
+
+test('webhook set and delete require an explicit pending-update decision on remote targets', () => {
+    for (const target of ['production', 'beta'] as const) {
+        for (const action of ['set', 'delete'] as const) {
+            assert.throws(() => {
+                parseDropPendingUpdates(action, target, []);
+            }, /requires an explicit --drop-pending-updates=true\|false/);
+        }
+    }
+
+    assert.equal(
+        parseDropPendingUpdates('set', 'production', [
+            '--drop-pending-updates=true'
+        ]),
+        true
+    );
+    assert.equal(
+        parseDropPendingUpdates('delete', 'beta', [
+            '--drop-pending-updates=false'
+        ]),
+        false
+    );
+    assert.throws(() => {
+        parseDropPendingUpdates('set', 'beta', ['--drop-pending-updates=yes']);
+    }, /Use --drop-pending-updates=true or =false/);
+    assert.throws(() => {
+        parseDropPendingUpdates('info', 'beta', [
+            '--drop-pending-updates=true'
+        ]);
+    }, /does not accept flags/);
+});
+
+test('local webhook commands may omit the pending-update flag', () => {
+    assert.equal(parseDropPendingUpdates('set', 'local', []), undefined);
+    assert.equal(
+        createDropPendingUpdatesParameters(undefined).has(
+            'drop_pending_updates'
+        ),
+        false
+    );
+    assert.equal(
+        createDropPendingUpdatesParameters(true).get('drop_pending_updates'),
+        'true'
+    );
+    assert.equal(
+        createDropPendingUpdatesParameters(false).get('drop_pending_updates'),
+        'false'
     );
 });

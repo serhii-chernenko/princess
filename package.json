@@ -22,6 +22,8 @@
         "db:import:production": "tsx scripts/db/run-mongo-import.ts production",
         "db:migrate:local": "tsx scripts/db/migrate-local.ts",
         "db:migrate:production": "tsx scripts/db/migrate-production.ts",
+        "db:migrate:beta": "tsx scripts/db/migrate-beta.ts",
+        "db:copy:production-to-beta": "tsx scripts/db/copy-production-to-beta.ts",
         "db:query:local": "wrangler d1 execute DB --local",
         "db:query:production": "pnpm exec wrangler d1 execute DB --remote --env production",
         "db:query:beta": "pnpm exec wrangler d1 execute DB --remote --env beta",
@@ -62,7 +64,7 @@
         "format:check": "oxfmt --check .",
         "typecheck": "pnpm run i18n:generate && tsgo -p tsconfig.json --noEmit",
         "typecheck:legacy": "tsc --noEmit",
-        "test": "tsx --test test/**/*.test.ts test/**/*.test.cjs",
+        "test": "tsx --test \"test/**/*.test.ts\" \"test/**/*.test.cjs\"",
         "check": "pnpm run changeset:validate && pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run releases:sync && pnpm test",
         "typesafe-i18n": "typesafe-i18n --no-watch"
     },

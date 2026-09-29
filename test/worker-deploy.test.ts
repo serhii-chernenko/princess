@@ -78,7 +78,7 @@ test('all package Worker deploy commands use the fail-closed wrapper', () => {
         packageJson.scripts['worker:deploy:beta'],
         'tsx scripts/cloudflare/deploy-worker.ts beta'
     );
-    assert.match(wrapperSource, /resolveProductionD1DatabaseId/);
+    assert.match(wrapperSource, /resolveD1DatabaseId/);
     assert.match(wrapperSource, /createWranglerChildEnvironment/);
     assert.match(wrapperSource, /loadD1Environment/);
     assert.doesNotMatch(wrapperSource, /\.\.\.process\.env/);
@@ -95,4 +95,32 @@ test('stable deploy workflow supplies the protected database confirmation', () =
         /CLOUDFLARE_DATABASE_ID: \$\{\{ vars\.CLOUDFLARE_DATABASE_ID \}\}/
     );
     assert.match(workflowSource, /pnpm run worker:deploy:stable/);
+    assert.match(
+        workflowSource,
+        /TELEGRAM_WEBHOOK_PATH: \$\{\{ secrets\.TELEGRAM_WEBHOOK_PATH \}\}/
+    );
+    assert.doesNotMatch(workflowSource, /\brg\b/);
+});
+
+test('copy workflow is manual, main-only, protected, and confirmed', () => {
+    const workflowSource = fs.readFileSync(
+        path.resolve(
+            process.cwd(),
+            '.github/workflows/copy-production-to-beta.yml'
+        ),
+        'utf8'
+    );
+
+    assert.match(workflowSource, /workflow_dispatch:/);
+    assert.doesNotMatch(workflowSource, /^\s+(push|pull_request):/m);
+    assert.match(workflowSource, /github\.ref == 'refs\/heads\/main'/);
+    assert.match(workflowSource, /inputs\.confirmation == 'OVERWRITE BETA'/);
+    assert.match(workflowSource, /environment: beta/);
+    assert.match(workflowSource, /permissions:\s+contents: read/);
+    assert.match(workflowSource, /concurrency:/);
+    assert.match(workflowSource, /--confirm-overwrite-beta/);
+    assert.doesNotMatch(
+        workflowSource,
+        /^\s+run:.*\$\{\{\s*(?:secrets|vars)\./m
+    );
 });

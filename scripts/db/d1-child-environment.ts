@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 
+import {
+    d1DatabaseIdEnvironmentNames,
+    type D1DatabaseTarget
+} from './production-d1-target';
+
 const processEssentialKeys = new Set([
     'APPDATA',
     'COMSPEC',
@@ -69,7 +74,8 @@ export const loadD1Environment = (projectRoot: string) => {
 
 export const createDrizzleChildEnvironment = (
     source: EnvironmentSource,
-    productionDatabaseId: string
+    databaseId: string,
+    target: D1DatabaseTarget = 'production'
 ): ChildProcessEnvironment => {
     return {
         ...createProcessEssentials(source),
@@ -78,18 +84,22 @@ export const createDrizzleChildEnvironment = (
             'CLOUDFLARE_ACCOUNT_ID',
             value => cloudflareAccountIdPattern.test(value)
         ),
-        CLOUDFLARE_DATABASE_ID: productionDatabaseId,
+        [d1DatabaseIdEnvironmentNames[target]]: databaseId,
         CLOUDFLARE_D1_TOKEN: requireCredential(source, 'CLOUDFLARE_D1_TOKEN')
     } satisfies ChildProcessEnvironment;
 };
 
 export const createWranglerChildEnvironment = (
     source: EnvironmentSource,
-    target: 'local' | 'production'
+    target: 'local' | D1DatabaseTarget,
+    additionalEnvironment: ChildProcessEnvironment = {}
 ): ChildProcessEnvironment => {
-    const environment = createProcessEssentials(source);
+    const environment = {
+        ...createProcessEssentials(source),
+        ...additionalEnvironment
+    };
 
-    if (target === 'production') {
+    if (target !== 'local') {
         environment.CLOUDFLARE_ACCOUNT_ID = requireCredential(
             source,
             'CLOUDFLARE_ACCOUNT_ID',

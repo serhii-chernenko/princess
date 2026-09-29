@@ -7,7 +7,10 @@ import {
     createWranglerChildEnvironment,
     loadD1Environment
 } from '../db/d1-child-environment';
-import { resolveProductionD1DatabaseId } from '../db/production-d1-target';
+import {
+    d1DatabaseIdEnvironmentNames,
+    resolveD1DatabaseId
+} from '../db/production-d1-target';
 
 export type WorkerDeployTarget = 'production' | 'beta';
 
@@ -50,9 +53,10 @@ export const runWorkerDeploy = (target: WorkerDeployTarget) => {
 
     const wranglerConfigPath = path.join(projectRoot, 'wrangler.jsonc');
 
-    resolveProductionD1DatabaseId(
+    resolveD1DatabaseId(
         wranglerConfigPath,
-        process.env.CLOUDFLARE_DATABASE_ID
+        target,
+        process.env[d1DatabaseIdEnvironmentNames[target]]
     );
 
     const secretsFilePath = path.join(
@@ -74,7 +78,7 @@ export const runWorkerDeploy = (target: WorkerDeployTarget) => {
             cwd: projectRoot,
             env: createWranglerChildEnvironment(
                 process.env,
-                'production'
+                target
             ) as unknown as NodeJS.ProcessEnv,
             stdio: 'inherit'
         }

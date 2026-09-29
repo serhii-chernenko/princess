@@ -4,6 +4,7 @@
 !/.github
 !/.github/workflows
 !/.github/workflows/main.yml
+!/.github/workflows/copy-production-to-beta.yml
 !.dev.vars.example
 !.dev.vars.production.example
 !.dev.vars.beta.example
@@ -14,6 +15,7 @@
 !releases.generated.json
 !drizzle.config.ts
 !drizzle.production.config.ts
+!drizzle.beta.config.ts
 !/drizzle
 !/drizzle/*
 !/drizzle/*/migration.sql
@@ -93,6 +95,8 @@
 !/test
 !/test/*.cjs
 !/test/*.ts
+!/test/integration
+!/test/integration/*.ts
 !/types
 !/types/*.d.ts
 !/tools

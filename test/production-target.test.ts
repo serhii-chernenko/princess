@@ -12,13 +12,16 @@ import { getD1ExecuteArguments } from '../scripts/db/d1-import-target';
 import { getProductionMigrationArguments } from '../scripts/db/migrate-production';
 import { prepareMongoImport } from '../scripts/db/mongo-import';
 import {
-    parseProductionD1DatabaseId,
+    parseD1DatabaseId,
+    resolveBetaD1DatabaseId,
     resolveProductionD1DatabaseId
 } from '../scripts/db/production-d1-target';
 import { resolveMongoBackupRepository } from '../scripts/db/run-mongo-import';
 
 const productionDatabaseId = '12345678-1234-1234-1234-1234567890ab';
 const otherDatabaseId = '87654321-4321-4321-4321-ba0987654321';
+
+const betaDatabaseId = 'abcdef12-1234-1234-1234-1234567890ab';
 
 const createWranglerConfig = (
     databaseId: string,
@@ -49,8 +52,8 @@ const createWranglerConfig = (
             beta: {
                 d1_databases: [
                     createBinding(
-                        options.betaDatabaseId ?? databaseId,
-                        options.betaDatabaseName ?? 'princess-production'
+                        options.betaDatabaseId ?? betaDatabaseId,
+                        options.betaDatabaseName ?? 'princess-beta'
                     )
                 ]
             }
@@ -58,26 +61,39 @@ const createWranglerConfig = (
     });
 };
 
-test('production D1 target parser accepts one real production DB binding', () => {
-    assert.equal(
-        parseProductionD1DatabaseId(createWranglerConfig(productionDatabaseId)),
-        productionDatabaseId
-    );
+test('D1 target parser resolves each environment to its own binding', () => {
+    const config = createWranglerConfig(productionDatabaseId);
+
+    assert.equal(parseD1DatabaseId(config, 'production'), productionDatabaseId);
+    assert.equal(parseD1DatabaseId(config, 'beta'), betaDatabaseId);
 });
 
-test('production D1 target parser rejects placeholders, zero IDs, and ambiguity', () => {
+test('production D1 target ignores unconfigured beta placeholders', () => {
+    const config = createWranglerConfig(productionDatabaseId, {
+        betaDatabaseId: 'REPLACE_WITH_BETA_DATABASE_ID'
+    });
+
+    assert.equal(parseD1DatabaseId(config, 'production'), productionDatabaseId);
     assert.throws(() => {
-        parseProductionD1DatabaseId(
-            createWranglerConfig('REPLACE_WITH_PRODUCTION_DATABASE_ID')
+        parseD1DatabaseId(config, 'beta');
+    }, /must be a real lowercase Cloudflare D1 database UUID/);
+});
+
+test('D1 target parser rejects placeholders, zero IDs, and ambiguity', () => {
+    assert.throws(() => {
+        parseD1DatabaseId(
+            createWranglerConfig('REPLACE_WITH_PRODUCTION_DATABASE_ID'),
+            'production'
         );
     }, /must be a real lowercase Cloudflare D1 database UUID/);
     assert.throws(() => {
-        parseProductionD1DatabaseId(
-            createWranglerConfig('00000000-0000-0000-0000-000000000000')
+        parseD1DatabaseId(
+            createWranglerConfig('00000000-0000-0000-0000-000000000000'),
+            'production'
         );
     }, /must be a real lowercase Cloudflare D1 database UUID/);
     assert.throws(() => {
-        parseProductionD1DatabaseId(
+        parseD1DatabaseId(
             JSON.stringify({
                 env: {
                     production: {
@@ -93,44 +109,39 @@ test('production D1 target parser rejects placeholders, zero IDs, and ambiguity'
                                 database_name: 'princess-production'
                             }
                         ]
-                    },
-                    beta: {
-                        d1_databases: [
-                            {
-                                binding: 'DB',
-                                database_id: productionDatabaseId,
-                                database_name: 'princess-production'
-                            }
-                        ]
                     }
                 }
-            })
+            }),
+            'production'
         );
     }, /must define exactly one DB binding/);
 });
 
-test('production D1 target enforces the shared production/beta name and ID', () => {
+test('D1 targets enforce per-environment names and forbid sharing', () => {
     assert.throws(() => {
-        parseProductionD1DatabaseId(
+        parseD1DatabaseId(
             createWranglerConfig(productionDatabaseId, {
                 productionDatabaseName: 'wrong-production-name'
-            })
+            }),
+            'production'
         );
     }, /production DB database_name must be princess-production/);
     assert.throws(() => {
-        parseProductionD1DatabaseId(
+        parseD1DatabaseId(
             createWranglerConfig(productionDatabaseId, {
-                betaDatabaseName: 'wrong-beta-name'
-            })
+                betaDatabaseName: 'princess-production'
+            }),
+            'beta'
         );
-    }, /beta DB database_name must be princess-production/);
+    }, /beta DB database_name must be princess-beta/);
     assert.throws(() => {
-        parseProductionD1DatabaseId(
+        parseD1DatabaseId(
             createWranglerConfig(productionDatabaseId, {
-                betaDatabaseId: otherDatabaseId
-            })
+                betaDatabaseId: productionDatabaseId
+            }),
+            'beta'
         );
-    }, /beta DB binding must match the shared production DB binding/);
+    }, /beta DB binding must not share the production database/);
 });
 
 test('production D1 target rejects a mismatched environment database ID', context => {
@@ -151,6 +162,13 @@ test('production D1 target rejects a mismatched environment database ID', contex
     assert.throws(() => {
         resolveProductionD1DatabaseId(configPath);
     }, /CLOUDFLARE_DATABASE_ID confirmation is required/);
+    assert.throws(() => {
+        resolveBetaD1DatabaseId(configPath, productionDatabaseId);
+    }, /CLOUDFLARE_BETA_DATABASE_ID does not match the beta DB binding/);
+    assert.equal(
+        resolveBetaD1DatabaseId(configPath, betaDatabaseId),
+        betaDatabaseId
+    );
     assert.equal(
         resolveProductionD1DatabaseId(configPath, productionDatabaseId),
         productionDatabaseId
@@ -158,6 +176,22 @@ test('production D1 target rejects a mismatched environment database ID', contex
     assert.throws(() => {
         resolveProductionD1DatabaseId(configPath, otherDatabaseId);
     }, /does not match the production DB binding/);
+});
+
+test('Drizzle child environment passes the target-specific database ID variable', () => {
+    const source = {
+        CLOUDFLARE_ACCOUNT_ID: 'a'.repeat(32),
+        CLOUDFLARE_D1_TOKEN: 'd1-token'
+    };
+
+    assert.deepEqual(
+        createDrizzleChildEnvironment(source, betaDatabaseId, 'beta'),
+        {
+            CLOUDFLARE_ACCOUNT_ID: source.CLOUDFLARE_ACCOUNT_ID,
+            CLOUDFLARE_BETA_DATABASE_ID: betaDatabaseId,
+            CLOUDFLARE_D1_TOKEN: source.CLOUDFLARE_D1_TOKEN
+        }
+    );
 });
 
 test('D1 subprocess environments exclude unrelated GitHub and bot secrets', () => {
@@ -327,6 +361,33 @@ test('production migration and D1 commands target explicit reviewed configs', ()
             '/tmp/import.sql',
             '--yes'
         ]
+    );
+});
+
+test('beta D1 execute and migration commands are explicit and remote', () => {
+    const wranglerConfigPath = path.resolve('/tmp/princess/wrangler.jsonc');
+    const packageJson = JSON.parse(
+        fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8')
+    ) as { scripts: Record<string, string> };
+
+    assert.deepEqual(
+        getD1ExecuteArguments('beta', wranglerConfigPath, {
+            file: '/tmp/import.sql'
+        }).slice(5),
+        [
+            '--config',
+            wranglerConfigPath,
+            '--env',
+            'beta',
+            '--remote',
+            '--file',
+            '/tmp/import.sql',
+            '--yes'
+        ]
+    );
+    assert.equal(
+        packageJson.scripts['db:migrate:beta'],
+        'tsx scripts/db/migrate-beta.ts'
     );
 });
 

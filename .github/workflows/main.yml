@@ -53,6 +53,9 @@ jobs:
             - name: Dry-run production Worker deployment
               run: pnpm exec wrangler deploy --env production --dry-run
 
+            - name: Dry-run beta Worker deployment
+              run: pnpm exec wrangler deploy --env beta --dry-run
+
     deploy:
         needs: validate
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -81,8 +84,8 @@ jobs:
 
             - name: Verify production resource IDs are configured
               run: |
-                  if rg --quiet 'REPLACE_WITH_' wrangler.jsonc; then
-                      echo '::error file=wrangler.jsonc::Replace all REPLACE_WITH_ resource ID placeholders before deploying stable.'
+                  if grep -Eq 'REPLACE_WITH_PRODUCTION_' wrangler.jsonc; then
+                      echo '::error file=wrangler.jsonc::Replace all REPLACE_WITH_PRODUCTION_ resource ID placeholders before deploying stable.'
                       exit 1
                   fi
 
@@ -92,7 +95,7 @@ jobs:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
                   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
                   CLOUDFLARE_DATABASE_ID: ${{ vars.CLOUDFLARE_DATABASE_ID }}
-                  TELEGRAM_WEBHOOK_PATH: ${{ vars.TELEGRAM_WEBHOOK_PATH }}
+                  TELEGRAM_WEBHOOK_PATH: ${{ secrets.TELEGRAM_WEBHOOK_PATH }}
                   TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
               run: |
                   set -euo pipefail
