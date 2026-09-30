@@ -15,6 +15,7 @@ No secret values appear here, only names and file locations.
 8. [Releases and announcements](#8-releases-and-announcements)
 9. [Data and analytics](#9-data-and-analytics)
 10. [Known issues and open follow-ups](#10-known-issues-and-open-follow-ups)
+11. [Why wrangler.jsonc and not the cf CLI](#11-why-wranglerjsonc-and-not-the-cf-cli)
 
 ## 1. Architecture at a glance
 
@@ -406,3 +407,25 @@ Production queries are live: prefer `select`.
 - Rotate the bot tokens and webhook secrets.
 - Add edge rate limiting.
 - Create the GitHub `preview` environment for the copy workflow (see [section 5](#github-workflow-alternative)).
+
+## 11. Why wrangler.jsonc and not the cf CLI
+
+Evaluated on 2026-09-30 by running `cf migrate` on a throwaway branch (`chore/evaluate-cf-migrate`) and reading the Cloudflare docs. Decision: stay on `wrangler.jsonc` and Wrangler.
+
+What `cf` is: an open beta (`cf@1.0.0-beta.x`, announced 2026-09-28) that exposes the whole Cloudflare API (about 2,900 commands against about 280 in Wrangler), defaults to JSON output for agents, and reads a typed `cloudflare.config.ts` (`defineConfig((ctx) => ...)` with `ctx.mode` and `ctx.isPreview`). Sources: [blog](https://blog.cloudflare.com/cloudflare-cf-cli-launch/), [changelog](https://developers.cloudflare.com/changelog/post/2026-09-28-cloudflare-cli-beta/), [cf for Wrangler users](https://developers.cloudflare.com/cf/wrangler/).
+
+Wrangler is not deprecated. When the beta ends Cloudflare ships a final Wrangler major that points to `cf`, then maintains it for 18 months. No beta end date is announced. Wrangler does not read `cloudflare.config.ts`, and `cf` reads `wrangler.jsonc` only through `cf migrate`.
+
+Why not now:
+
+- `cf migrate` output is not usable as generated: it inserts a `throw`, drops D1 `migrations_dir` and `preview_database_id`, and turns `env.production` into a `switch (ctx.mode)` selected with `--mode` instead of `--env`.
+- `cf deploy` delegates the build to Wrangler, so Wrangler stays a dependency either way.
+- `cf workers types` writes `.cloudflare/types/index.d.ts` (ignored) instead of the committed `worker-configuration.d.ts`, which breaks the CI drift gate and `tsconfig.json`.
+- Commands this repo relies on have no `cf` equivalent: `wrangler tail`, `wrangler preview base-config secret put` (preview bot secrets) and `wrangler queues pause-delivery` (the emergency stop).
+- `cf d1` commands take database IDs, while the scripts use the `DB` binding and the `princess-preview` name.
+- `cf` needs `"type": "module"` and Node 22.18 or later. Workers Builds documentation does not mention `cf` or `cloudflare.config.ts`, and the dashboard deploy command is wired to Wrangler.
+- `cf deploy --dry-run` is reported to print secret values ([cf#103](https://github.com/cloudflare/cf/issues/103)) and to skip the required-secrets check ([cf#104](https://github.com/cloudflare/cf/issues/104)).
+
+Revisit when `cf` is GA, Workers Builds documents `cloudflare.config.ts`, and `tail`, preview base-config secrets and queue delivery pause exist in `cf`.
+
+The `wrangler deploy --env production --dry-run` step in `main.yml` stays. A Workers Build on a PR branch produces a preview, so only this step checks the `production` environment shape before merge, and it needs no credentials.
