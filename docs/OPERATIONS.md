@@ -18,19 +18,19 @@ No secret values appear here, only names and file locations.
 
 ## 1. Architecture at a glance
 
-| Piece             | Value                                                                                                                                                         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime           | Cloudflare Worker `princess` (wrangler env `production`), Hono + Telegraf                                                                                     |
-| Domain            | `princess.chernenko.dev` (custom domain)                                                                                                                      |
-| Telegram webhook  | Secret header (`X-Telegram-Bot-Api-Secret-Token`) plus secret path (`TELEGRAM_WEBHOOK_PATH`)                                                                  |
-| Production D1     | `princess-production` (`19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1`)                                                                                                |
-| Preview D1        | `princess-preview` (`b9a13fb8-8745-4d33-a5a2-f067b7b35220`)                                                                                                   |
-| Production queues | `princess-release-announcements` (producer and consumer) with dead-letter queue `princess-release-announcements-dlq`                                          |
-| Preview queue     | `princess-preview-release-announcements` (producer only, nothing consumes it)                                                                                 |
-| Production crons  | `0 0 * * *` (daily maintenance), `*/10 * * * *` (release broadcast)                                                                                           |
-| Account           | Cloudflare account `5396970bbe7f97f2d01c5b759444cd40`, Workers Paid plan (required: a vote in a large group exceeds the 50 subrequest limit of the Free plan) |
-| Bots              | Production bot (the main princess bot) and the preview bot, Telegram handle `@princess_debug_bot`                                                             |
-| Legacy data       | MongoDB Atlas is kept only as a backup and re-import source (`backup-dbs` repo workflow, output in the `princess-db` repo)                                    |
+| Piece             | Value                                                                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime           | Cloudflare Worker `princess` (wrangler env `production`), Hono + Telegraf                                                                                                                                                                   |
+| Domain            | `princess.chernenko.dev` (custom domain)                                                                                                                                                                                                    |
+| Telegram webhook  | Secret header (`X-Telegram-Bot-Api-Secret-Token`) plus secret path (`TELEGRAM_WEBHOOK_PATH`)                                                                                                                                                |
+| Production D1     | `princess-production` (`19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1`)                                                                                                                                                                              |
+| Preview D1        | `princess-preview` (`b9a13fb8-8745-4d33-a5a2-f067b7b35220`)                                                                                                                                                                                 |
+| Production queues | `princess-release-announcements` (producer and consumer) with dead-letter queue `princess-release-announcements-dlq`                                                                                                                        |
+| Preview queue     | `princess-preview-release-announcements` (producer only, nothing consumes it)                                                                                                                                                               |
+| Production crons  | `0 0 * * *` (daily maintenance), `*/10 * * * *` (release broadcast)                                                                                                                                                                         |
+| Account           | Cloudflare account `5396970bbe7f97f2d01c5b759444cd40`, Workers Paid plan (required: a vote in a large group exceeds the 50 subrequest limit of the Free plan)                                                                               |
+| Bots              | Production bot (the main princess bot) and the preview bot, Telegram handle `@princess_debug_bot`                                                                                                                                           |
+| Legacy data       | MongoDB Atlas is kept only as a backup source. Daily backups stopped on 2026-09-30: princess was removed from the `backup-dbs` workflow and the `princess-db` repo is archived (read-only; last snapshot `d97cd8e`, the post-freeze export) |
 
 Config lives in `wrangler.jsonc`. The preview Worker shape is under `env.production.previews`.
 
