@@ -335,6 +335,8 @@ Telegram identity. Snapshot failure emits `bot_state_snapshot_failed` and does
 not fail the release or maintenance task. The existing `*/10` cron is expected
 to update snapshots every ten minutes, with a daily snapshot from the `0 0`
 cron; use the `Snapshots in last hour` widget to catch missing cron activity.
+Cloudflare Cron Events showed successful `*/10` production runs through
+2026-09-30 19:50 UTC, confirming the trigger is active before this release.
 The admin status check uses Telegram `getChatMember` for the bot itself and
 stores only `admin`, `nonAdmin`, or `unavailable` plus check time in D1. It
 emits three aggregate `bot_admin_status_count` events per snapshot, including
@@ -397,7 +399,6 @@ Production queries are live: prefer `select`.
 
 ## 10. Known issues and open follow-ups
 
-- The production `*/10` cron has not been observed firing. Single-cron configs fired, production has two crons. Check Workers Observability for `scheduled` events and investigate.
 - The daily `telegram_updates` ledger prune depends on the cron.
 - D1 error 7403 on the first call of a session: rerun.
 - `ENABLE_SCHEDULED_CLEANUP` stays `"false"` on production until the deletion set is reviewed.
