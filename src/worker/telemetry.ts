@@ -1,5 +1,5 @@
 import { createRequestLogger, type WideEvent } from 'evlog';
-import { createAxiomDrain } from 'evlog/axiom';
+import { createOTLPDrain } from 'evlog/otlp';
 import { initWorkersLogger } from 'evlog/workers';
 
 import { getTelegramWebhookPath, type WorkerBindings } from './env';
@@ -56,12 +56,12 @@ const commandCategories = new Set([
     'help',
     'join',
     'leave',
-    'players',
+    'list',
     'top',
     'run',
     'sudorun',
-    'sudo',
     'reset',
+    'stop',
     'stats',
     'releases',
     'lang'
@@ -113,21 +113,26 @@ export const getTelegramCommandCategory = (payload: unknown) => {
     return commandCategories.has(command) ? command : 'otherCommand';
 };
 
-const shipToAxiom = (
+const shipToNewRelic = (
     event: WideEvent,
-    env: Pick<WorkerBindings, 'AXIOM_TOKEN' | 'AXIOM_DATASET'>,
+    env: Pick<WorkerBindings, 'BOT_ENVIRONMENT' | 'NEW_RELIC_LICENSE_KEY'>,
     context: TelemetryContext
 ) => {
-    if (!env.AXIOM_TOKEN || !env.AXIOM_DATASET) {
+    const licenseKey = env.NEW_RELIC_LICENSE_KEY;
+
+    if (env.BOT_ENVIRONMENT !== 'production' || !licenseKey) {
         return;
     }
 
     const delivery = Promise.resolve()
         .then(() => {
-            const drain = createAxiomDrain({
-                apiKey: env.AXIOM_TOKEN,
-                dataset: env.AXIOM_DATASET,
-                edgeUrl: 'https://us-east-1.aws.edge.axiom.co'
+            const drain = createOTLPDrain({
+                endpoint: 'https://otlp.eu01.nr-data.net',
+                serviceName: 'princess',
+                headers: { 'api-key': licenseKey },
+                resourceAttributes: {
+                    'deployment.environment.name': 'production'
+                }
             });
 
             return drain({ event });
@@ -135,7 +140,7 @@ const shipToAxiom = (
         .catch(error => {
             console.warn(
                 JSON.stringify({
-                    event: 'axiom_drain_failed',
+                    event: 'new_relic_drain_failed',
                     errorType: getErrorType(error)
                 })
             );
@@ -153,13 +158,13 @@ export const toPrincessAttributes = (
     fields: TelemetryFields,
     botEnvironment: WorkerBindings['BOT_ENVIRONMENT']
 ) => {
+    const { event, taskNames, ...rest } = fields;
+
     return {
-        attributes: {
-            princess: {
-                ...fields,
-                botEnvironment
-            }
-        }
+        eventName: event,
+        ...rest,
+        ...(taskNames === undefined ? {} : { taskNames: taskNames.join(',') }),
+        botEnvironment
     };
 };
 
@@ -186,7 +191,7 @@ export const emitTelemetryEvent = (
         });
 
         if (event) {
-            shipToAxiom(event, env, context);
+            shipToNewRelic(event, env, context);
         }
     } catch (error) {
         console.warn(

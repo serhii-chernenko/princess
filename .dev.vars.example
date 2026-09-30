@@ -1,5 +1,4 @@
 BOT_TOKEN="123456:telegram-bot-token"
-AXIOM_TOKEN="xaat-replace-with-axiom-ingest-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
 TELEGRAM_WEBHOOK_PATH="/telegram/princess-dev"
 WORKER_BASE_URL="https://princess-dev.chernenko.dev"

@@ -284,6 +284,12 @@ export const handleUpdateWithPrincessBot = async (
                 outcome: 'success',
                 ...input
             });
+        },
+        internalFailure(input) {
+            emitTelemetryEvent(env, context, {
+                ...input,
+                outcome: 'error'
+            });
         }
     });
     const cachedBotInfo = botInfoByBotKey.get(botKey);
@@ -496,6 +502,11 @@ export const registerTelegramRoutes = (
                 now()
             );
         } catch (error) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_ledger_unavailable',
+                outcome: 'error',
+                errorType: getErrorType(error)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_ledger_unavailable',
@@ -576,6 +587,13 @@ export const registerTelegramRoutes = (
                 now()
             );
         } catch (error) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_terminalization_failed',
+                outcome: dispatchFailed
+                    ? 'dispatchFailed'
+                    : 'dispatchSucceeded',
+                errorType: getErrorType(error)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_terminalization_failed',
@@ -602,6 +620,15 @@ export const registerTelegramRoutes = (
         }
 
         if (!terminalized) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_lease_lost',
+                outcome: dispatchFailed
+                    ? 'dispatchFailed'
+                    : 'dispatchSucceeded',
+                ...(dispatchFailed
+                    ? { errorType: getErrorType(dispatchError) }
+                    : {})
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_lease_lost',
@@ -627,6 +654,11 @@ export const registerTelegramRoutes = (
         }
 
         if (dispatchFailed) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_dispatch_failed',
+                outcome: 'error',
+                errorType: getErrorType(dispatchError)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_dispatch_failed',

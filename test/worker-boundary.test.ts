@@ -88,7 +88,6 @@ const createBindings = (
     return {
         DB,
         BOT_ENVIRONMENT: botEnvironment,
-        AXIOM_DATASET: 'besidka-prod',
         ENABLE_SCHEDULED_CLEANUP: botEnvironment === 'local' ? 'true' : 'false',
         ENABLE_RELEASE_BROADCAST:
             botEnvironment === 'production' ? 'true' : 'false',
@@ -102,7 +101,7 @@ const createBindings = (
         YT_CHANNEL: 'https://youtube.com/@serhii.chernenko',
         MAIL: 'contact@chernenko.digital',
         BOT_TOKEN: '123456:test-token',
-        AXIOM_TOKEN: '',
+        NEW_RELIC_LICENSE_KEY: '',
         TELEGRAM_WEBHOOK_SECRET: 'test-webhook-secret',
         TELEGRAM_WEBHOOK_PATH: '/telegram/test'
     };

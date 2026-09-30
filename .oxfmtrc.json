@@ -10,6 +10,8 @@
     "ignorePatterns": [
         "worker-configuration.d.ts",
         "releases.generated.json",
-        "src/i18n/i18n-*.ts"
+        "src/i18n/i18n-*.ts",
+        ".agents/skills/**",
+        "skills-lock.json"
     ]
 }

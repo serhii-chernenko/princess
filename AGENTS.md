@@ -70,3 +70,9 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 ## Operations
 
 - Operators and agents must read `docs/OPERATIONS.md` before any deploy, migration, data copy or release work.
+
+## Observability
+
+- Production Worker telemetry goes to New Relic EU account `8569908` through evlog's OTLP drain. Local and preview environments do not ingest into New Relic.
+- The copied vendor skills in `.agents/skills/apm/` and `.agents/skills/newrelic-mcp/` are installed through `npx skills` and tracked by `skills-lock.json`. Their generic US examples do not override this project's EU endpoint: `https://mcp.eu.newrelic.com/mcp/`.
+- Never include Telegram identifiers, message text, webhook paths, headers, or secrets in telemetry attributes.

@@ -1,0 +1,350 @@
+{
+    "name": "Princess Bot — Production Observability",
+    "description": "Production-only evlog telemetry from the Princess Cloudflare Worker. Ingest freshness, Telegram update health, scheduled work, releases and vote activity.",
+    "permissions": "PUBLIC_READ_WRITE",
+    "pages": [
+        {
+            "name": "Production",
+            "description": "All widgets filter New Relic EU account 8569908 to the production Princess service.",
+            "widgets": [
+                {
+                    "title": "Ingest: events in last 15 min",
+                    "layout": {
+                        "column": 1,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' SINCE 15 minutes ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Webhook failures in last hour",
+                    "layout": {
+                        "column": 5,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome IN ('error', 'rejected') SINCE 1 hour ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Webhook p95 latency (ms)",
+                    "layout": {
+                        "column": 9,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT percentile(durationMs, 95) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' SINCE 1 hour ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Evlog ingest rate",
+                    "layout": {
+                        "column": 1,
+                        "row": 4,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' TIMESERIES"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Webhook outcomes",
+                    "layout": {
+                        "column": 7,
+                        "row": 4,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.area"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' FACET outcome TIMESERIES"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Webhook latency p50 / p95 (ms)",
+                    "layout": {
+                        "column": 1,
+                        "row": 7,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT percentile(durationMs, 50, 95) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' TIMESERIES"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Webhook idempotency outcomes",
+                    "layout": {
+                        "column": 7,
+                        "row": 7,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' FACET idempotencyOutcome LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Rejected webhook reasons",
+                    "layout": {
+                        "column": 1,
+                        "row": 10,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome = 'rejected' FACET rejectionReason LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Processing and Worker errors",
+                    "layout": {
+                        "column": 7,
+                        "row": 10,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND (outcome = 'error' OR eventName LIKE '%failed' OR eventName = 'telegram_update_lease_lost') FACET eventName LIMIT 20"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Scheduled Worker heartbeat and failures",
+                    "layout": {
+                        "column": 1,
+                        "row": 13,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName IN ('scheduled_run_completed', 'scheduled_run_failed') FACET eventName TIMESERIES"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Scheduled run duration p95 (ms)",
+                    "layout": {
+                        "column": 7,
+                        "row": 13,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT percentile(durationMs, 95) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'scheduled_run_completed' FACET cron TIMESERIES"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Release broadcast coverage",
+                    "layout": {
+                        "column": 1,
+                        "row": 16,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.table"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(candidates) AS 'Candidate groups', latest(inserted) AS 'Created', latest(enqueued) AS 'Queued' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'release_broadcast_completed' FACET releaseVersion LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Release queue failures",
+                    "layout": {
+                        "column": 7,
+                        "row": 16,
+                        "width": 6,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName LIKE 'release_announcement_%failed' FACET eventName LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Votes by mode",
+                    "layout": {
+                        "column": 1,
+                        "row": 19,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'vote_completed' FACET mode LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Command mix",
+                    "layout": {
+                        "column": 5,
+                        "row": 19,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome = 'accepted' FACET commandCategory LIMIT 15"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "HTTP 5xx and request volume",
+                    "layout": {
+                        "column": 9,
+                        "row": 19,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'All requests', filter(count(*), WHERE status >= 500) AS 'HTTP 5xx' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'http_request_completed' TIMESERIES"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ],
+    "variables": []
+}

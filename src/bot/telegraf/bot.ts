@@ -40,6 +40,13 @@ export interface PrincessBotTelemetry {
         eligibleCount: number;
         durationMs: number;
     }): void;
+    internalFailure(input: {
+        event:
+            | 'generic_error_reply_failed'
+            | 'vote_announcement_failed'
+            | 'telegraf_middleware_failed';
+        errorType: string;
+    }): void;
 }
 
 type ChatMemberReader = {
@@ -56,7 +63,8 @@ type ChatMemberReader = {
 const handleCommandError = async (
     ctx: Context,
     error: unknown,
-    locale: AppLocale = getDefaultAppLocale()
+    locale: AppLocale = getDefaultAppLocale(),
+    telemetry?: PrincessBotTelemetry
 ) => {
     if (isBotUserError(error)) {
         if (error.silent) {
@@ -75,6 +83,10 @@ const handleCommandError = async (
     try {
         await ctx.sendMessage(getMessages(locale).error());
     } catch (replyError) {
+        telemetry?.internalFailure({
+            event: 'generic_error_reply_failed',
+            errorType: getErrorType(replyError)
+        });
         console.error(
             JSON.stringify({
                 event: 'generic_error_reply_failed',
@@ -249,7 +261,8 @@ const announceWinner = async (
             telegramMember: { user: User };
         };
     },
-    locale: AppLocale
+    locale: AppLocale,
+    telemetry?: PrincessBotTelemetry
 ) => {
     const LL = getMessages(locale);
 
@@ -268,6 +281,10 @@ const announceWinner = async (
         );
         await postPrintablePlayers(ctx, result.printablePlayers, 'top', locale);
     } catch (error) {
+        telemetry?.internalFailure({
+            event: 'vote_announcement_failed',
+            errorType: getErrorType(error)
+        });
         console.error(
             JSON.stringify({
                 event: 'vote_announcement_failed',
@@ -310,6 +327,10 @@ export const createPrincessBot = (
     const game = createGameService(env);
 
     bot.catch(error => {
+        telemetry?.internalFailure({
+            event: 'telegraf_middleware_failed',
+            errorType: getErrorType(error)
+        });
         console.error(
             JSON.stringify({
                 event: 'telegraf_middleware_failed',
@@ -358,7 +379,7 @@ export const createPrincessBot = (
                 })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}`
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -386,7 +407,7 @@ export const createPrincessBot = (
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -418,7 +439,7 @@ export const createPrincessBot = (
                       })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -442,7 +463,7 @@ export const createPrincessBot = (
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -472,9 +493,9 @@ export const createPrincessBot = (
                 eligibleCount: result.eligibleCount,
                 durationMs: Math.max(0, Date.now() - startedAt)
             });
-            await announceWinner(ctx, result, locale);
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -504,9 +525,9 @@ export const createPrincessBot = (
                 eligibleCount: result.eligibleCount,
                 durationMs: Math.max(0, Date.now() - startedAt)
             });
-            await announceWinner(ctx, result, locale);
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -542,7 +563,7 @@ export const createPrincessBot = (
 
             await postPrintablePlayers(ctx, printablePlayers, 'all', locale);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -578,7 +599,7 @@ export const createPrincessBot = (
 
             await postPrintablePlayers(ctx, printablePlayers, 'top', locale);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -606,7 +627,7 @@ export const createPrincessBot = (
             await game.resetScores(actor.chatId, locale);
             await ctx.sendMessage(LL.successReset());
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -634,7 +655,7 @@ export const createPrincessBot = (
             await game.stopChannel(actor.chatId, locale);
             await ctx.sendMessage(LL.successStop());
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -660,7 +681,7 @@ export const createPrincessBot = (
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -676,7 +697,7 @@ export const createPrincessBot = (
             locale = await game.getChannelLocale(actor.chatId);
             await ctx.replyWithHTML(renderReleaseNotes(0, locale));
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -726,7 +747,7 @@ export const createPrincessBot = (
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -766,7 +787,7 @@ export const createPrincessBot = (
                 eligibleCount: result.eligibleCount,
                 durationMs: Math.max(0, Date.now() - startedAt)
             });
-            await announceWinner(ctx, result, locale);
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
             await handleListenerError(ctx, error);
         }

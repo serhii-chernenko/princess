@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "apm": {
+      "source": "newrelic/claude-code-plugin",
+      "sourceType": "github",
+      "skillPath": "skills/apm/SKILL.md",
+      "computedHash": "da8caa8aca9a66284b08e55f8935a8a46800a794a413e84f466451491a4de5fb"
+    },
+    "newrelic-mcp": {
+      "source": "newrelic/claude-code-plugin",
+      "sourceType": "github",
+      "skillPath": "skills/newrelic-mcp/SKILL.md",
+      "computedHash": "f8b24a56c2b9544464f401c441df4e1e4e0580b667ba63ca43db4972e92ceee6"
+    }
+  }
+}

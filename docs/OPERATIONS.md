@@ -45,9 +45,9 @@ Examples with placeholder values are committed next to them (`*.example`).
 
 | File                   | Variable names                                                                                                             |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `.dev.vars`            | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`, `WORKER_BASE_URL`                          |
-| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`, `WORKER_BASE_URL`                          |
-| `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`                        |
+| `.dev.vars`            | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                                         |
+| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `NEW_RELIC_LICENSE_KEY`, `WORKER_BASE_URL`                |
+| `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`                                       |
 | `env/.env.d1`          | `CLOUDFLARE_AUTH_MODE=wrangler-login`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_PREVIEW_DATABASE_ID` |
 
 Examples: `.dev.vars.production.example`, `.dev.vars.preview.example`, `env/.env.d1.example`.
@@ -277,29 +277,37 @@ The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on
 
 ## 9. Data and analytics
 
-Workers keeps Cloudflare Logs and traces enabled. It also emits one safe evlog
+Workers keeps Cloudflare Logs and traces enabled. The Worker emits one safe evlog
 wide event for each HTTP request, Telegram webhook outcome, scheduled run,
-release broadcast, and release-announcement queue batch. Axiom delivery uses
-`AXIOM_TOKEN` and is registered with the Worker execution context, so a failed
-or slow drain never changes bot behavior.
+release broadcast, and release-announcement queue batch. Production events are
+sent by evlog's OTLP drain to the New Relic EU endpoint in account `8569908`.
+The `NEW_RELIC_LICENSE_KEY` secret exists only on the production Worker and in
+the ignored `.dev.vars.production` file. Local development and previews do not
+ingest into New Relic. Delivery is registered with `waitUntil`, and drain
+failure only produces a local warning; it does not change bot behavior.
 
-Dataset creation is temporarily unavailable on the Axiom organization. All
-Princess environments therefore write to the existing `besidka-prod` dataset.
-Filter Princess telemetry with `service = 'princess'` and `environment`.
-Princess-specific fields live only under the declared map path
-`attributes.princess` to avoid exceeding Axiom's field limit. These events
-contain normalized route names, status, durations, bounded outcome categories,
-and aggregate counts; they do not contain webhook paths, headers, message text,
-bot tokens, Telegram IDs, or display names.
+Use the `Log_princess` data partition and filter by `service.name = 'princess'`
+and `botEnvironment = 'production'` when querying logs. The `eventName`,
+`outcome`, `durationMs`, `commandCategory`, `errorType`, counts and other safe
+dimensions are top-level attributes for NRQL. Events contain normalized route
+names and aggregate counts; they do not contain webhook paths, headers,
+message text, bot tokens, Telegram IDs, or display names.
 
-The [Princess Bot operations dashboard](https://app.axiom.co/besidka-tnqd/dashboards/uid/princess-bot-operations)
-shows production update outcomes and latency, processing and queue errors,
-scheduled Worker heartbeats, vote completions, command mix, and release
-broadcast coverage. Its final chart compares ingest across production, preview,
-and local development. Production charts remain empty until this change is
-deployed from `main`; a zero error count before the first production event is
-not evidence that delivery is healthy. Check the ingest chart and the most
-recent scheduled run together when investigating missing data.
+The [Princess production observability dashboard](https://one.eu.newrelic.com/dashboards/detail/ODU2OTkwOHxWSVp8REFTSEJPQVJEfGRhOjI3NjEzODE?account=8569908)
+has 16 widgets for ingest freshness, webhook outcomes and latency, processing
+and queue errors, scheduled run health, vote completions, command mix, and
+release broadcast coverage. Its import template is in
+`docs/newrelic-dashboard.json`. Queries read `Log_princess`, not the default
+`Log` event type. Production charts will remain empty until the PR is deployed
+from `main`. A zero error count before the first production event does not prove
+the drain works. Check ingest freshness and the most recent scheduled run
+together when investigating missing data.
+
+The official New Relic `apm` and `newrelic-mcp` skills are copied into
+`.agents/skills/` and tracked by `skills-lock.json`. For this EU account, the
+MCP URL is `https://mcp.eu.newrelic.com/mcp/`; configure it with
+`codex mcp add newrelic --url https://mcp.eu.newrelic.com/mcp/` and complete
+OAuth after MCP Server and Local Clients are enabled in Feature Control.
 
 | Table                   | Purpose                                                                             |
 | ----------------------- | ----------------------------------------------------------------------------------- |

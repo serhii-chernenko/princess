@@ -20,7 +20,6 @@
     },
     "vars": {
         "BOT_ENVIRONMENT": "local",
-        "AXIOM_DATASET": "besidka-prod",
         "ENABLE_SCHEDULED_CLEANUP": "true",
         "ENABLE_RELEASE_BROADCAST": "false",
         "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
@@ -34,7 +33,6 @@
     "secrets": {
         "required": [
             "BOT_TOKEN",
-            "AXIOM_TOKEN",
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_WEBHOOK_PATH"
         ]
@@ -76,7 +74,6 @@
             },
             "vars": {
                 "BOT_ENVIRONMENT": "production",
-                "AXIOM_DATASET": "besidka-prod",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
                 "ENABLE_RELEASE_BROADCAST": "true",
                 "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
@@ -90,7 +87,7 @@
             "secrets": {
                 "required": [
                     "BOT_TOKEN",
-                    "AXIOM_TOKEN",
+                    "NEW_RELIC_LICENSE_KEY",
                     "TELEGRAM_WEBHOOK_SECRET",
                     "TELEGRAM_WEBHOOK_PATH"
                 ]
@@ -134,7 +131,6 @@
             "previews": {
                 "vars": {
                     "BOT_ENVIRONMENT": "preview",
-                    "AXIOM_DATASET": "besidka-prod",
                     "ENABLE_SCHEDULED_CLEANUP": "false",
                     "ENABLE_RELEASE_BROADCAST": "false",
                     "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",

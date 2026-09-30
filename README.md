@@ -9,6 +9,11 @@ Telegram bot for friend groups. The runtime is now:
 - `Telegraf` via webhooks
 - `Cloudflare D1`
 - `Drizzle ORM`
+- `evlog` telemetry sent to New Relic EU in production
+
+Production observability and the New Relic MCP setup are documented in the
+[operations runbook](./docs/OPERATIONS.md#9-data-and-analytics). Preview and
+local development retain Cloudflare observability without New Relic ingestion.
 
 The rewrite serves production: the cutover to Workers and D1 happened on 2026-09-29
 (see the [cutover record](./MIGRATION_STATUS.md#cutover-record)). The old

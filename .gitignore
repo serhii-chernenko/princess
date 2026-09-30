@@ -1,5 +1,16 @@
 *
 !.gitignore
+!/skills-lock.json
+!/.agents
+!/.agents/skills
+!/.agents/skills/apm
+!/.agents/skills/apm/SKILL.md
+!/.agents/skills/apm/references
+!/.agents/skills/apm/references/*.md
+!/.agents/skills/newrelic-mcp
+!/.agents/skills/newrelic-mcp/SKILL.md
+!/.agents/skills/newrelic-mcp/references
+!/.agents/skills/newrelic-mcp/references/*.md
 !.npmrc
 !/.github
 !/.github/workflows
@@ -29,6 +40,7 @@
 !README.md
 !/docs
 !/docs/OPERATIONS.md
+!/docs/newrelic-dashboard.json
 !.oxfmtrc.json
 !.oxlintrc.json
 !package.json
