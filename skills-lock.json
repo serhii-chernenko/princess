@@ -1,17 +1,47 @@
 {
   "version": 1,
   "skills": {
+    "analyze-logs": {
+      "source": "hugorcd/evlog",
+      "sourceType": "github",
+      "skillPath": "skills/analyze-logs/SKILL.md",
+      "computedHash": "4a04a46743f211420f0844d09110ba4f6219e70f59c89377ba0293650ec12ed4"
+    },
     "apm": {
       "source": "newrelic/claude-code-plugin",
       "sourceType": "github",
       "skillPath": "skills/apm/SKILL.md",
       "computedHash": "da8caa8aca9a66284b08e55f8935a8a46800a794a413e84f466451491a4de5fb"
     },
+    "cloudflare": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloudflare/SKILL.md",
+      "computedHash": "163d684e39202f0073a15b84181d6bc1c825092d66947193daefd153102e2839"
+    },
     "newrelic-mcp": {
       "source": "newrelic/claude-code-plugin",
       "sourceType": "github",
       "skillPath": "skills/newrelic-mcp/SKILL.md",
       "computedHash": "f8b24a56c2b9544464f401c441df4e1e4e0580b667ba63ca43db4972e92ceee6"
+    },
+    "review-logging-patterns": {
+      "source": "hugorcd/evlog",
+      "sourceType": "github",
+      "skillPath": "skills/review-logging-patterns/SKILL.md",
+      "computedHash": "75c77d6bdff8cd68403f95abdc7091e2cf830730baeecf66ec7ffabe0b1f1267"
+    },
+    "workers-best-practices": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "skillPath": "skills/workers-best-practices/SKILL.md",
+      "computedHash": "61834fa098e16280aae54e584f5a16e047391790b1e1e4995c0e9a111d6d75c3"
+    },
+    "wrangler": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "skillPath": "skills/wrangler/SKILL.md",
+      "computedHash": "f0147a3ee20d56a89c735d6c9efd45d61a21e2fc5f2ebb53ca1250006b79c8ad"
     }
   }
 }

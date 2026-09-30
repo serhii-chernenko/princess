@@ -307,9 +307,14 @@ Check ingest freshness and the most recent scheduled run together when
 investigating missing data.
 
 The separate [Princess game and audience dashboard](https://one.eu.newrelic.com/dashboards/detail/ODU2OTkwOHxWSVp8REFTSEJPQVJEfGRhOjI3NjEzODQ?account=8569908)
-has two pages and 23 widgets. `Game & audience` shows active users and chats,
+has two pages and 24 widgets. `Game & audience` shows active users and chats,
 chats with a vote in the preceding seven days, the highest active player score,
-memberships, wins per hour and by mode, and eligible player counts. `Commands &
+memberships, wins per hour and by mode, eligible player counts, and the share of
+registered chats where the bot has administrator rights. The admin pie also
+shows `unknown` for unchecked or stale groups; it must not be read as
+`nonAdmin`. Administrator rights matter because Telegram only guarantees
+`getChatMember` for arbitrary members when the bot is an administrator, which
+affects the eligible vote pool. `Commands &
 lifecycle` shows completed joins, leaves, resets, stops, join outcomes, and
 command request volume and categories. Its import template is
 `docs/newrelic-behavior-dashboard.json`.
@@ -319,7 +324,8 @@ permission. The Settings control for changing it is disabled in this account,
 and a JSON permission edit did not persist. Limit account membership to trusted
 operators until the account permits `Read-only – everyone in account`.
 
-Each production scheduled invocation emits a `bot_state_snapshot` after reading
+Each production scheduled invocation refreshes administrator status for up to
+10 unchecked or day-old groups, then emits a `bot_state_snapshot` after reading
 aggregate counts from D1. An _active user_ has at least one active channel
 membership; an _active chat_ has at least one active member. `registeredChats`
 includes channels with no active members. `recentlyVotingChats` counts channels
@@ -329,6 +335,16 @@ Telegram identity. Snapshot failure emits `bot_state_snapshot_failed` and does
 not fail the release or maintenance task. The existing `*/10` cron is expected
 to update snapshots every ten minutes, with a daily snapshot from the `0 0`
 cron; use the `Snapshots in last hour` widget to catch missing cron activity.
+The admin status check uses Telegram `getChatMember` for the bot itself and
+stores only `admin`, `nonAdmin`, or `unavailable` plus check time in D1. It
+emits three aggregate `bot_admin_status_count` events per snapshot, including
+the `unknown` count for groups without a successful check in the last 48 hours.
+At ten checks per ten-minute run, an initial scan of 217 registered groups
+requires roughly four hours if the cron fires consistently. The pie uses the
+latest count in each status category from the preceding two days.
+The additive admin-status migration `20260930194648_messy_jetstream` was
+applied to both production and preview D1 on 2026-09-30 before the Worker
+release; preview still does not send New Relic data.
 
 `bot_action_completed` is emitted after the game service mutation, before its
 Telegram reply. A `join` result is `joined`, `reactivated`, or `already-active`;
@@ -340,11 +356,18 @@ effects. None of these events include Telegram IDs, chat IDs, names, message
 text, or per-chat membership lists. Behavior history starts when this PR is
 deployed; earlier commands cannot be reconstructed from current D1 tables.
 
-The official New Relic `apm` and `newrelic-mcp` skills are copied into
-`.agents/skills/` and tracked by `skills-lock.json`. For this EU account, the
-MCP URL is `https://mcp.eu.newrelic.com/mcp/`; configure it with
-`codex mcp add newrelic --url https://mcp.eu.newrelic.com/mcp/` and complete
-OAuth after MCP Server and Local Clients are enabled in Feature Control.
+The official New Relic `apm` and `newrelic-mcp`, Cloudflare `cloudflare`,
+`wrangler`, and `workers-best-practices`, and evlog `analyze-logs` and
+`review-logging-patterns` skills are copied into `.agents/skills/` through
+`npx skills` and tracked by `skills-lock.json`. Codex uses
+`.codex/config.toml` for this project's New Relic MCP server. `.mcp.json` and
+`.pi/mcp.json` provide the same EU endpoint to compatible clients. The URL is
+`https://mcp.eu.newrelic.com/mcp/`. OAuth cannot complete until an account
+administrator enables MCP Server and Local Clients in New Relic Feature
+Control; the current account denies that feature. The ingestion key is not an
+MCP credential. No Telegraf-specific or general Telegram Bot API engineering
+skill with a relevant, maintained source was found in `npx skills`; use the
+installed Telegraf types and the official Telegram Bot API documentation.
 
 | Table                   | Purpose                                                                             |
 | ----------------------- | ----------------------------------------------------------------------------------- |

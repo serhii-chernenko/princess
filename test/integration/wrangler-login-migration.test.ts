@@ -61,7 +61,7 @@ describe('wrangler-login migration bookkeeping', () => {
             migrationsFolder
         );
 
-        assert.equal(result.applied.length, 5);
+        assert.equal(result.applied.length, 6);
         assert.deepEqual(result.alreadyApplied, []);
         assert.deepEqual(
             await readRows(loginHarness, bookkeepingSql),
@@ -97,7 +97,7 @@ describe('wrangler-login migration bookkeeping', () => {
         );
 
         assert.deepEqual(result.applied, []);
-        assert.equal(result.alreadyApplied.length, 5);
+        assert.equal(result.alreadyApplied.length, 6);
     });
 
     it('resumes after drizzle applied only some migrations', async () => {
@@ -109,9 +109,11 @@ describe('wrangler-login migration bookkeeping', () => {
                 migrationsFolder
             );
             await partialHarness.env.DB.prepare(
-                'DELETE FROM "__drizzle_migrations" WHERE "id" = 5'
+                'DELETE FROM "__drizzle_migrations" WHERE "name" = \'20260930194648_messy_jetstream\''
             ).run();
-            await partialHarness.env.DB.exec('DROP TABLE "vote_wins"');
+            await partialHarness.env.DB.exec(
+                'ALTER TABLE "channels" DROP COLUMN "bot_admin_checked_at"; ALTER TABLE "channels" DROP COLUMN "bot_admin_status"'
+            );
 
             const result = await applyDrizzleMigrations(
                 createHarnessExecutor(partialHarness),

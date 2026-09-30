@@ -50,6 +50,11 @@ type TelemetryFields = {
     action?: 'join' | 'leave' | 'reset' | 'stop';
     result?: 'joined' | 'reactivated' | 'already-active' | 'success';
     registeredChats?: number;
+    adminChats?: number;
+    nonAdminChats?: number;
+    unknownAdminChats?: number;
+    adminStatus?: 'admin' | 'nonAdmin' | 'unknown';
+    groupCount?: number;
     activeChats?: number;
     activeUsers?: number;
     activeMemberships?: number;

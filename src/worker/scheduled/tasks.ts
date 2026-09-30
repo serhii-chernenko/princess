@@ -10,6 +10,7 @@ import {
 import type { WorkerBindings } from '../env';
 import { emitTelemetryEvent } from '../telemetry';
 import {
+    refreshBotAdminStatuses,
     readBotStateSnapshot,
     type BotStateSnapshot
 } from './bot-state-snapshot';
@@ -54,6 +55,10 @@ interface ScheduledTaskDependencies {
         env: WorkerBindings,
         asOf: Date
     ) => Promise<BotStateSnapshot>;
+    refreshBotAdminStatuses?: (
+        env: WorkerBindings,
+        asOf: Date
+    ) => Promise<void>;
 }
 
 export interface ScheduledTasksSummary {
@@ -126,10 +131,20 @@ export const runScheduledTasks = async (
     let prunedAbandonedTelegramUpdates = 0;
 
     if (env.BOT_ENVIRONMENT === 'production') {
+        const asOf = new Date(controller.scheduledTime);
+
+        try {
+            await (
+                dependencies.refreshBotAdminStatuses ?? refreshBotAdminStatuses
+            )(env, asOf);
+        } catch {
+            // Permission refreshes must never block the scheduled work or release cron.
+        }
+
         try {
             const snapshot = await (
                 dependencies.readBotStateSnapshot ?? readBotStateSnapshot
-            )(env, new Date(controller.scheduledTime));
+            )(env, asOf);
 
             emitTelemetryEvent(env, ctx, {
                 event: 'bot_state_snapshot',
@@ -137,6 +152,18 @@ export const runScheduledTasks = async (
                 outcome: 'success',
                 ...snapshot
             });
+            for (const [adminStatus, groupCount] of [
+                ['admin', snapshot.adminChats],
+                ['nonAdmin', snapshot.nonAdminChats],
+                ['unknown', snapshot.unknownAdminChats]
+            ] as const) {
+                emitTelemetryEvent(env, ctx, {
+                    event: 'bot_admin_status_count',
+                    adminStatus,
+                    groupCount,
+                    outcome: 'success'
+                });
+            }
         } catch (error) {
             emitTelemetryEvent(env, ctx, {
                 event: 'bot_state_snapshot_failed',

@@ -258,6 +258,27 @@
                             }
                         ]
                     }
+                },
+                {
+                    "title": "Bot admin rights across registered chats",
+                    "layout": {
+                        "column": 1,
+                        "row": 19,
+                        "width": 6,
+                        "height": 5
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.pie"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(groupCount) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_admin_status_count' FACET adminStatus SINCE 2 days ago LIMIT 3"
+                            }
+                        ]
+                    }
                 }
             ]
         },

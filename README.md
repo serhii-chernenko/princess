@@ -12,7 +12,7 @@ Telegram bot for friend groups. The runtime is now:
 - `evlog` telemetry sent to New Relic EU in production
 
 Production observability, the separate game and audience dashboard, and the New
-Relic MCP setup are documented in the
+Relic project MCP and installed skills are documented in the
 [operations runbook](./docs/OPERATIONS.md#9-data-and-analytics). Preview and
 local development retain Cloudflare observability without New Relic ingestion.
 
