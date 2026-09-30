@@ -286,8 +286,10 @@ the ignored `.dev.vars.production` file. Local development and previews do not
 ingest into New Relic. Delivery is registered with `waitUntil`, and drain
 failure only produces a local warning; it does not change bot behavior.
 
-Use the `Log_princess` data partition and filter by `service.name = 'princess'`
-and `botEnvironment = 'production'` when querying logs. The `eventName`,
+Use the enabled `Log_princess` data partition in account `8569908` (standard
+30-day retention). Its partition rule is
+`` `service.name` = 'princess' AND botEnvironment = 'production' ``. Filter by
+those same attributes when querying logs. The `eventName`,
 `outcome`, `durationMs`, `commandCategory`, `errorType`, counts and other safe
 dimensions are top-level attributes for NRQL. Events contain normalized route
 names and aggregate counts; they do not contain webhook paths, headers,
@@ -298,10 +300,45 @@ has 16 widgets for ingest freshness, webhook outcomes and latency, processing
 and queue errors, scheduled run health, vote completions, command mix, and
 release broadcast coverage. Its import template is in
 `docs/newrelic-dashboard.json`. Queries read `Log_princess`, not the default
-`Log` event type. Production charts will remain empty until the PR is deployed
-from `main`. A zero error count before the first production event does not prove
-the drain works. Check ingest freshness and the most recent scheduled run
-together when investigating missing data.
+`Log` event type. The OTLP ingest path was verified with a single production
+partition probe before deployment; operational event charts will populate after
+the code reaches `main`. A zero error count does not prove the drain works.
+Check ingest freshness and the most recent scheduled run together when
+investigating missing data.
+
+The separate [Princess game and audience dashboard](https://one.eu.newrelic.com/dashboards/detail/ODU2OTkwOHxWSVp8REFTSEJPQVJEfGRhOjI3NjEzODQ?account=8569908)
+has two pages and 23 widgets. `Game & audience` shows active users and chats,
+chats with a vote in the preceding seven days, the highest active player score,
+memberships, wins per hour and by mode, and eligible player counts. `Commands &
+lifecycle` shows completed joins, leaves, resets, stops, join outcomes, and
+command request volume and categories. Its import template is
+`docs/newrelic-behavior-dashboard.json`.
+
+Both dashboard imports currently have New Relic's `Edit – everyone in account`
+permission. The Settings control for changing it is disabled in this account,
+and a JSON permission edit did not persist. Limit account membership to trusted
+operators until the account permits `Read-only – everyone in account`.
+
+Each production scheduled invocation emits a `bot_state_snapshot` after reading
+aggregate counts from D1. An _active user_ has at least one active channel
+membership; an _active chat_ has at least one active member. `registeredChats`
+includes channels with no active members. `recentlyVotingChats` counts channels
+whose most recent completed vote was in the preceding seven days. `topScore` is
+the highest score of an active membership across chats; it is a score, not a
+Telegram identity. Snapshot failure emits `bot_state_snapshot_failed` and does
+not fail the release or maintenance task. The existing `*/10` cron is expected
+to update snapshots every ten minutes, with a daily snapshot from the `0 0`
+cron; use the `Snapshots in last hour` widget to catch missing cron activity.
+
+`bot_action_completed` is emitted after the game service mutation, before its
+Telegram reply. A `join` result is `joined`, `reactivated`, or `already-active`;
+the dashboard counts the first two as joins and exposes the last separately.
+`leave`, `reset`, and `stop` count only completed service calls. `vote_completed`
+counts recorded wins for auto, manual, and sudo runs. `telegram_webhook_completed`
+command categories count accepted command requests, not successful command
+effects. None of these events include Telegram IDs, chat IDs, names, message
+text, or per-chat membership lists. Behavior history starts when this PR is
+deployed; earlier commands cannot be reconstructed from current D1 tables.
 
 The official New Relic `apm` and `newrelic-mcp` skills are copied into
 `.agents/skills/` and tracked by `skills-lock.json`. For this EU account, the

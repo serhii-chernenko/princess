@@ -41,6 +41,7 @@
 !/docs
 !/docs/OPERATIONS.md
 !/docs/newrelic-dashboard.json
+!/docs/newrelic-behavior-dashboard.json
 !.oxfmtrc.json
 !.oxlintrc.json
 !package.json

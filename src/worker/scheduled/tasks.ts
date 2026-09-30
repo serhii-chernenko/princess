@@ -9,6 +9,10 @@ import {
 } from '../../db/repositories/telegram-update-repository';
 import type { WorkerBindings } from '../env';
 import { emitTelemetryEvent } from '../telemetry';
+import {
+    readBotStateSnapshot,
+    type BotStateSnapshot
+} from './bot-state-snapshot';
 import { runReleaseBroadcast } from './release-broadcast';
 
 const TASKS = {
@@ -46,6 +50,10 @@ interface ScheduledTaskDependencies {
         env: WorkerBindings,
         startedBefore: Date
     ) => Promise<number>;
+    readBotStateSnapshot?: (
+        env: WorkerBindings,
+        asOf: Date
+    ) => Promise<BotStateSnapshot>;
 }
 
 export interface ScheduledTasksSummary {
@@ -116,6 +124,28 @@ export const runScheduledTasks = async (
     let cleanedChannels = 0;
     let prunedProcessedTelegramUpdates = 0;
     let prunedAbandonedTelegramUpdates = 0;
+
+    if (env.BOT_ENVIRONMENT === 'production') {
+        try {
+            const snapshot = await (
+                dependencies.readBotStateSnapshot ?? readBotStateSnapshot
+            )(env, new Date(controller.scheduledTime));
+
+            emitTelemetryEvent(env, ctx, {
+                event: 'bot_state_snapshot',
+                cron: controller.cron,
+                outcome: 'success',
+                ...snapshot
+            });
+        } catch (error) {
+            emitTelemetryEvent(env, ctx, {
+                event: 'bot_state_snapshot_failed',
+                cron: controller.cron,
+                outcome: 'error',
+                errorType: getErrorType(error)
+            });
+        }
+    }
 
     if (taskNames.includes(TASKS.releaseBroadcast)) {
         const broadcastRelease =

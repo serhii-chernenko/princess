@@ -47,6 +47,14 @@ type TelemetryFields = {
     reason?: string;
     mode?: 'auto' | 'manual' | 'sudo';
     eligibleCount?: number;
+    action?: 'join' | 'leave' | 'reset' | 'stop';
+    result?: 'joined' | 'reactivated' | 'already-active' | 'success';
+    registeredChats?: number;
+    activeChats?: number;
+    activeUsers?: number;
+    activeMemberships?: number;
+    recentlyVotingChats?: number;
+    topScore?: number;
 };
 
 const knownPaths = new Set(['/', '/health', '/admin/release-broadcast']);

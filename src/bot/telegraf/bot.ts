@@ -35,6 +35,10 @@ const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
 
 export interface PrincessBotTelemetry {
+    botActionCompleted(input: {
+        action: 'join' | 'leave' | 'reset' | 'stop';
+        result: 'joined' | 'reactivated' | 'already-active' | 'success';
+    }): void;
     voteCompleted(input: {
         mode: 'auto' | 'manual' | 'sudo';
         eligibleCount: number;
@@ -428,6 +432,10 @@ export const createPrincessBot = (
                 actor.user,
                 locale
             );
+            telemetry?.botActionCompleted({
+                action: 'join',
+                result: result.state
+            });
 
             await ctx.sendMessage(
                 result.state === 'already-active'
@@ -456,6 +464,10 @@ export const createPrincessBot = (
             const LL = getMessages(locale);
             assertHumanSender(actor.user, locale);
             await game.leaveChannel(actor.chatId, actor.user, locale);
+            telemetry?.botActionCompleted({
+                action: 'leave',
+                result: 'success'
+            });
 
             await ctx.sendMessage(
                 LL.successLeave({
@@ -625,6 +637,10 @@ export const createPrincessBot = (
             assertAdminActor(actorMember, locale);
 
             await game.resetScores(actor.chatId, locale);
+            telemetry?.botActionCompleted({
+                action: 'reset',
+                result: 'success'
+            });
             await ctx.sendMessage(LL.successReset());
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
@@ -653,6 +669,10 @@ export const createPrincessBot = (
             assertAdminActor(actorMember, locale);
 
             await game.stopChannel(actor.chatId, locale);
+            telemetry?.botActionCompleted({
+                action: 'stop',
+                result: 'success'
+            });
             await ctx.sendMessage(LL.successStop());
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);

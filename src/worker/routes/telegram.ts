@@ -278,6 +278,12 @@ export const handleUpdateWithPrincessBot = async (
     context?: TelemetryContext
 ) => {
     const bot = createBot(env, {
+        botActionCompleted(input) {
+            emitTelemetryEvent(env, context, {
+                event: 'bot_action_completed',
+                ...input
+            });
+        },
         voteCompleted(input) {
             emitTelemetryEvent(env, context, {
                 event: 'vote_completed',
