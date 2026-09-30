@@ -88,6 +88,7 @@ const createBindings = (
     return {
         DB,
         BOT_ENVIRONMENT: botEnvironment,
+        AXIOM_DATASET: 'besidka-prod',
         ENABLE_SCHEDULED_CLEANUP: botEnvironment === 'local' ? 'true' : 'false',
         ENABLE_RELEASE_BROADCAST:
             botEnvironment === 'production' ? 'true' : 'false',
@@ -101,6 +102,7 @@ const createBindings = (
         YT_CHANNEL: 'https://youtube.com/@serhii.chernenko',
         MAIL: 'contact@chernenko.digital',
         BOT_TOKEN: '123456:test-token',
+        AXIOM_TOKEN: '',
         TELEGRAM_WEBHOOK_SECRET: 'test-webhook-secret',
         TELEGRAM_WEBHOOK_PATH: '/telegram/test'
     };
@@ -454,7 +456,7 @@ test('webhook logs a secret-safe warning when reclaiming a stale claim', async (
             {
                 event: 'telegram_update_claim_reclaimed',
                 botEnvironment: 'local',
-                updateId: 42
+                webhook: 'telegram'
             }
         ]
     );

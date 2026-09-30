@@ -34,6 +34,14 @@ import type { WorkerBindings } from '../../worker/env';
 const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
 
+export interface PrincessBotTelemetry {
+    voteCompleted(input: {
+        mode: 'auto' | 'manual' | 'sudo';
+        eligibleCount: number;
+        durationMs: number;
+    }): void;
+}
+
 type ChatMemberReader = {
     getChatMember(
         chatId: number,
@@ -263,9 +271,7 @@ const announceWinner = async (
         console.error(
             JSON.stringify({
                 event: 'vote_announcement_failed',
-                errorType: getErrorType(error),
-                chatId: ctx.chat?.id ?? null,
-                winnerPlayerId: result.winner.player.id
+                errorType: getErrorType(error)
             })
         );
 
@@ -292,7 +298,10 @@ const getRequestedLanguage = (ctx: Context) => {
     };
 };
 
-export const createPrincessBot = (env: WorkerBindings) => {
+export const createPrincessBot = (
+    env: WorkerBindings,
+    telemetry?: PrincessBotTelemetry
+) => {
     if (!env.BOT_TOKEN) {
         throw new Error('BOT_TOKEN is required to create the Telegram bot');
     }
@@ -448,6 +457,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const telegramDate = getTelegramDate(ctx.message?.date);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 actor.chatId,
                 actor.user.id,
@@ -457,6 +467,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
+            telemetry?.voteCompleted({
+                mode: 'manual',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
             await announceWinner(ctx, result, locale);
         } catch (error) {
             await handleCommandError(ctx, error, locale);
@@ -474,6 +489,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const telegramDate = getTelegramDate(ctx.message?.date);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 actor.chatId,
                 actor.user.id,
@@ -483,6 +499,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 true,
                 locale
             );
+            telemetry?.voteCompleted({
+                mode: 'sudo',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
             await announceWinner(ctx, result, locale);
         } catch (error) {
             await handleCommandError(ctx, error, locale);
@@ -730,6 +751,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             }
 
             locale = await game.getChannelLocale(ctx.chat.id);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 ctx.chat.id,
                 ctx.from.id,
@@ -739,6 +761,11 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
+            telemetry?.voteCompleted({
+                mode: 'auto',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
             await announceWinner(ctx, result, locale);
         } catch (error) {
             await handleListenerError(ctx, error);

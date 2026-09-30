@@ -45,8 +45,9 @@ Examples with placeholder values are committed next to them (`*.example`).
 
 | File                   | Variable names                                                                                                             |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                                         |
-| `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`                                       |
+| `.dev.vars`            | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`, `WORKER_BASE_URL`                          |
+| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`, `WORKER_BASE_URL`                          |
+| `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `AXIOM_TOKEN`                        |
 | `env/.env.d1`          | `CLOUDFLARE_AUTH_MODE=wrangler-login`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_PREVIEW_DATABASE_ID` |
 
 Examples: `.dev.vars.production.example`, `.dev.vars.preview.example`, `env/.env.d1.example`.
@@ -275,6 +276,30 @@ pnpm exec wrangler queues resume-delivery princess-release-announcements
 The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on production) needs a redeploy to take effect.
 
 ## 9. Data and analytics
+
+Workers keeps Cloudflare Logs and traces enabled. It also emits one safe evlog
+wide event for each HTTP request, Telegram webhook outcome, scheduled run,
+release broadcast, and release-announcement queue batch. Axiom delivery uses
+`AXIOM_TOKEN` and is registered with the Worker execution context, so a failed
+or slow drain never changes bot behavior.
+
+Dataset creation is temporarily unavailable on the Axiom organization. All
+Princess environments therefore write to the existing `besidka-prod` dataset.
+Filter Princess telemetry with `service = 'princess'` and `environment`.
+Princess-specific fields live only under the declared map path
+`attributes.princess` to avoid exceeding Axiom's field limit. These events
+contain normalized route names, status, durations, bounded outcome categories,
+and aggregate counts; they do not contain webhook paths, headers, message text,
+bot tokens, Telegram IDs, or display names.
+
+The [Princess Bot operations dashboard](https://app.axiom.co/besidka-tnqd/dashboards/uid/princess-bot-operations)
+shows production update outcomes and latency, processing and queue errors,
+scheduled Worker heartbeats, vote completions, command mix, and release
+broadcast coverage. Its final chart compares ingest across production, preview,
+and local development. Production charts remain empty until this change is
+deployed from `main`; a zero error count before the first production event is
+not evidence that delivery is healthy. Check the ingest chart and the most
+recent scheduled run together when investigating missing data.
 
 | Table                   | Purpose                                                                             |
 | ----------------------- | ----------------------------------------------------------------------------------- |
