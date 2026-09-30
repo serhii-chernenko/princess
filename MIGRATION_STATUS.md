@@ -501,7 +501,7 @@ Infrastructure:
   `princess-preview-release-announcements` (producer only).
 - The long-lived preview used by the preview bot is named `preview`
   (https://preview-princess.chernenko.workers.dev); the preview bot webhook points
-  there. Redeploy it with `pnpm worker:preview -- --name preview`.
+  there. Redeploy it with `pnpm worker:preview --name preview`.
 
 Notes:
 

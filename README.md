@@ -407,7 +407,7 @@ Infrastructure: Worker `princess` with previews; D1 `princess-production` and
 to production and creates a preview per non-main branch, named after the branch. The
 long-lived preview used by the preview bot (@princess_debug_bot) is named `preview`
 (https://preview-princess.chernenko.workers.dev), and its webhook points there.
-Redeploy it with `pnpm worker:preview -- --name preview`.
+Redeploy it with `pnpm worker:preview --name preview`.
 
 What a preview gets:
 
@@ -426,7 +426,7 @@ Flow:
    Builds:
 
     ```sh
-    pnpm run worker:preview -- --name <name>
+    pnpm run worker:preview --name <name>
     ```
 
 2. Set the base-config secrets once. `BOT_TOKEN` is the real preview bot token (@princess_debug_bot), so keep
