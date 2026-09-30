@@ -36,7 +36,8 @@ const allProductionTables = [
     'players',
     'release_announcements',
     'sqlite_sequence',
-    'telegram_updates'
+    'telegram_updates',
+    'vote_wins'
 ];
 
 const envelope = (results: unknown[], changes = 0) => {
@@ -58,7 +59,8 @@ interface FakeOptions {
 const productionRowCounts: Record<string, number> = {
     players: 3,
     channels: 2,
-    channel_members: 5
+    channel_members: 5,
+    vote_wins: 7
 };
 
 const createFakeRunner = (options: FakeOptions = {}) => {
@@ -135,7 +137,8 @@ const createFakeRunner = (options: FakeOptions = {}) => {
                 envelope([
                     { table: 'players', count: players },
                     { table: 'channels', count: 2 },
-                    { table: 'channel_members', count: 5 }
+                    { table: 'channel_members', count: 5 },
+                    { table: 'vote_wins', count: 7 }
                 ])
             );
         }
@@ -182,6 +185,7 @@ test('table selection excludes bookkeeping and ledger tables and fails on drift'
         copiedTablesInInsertOrder
     );
     assert.deepEqual(getWipeOrder(copiedTablesInInsertOrder), [
+        'vote_wins',
         'channel_members',
         'channels',
         'players'
@@ -191,7 +195,7 @@ test('table selection excludes bookkeeping and ledger tables and fails on drift'
     }, /unexpected: new_table/);
     assert.throws(() => {
         selectCopyTables(['players']);
-    }, /missing: channels, channel_members/);
+    }, /missing: channels, channel_members, vote_wins/);
 });
 
 test('export and import commands are hard-wired production to preview', () => {
@@ -264,18 +268,19 @@ test('copy runs migrations check, wipe in FK order, import, verify, and cleans u
 
     assert.deepEqual(
         deleteCommands.map(command => command?.split('"')[1]),
-        ['channel_members', 'channels', 'players']
+        ['vote_wins', 'channel_members', 'channels', 'players']
     );
     assert.deepEqual(
         fake.importedFiles.map(file => path.basename(file)),
-        ['players.sql', 'channels.sql', 'channel_members.sql']
+        ['players.sql', 'channels.sql', 'channel_members.sql', 'vote_wins.sql']
     );
     assert.deepEqual(result.counts, {
         players: 3,
         channels: 2,
-        channel_members: 5
+        channel_members: 5,
+        vote_wins: 7
     });
-    assert.equal(fake.exportedFiles.length, 3);
+    assert.equal(fake.exportedFiles.length, 4);
     assert.equal(fs.existsSync(fake.exportedFiles[0] ?? ''), false);
     assert.equal(
         fs.existsSync(path.dirname(fake.exportedFiles[0] ?? '')),
@@ -333,7 +338,7 @@ test('copy keeps deleting while chunks are full', () => {
         return call[call.indexOf('--command') + 1]?.startsWith('DELETE');
     });
 
-    assert.equal(deleteCalls.length, 4);
+    assert.equal(deleteCalls.length, 5);
 });
 
 test('copy aborts before touching production or preview data when migrations differ', () => {

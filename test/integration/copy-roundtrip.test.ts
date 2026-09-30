@@ -206,6 +206,13 @@ const seedSourceDatabase = async (harness: D1Harness) => {
 
     await insertMembers(1, largeChannelMemberTotal);
     await insertMembers(2, smallChannelMemberTotal);
+    await DB.prepare(
+        `INSERT INTO vote_wins (channel_id, player_id, won_at, mode, eligible_count)
+        SELECT 1, id, ? + id, CASE id % 3 WHEN 0 THEN 'auto' WHEN 1 THEN 'manual' ELSE 'sudo' END, 2 + id % 5
+        FROM players WHERE id <= ?`
+    )
+        .bind(seededTimestamp, largeChannelMemberTotal)
+        .run();
 };
 
 describe('production to preview export and import round trip', () => {
@@ -287,6 +294,7 @@ describe('production to preview export and import round trip', () => {
             }
 
             assert.ok((sourceCounts.channel_members ?? 0) > 100);
+            assert.ok((sourceCounts.vote_wins ?? 0) > 100);
         }
     );
 

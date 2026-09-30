@@ -4,6 +4,7 @@ import { createChannelRepository } from './channel-repository';
 import { createPlayerRepository } from './player-repository';
 import { createReleaseAnnouncementRepository } from './release-announcement-repository';
 import { createTelegramUpdateRepository } from './telegram-update-repository';
+import { createVoteWinRepository } from './vote-win-repository';
 
 export const createRepositories = (db: AppDb) => {
     return {
@@ -11,6 +12,7 @@ export const createRepositories = (db: AppDb) => {
         players: createPlayerRepository(db),
         channelMembers: createChannelMemberRepository(db),
         releaseAnnouncements: createReleaseAnnouncementRepository(db),
-        telegramUpdates: createTelegramUpdateRepository(db)
+        telegramUpdates: createTelegramUpdateRepository(db),
+        voteWins: createVoteWinRepository(db)
     };
 };

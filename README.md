@@ -95,6 +95,13 @@ Apply local migrations:
 pnpm run db:migrate:local
 ```
 
+Every daily-vote win is recorded in `vote_wins` (channel, player, `won_at`, mode
+`auto`, `manual` or `sudo`, and `eligible_count`) so fairness questions can be
+answered with data. `eligible_count` is the number of active players in the draw
+pool after member reconciliation, i.e. the pool the winner was drawn from. A
+failed history insert is logged as `vote_win_record_failed` and never affects the
+vote. Wins are not imported from Mongo, which has no such history.
+
 Query local D1:
 
 ```sh
@@ -473,7 +480,7 @@ Flow:
 
 Copy safety (production to preview only, hard-coded direction):
 
-- It copies `players`, `channels`, and `channel_members` only (not
+- It copies `players`, `channels`, `channel_members`, and `vote_wins` only (not
   `__drizzle_migrations` or `telegram_updates`), requires distinct database ids and
   matching migrations, wipes preview in foreign-key-safe chunks, and verifies counts.
 - The remote export makes production D1 unavailable to queries while it runs; use a

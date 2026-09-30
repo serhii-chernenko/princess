@@ -183,11 +183,23 @@ const voteChannel = {
     createdAt: new Date('2025-01-01T00:00:00Z')
 };
 
-const createVoteHarness = (memberCount: number) => {
+interface RecordedWin {
+    channelId: number;
+    playerId: number;
+    wonAt: Date;
+    mode: string;
+    eligibleCount: number;
+}
+
+const createVoteHarness = (
+    memberCount: number,
+    options: { failRecordWin?: boolean } = {}
+) => {
     const calls = {
         resetChannelRun: 0,
         claimChannelRun: 0
     };
+    const recordedWins: RecordedWin[] = [];
     const rows = Array.from({ length: memberCount }, (_unused, index) => {
         return {
             member: {
@@ -240,11 +252,22 @@ const createVoteHarness = (memberCount: number) => {
         },
         players: {
             updateDisplayName: () => Effect.void
+        },
+        voteWins: {
+            recordWin: (win: RecordedWin) => {
+                if (options.failRecordWin) {
+                    return Effect.fail(new Error('history write failed'));
+                }
+
+                recordedWins.push(win);
+
+                return Effect.succeed(win);
+            }
         }
     } as unknown as ReturnType<typeof createRepositories>;
     const game = createGameService({} as WorkerBindings, repositories);
 
-    return { calls, game };
+    return { calls, game, recordedWins };
 };
 
 const runAt = new Date('2026-01-03T00:00:00Z');
@@ -421,4 +444,105 @@ test('transient member lookup errors abort the vote before claiming', async () =
             true
         );
     }
+});
+
+test('runVote records the win with pool size and mode for auto, manual and sudo runs', async () => {
+    const cases = [
+        { type: 'auto', sudo: false, mode: 'auto' },
+        { type: 'manual', sudo: false, mode: 'manual' },
+        { type: 'manual', sudo: true, mode: 'sudo' }
+    ] as const;
+
+    for (const { type, sudo, mode } of cases) {
+        const { game, recordedWins } = createVoteHarness(4);
+        const telegram = {
+            async getChatMember(_chatId: number, userId: number) {
+                return {
+                    status: userId === 100 ? 'creator' : 'member',
+                    user: {
+                        id: userId,
+                        is_bot: false,
+                        first_name: `User${userId}`
+                    }
+                } as never;
+            }
+        };
+
+        const result = await game.runVote(
+            -1001,
+            100,
+            runAt,
+            telegram,
+            type,
+            sudo,
+            'en'
+        );
+
+        assert.equal(recordedWins.length, 1, mode);
+        assert.deepEqual(recordedWins[0], {
+            channelId: 1,
+            playerId: result.winner.player.id,
+            wonAt: runAt,
+            mode,
+            eligibleCount: 4
+        });
+    }
+});
+
+test('eligibleCount counts only players that survive reconciliation', async () => {
+    const { game, recordedWins } = createVoteHarness(4);
+    const telegram = createTelegram(userId => {
+        return userId === 100
+            ? createTelegramError(400, 'Bad Request: user not found')
+            : undefined;
+    });
+
+    await game.runVote(-1001, 101, runAt, telegram, 'manual', false, 'en');
+
+    assert.equal(recordedWins[0]?.eligibleCount, 3);
+});
+
+test('a failed history insert is logged and never breaks the vote', async () => {
+    const { calls, game, recordedWins } = createVoteHarness(3, {
+        failRecordWin: true
+    });
+    const logged: string[] = [];
+    const originalConsoleError = console.error;
+
+    console.error = (message: string) => {
+        logged.push(message);
+    };
+
+    try {
+        const result = await game.runVote(
+            -1001,
+            100,
+            runAt,
+            createTelegram(),
+            'manual',
+            false,
+            'en'
+        );
+
+        assert.equal(result.winner.member.score, 0);
+    } finally {
+        console.error = originalConsoleError;
+    }
+
+    assert.equal(calls.claimChannelRun, 1);
+    assert.equal(recordedWins.length, 0);
+    assert.equal(
+        logged.some(entry => entry.includes('vote_win_record_failed')),
+        true
+    );
+});
+
+test('no history row is written when the vote is rejected', async () => {
+    const { game, recordedWins } = createVoteHarness(1);
+
+    await assert.rejects(
+        game.runVote(-1001, 100, runAt, createTelegram(), 'manual', false, 'en')
+    );
+
+    assert.equal(recordedWins.length, 0);
 });

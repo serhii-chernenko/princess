@@ -656,6 +656,28 @@ export const createGameService = (
 
         winner.member = incrementedWinner;
 
+        try {
+            await runEffect(
+                repositories.voteWins.recordWin({
+                    channelId: channel.id,
+                    playerId: winner.player.id,
+                    wonAt: runDate,
+                    mode: sudo ? 'sudo' : type,
+                    eligibleCount: activePlayers.length
+                })
+            );
+        } catch (error) {
+            console.error(
+                JSON.stringify({
+                    event: 'vote_win_record_failed',
+                    errorType: getErrorType(error),
+                    chatId: telegramChatId,
+                    channelId: channel.id,
+                    playerId: winner.player.id
+                })
+            );
+        }
+
         if (sudo) {
             await runEffect(
                 repositories.channels.touchChannelRun(channel.id, runDate)
