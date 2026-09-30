@@ -5,5 +5,7 @@ export {
     releaseAnnouncements,
     releaseAnnouncementStatuses,
     telegramUpdates,
-    telegramUpdateStatuses
+    telegramUpdateStatuses,
+    voteWinModes,
+    voteWins
 } from './schemas';

@@ -92,6 +92,10 @@ All times UTC, 2026-09-29.
   enqueued 217 announcements. Delivery was resumed at 19:47:30Z and drained by
   19:51:38Z: 90 sent, 125 skipped with 400 (chat gone), 2 skipped with 403, 0
   ambiguous, 0 failed. `feat/migration-to-v5` was deleted.
+- **Vote history migration.** Migration `20260930070822_thankful_magma` adds `vote_wins`.
+  Apply it to `princess-production` (`pnpm run db:migrate:prod`) and `princess-preview`
+  (`pnpm run db:migrate:preview`) BEFORE merging, because Workers Builds deploys code but
+  does not run migrations.
 - **Former beta retired.** On 2026-09-29 the former beta Worker, D1, queues, and
   branch were retired in favour of previews and deleted.
 

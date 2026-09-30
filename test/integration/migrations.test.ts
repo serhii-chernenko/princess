@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
+import { Effect } from 'effect';
+
 import {
     buildMigrationHashesSql,
     migrationsTableName
@@ -39,7 +41,8 @@ describe('D1 migrations', () => {
             'players',
             'channel_members',
             'telegram_updates',
-            'release_announcements'
+            'release_announcements',
+            'vote_wins'
         ]) {
             assert.equal(findObject(tableName)?.type, 'table', tableName);
         }
@@ -66,6 +69,18 @@ describe('D1 migrations', () => {
             findObject('release_announcements')?.sql ?? '',
             /release_announcements_status_check[^)]*CHECK\("status" in \('queued', 'sending', 'sent', 'skipped', 'failed'\)\)/
         );
+        assert.match(
+            findObject('vote_wins')?.sql ?? '',
+            /vote_wins_mode_check[^)]*CHECK\("mode" in \('auto', 'manual', 'sudo'\)\)/
+        );
+        assert.match(
+            findObject('vote_wins')?.sql ?? '',
+            /vote_wins_eligible_count_check[^)]*CHECK\("eligible_count" >= 2\)/
+        );
+        assert.equal(
+            findObject('vote_wins_channel_won_at_index')?.type,
+            'index'
+        );
         assert.match(findObject('channels')?.sql ?? '', /`language` text/);
     });
 
@@ -75,7 +90,7 @@ describe('D1 migrations', () => {
 
         await harness.applyMigrations();
 
-        assert.equal(appliedBefore, 4);
+        assert.equal(appliedBefore, 5);
         assert.equal(
             await countRows(harness, '__drizzle_migrations'),
             appliedBefore
@@ -100,7 +115,7 @@ describe('D1 migrations', () => {
         assert.equal(table?.name, migrationsTableName);
         assert.ok(columns.some(column => column.name === 'hash'));
         assert.ok(columns.some(column => column.name === 'id'));
-        assert.equal(hashes.length, 4);
+        assert.equal(hashes.length, 5);
         assert.ok(hashes.every(row => row.hash.length > 0));
     });
 
@@ -201,6 +216,70 @@ describe('D1 migrations', () => {
             await DB.prepare('DELETE FROM channels').run();
             assert.equal(await countRows(harness, 'channel_members'), 0);
             assert.equal(await countRows(harness, 'players'), 1);
+        });
+
+        it('records vote wins, enforces their checks and cascades deletion', async () => {
+            const { DB } = harness.env;
+
+            await DB.batch([
+                DB.prepare(
+                    "INSERT INTO channels (telegram_chat_id, release_version, created_at) VALUES (1, '1', 0)"
+                ),
+                DB.prepare(
+                    "INSERT INTO players (telegram_user_id, display_name, created_at, updated_at) VALUES (1, 'a', 0, 0), (2, 'b', 0, 0)"
+                )
+            ]);
+
+            const { results: channelRows } = await DB.prepare(
+                'SELECT id FROM channels'
+            ).all<{ id: number }>();
+            const { results: playerRows } = await DB.prepare(
+                'SELECT id FROM players ORDER BY telegram_user_id'
+            ).all<{ id: number }>();
+            const channelId = channelRows[0]!.id;
+            const [firstPlayerId, secondPlayerId] = playerRows.map(row => {
+                return row.id;
+            }) as [number, number];
+
+            const recorded = await Effect.runPromise(
+                harness.repositories.voteWins.recordWin({
+                    channelId,
+                    playerId: secondPlayerId,
+                    wonAt: new Date(1_800_000_000_000),
+                    mode: 'sudo',
+                    eligibleCount: 2
+                })
+            );
+
+            assert.equal(recorded?.mode, 'sudo');
+            assert.equal(recorded?.eligibleCount, 2);
+            assert.equal(recorded?.wonAt.getTime(), 1_800_000_000_000);
+            assert.equal(await countRows(harness, 'vote_wins'), 1);
+
+            const insertWin = (
+                playerId: number,
+                mode: string,
+                eligibleCount: number
+            ) => {
+                return DB.prepare(
+                    'INSERT INTO vote_wins (channel_id, player_id, won_at, mode, eligible_count) VALUES (?, ?, 0, ?, ?)'
+                )
+                    .bind(channelId, playerId, mode, eligibleCount)
+                    .run();
+            };
+
+            await assert.rejects(insertWin(firstPlayerId, 'bogus', 2), /CHECK/);
+            await assert.rejects(insertWin(firstPlayerId, 'auto', 1), /CHECK/);
+            await assert.rejects(insertWin(999, 'auto', 2), /FOREIGN KEY/);
+
+            await DB.prepare(
+                'DELETE FROM players WHERE telegram_user_id = 2'
+            ).run();
+            assert.equal(await countRows(harness, 'vote_wins'), 0);
+
+            await insertWin(firstPlayerId, 'auto', 3);
+            await DB.prepare('DELETE FROM channels').run();
+            assert.equal(await countRows(harness, 'vote_wins'), 0);
         });
     });
 });

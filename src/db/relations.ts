@@ -16,6 +16,10 @@ export const relations = defineRelations(schema, r => {
             releaseAnnouncements: r.many.releaseAnnouncements({
                 from: r.channels.id,
                 to: r.releaseAnnouncements.channelId
+            }),
+            voteWins: r.many.voteWins({
+                from: r.channels.id,
+                to: r.voteWins.channelId
             })
         },
         players: {
@@ -26,6 +30,22 @@ export const relations = defineRelations(schema, r => {
             channels: r.many.channels({
                 from: r.players.id.through(r.channelMembers.playerId),
                 to: r.channels.id.through(r.channelMembers.channelId)
+            }),
+            voteWins: r.many.voteWins({
+                from: r.players.id,
+                to: r.voteWins.playerId
+            })
+        },
+        voteWins: {
+            channel: r.one.channels({
+                from: r.voteWins.channelId,
+                to: r.channels.id,
+                optional: false
+            }),
+            player: r.one.players({
+                from: r.voteWins.playerId,
+                to: r.players.id,
+                optional: false
             })
         },
         releaseAnnouncements: {

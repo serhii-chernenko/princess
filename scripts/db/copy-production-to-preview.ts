@@ -33,7 +33,8 @@ export const excludedTableNames = [
 export const copiedTablesInInsertOrder = [
     'players',
     'channels',
-    'channel_members'
+    'channel_members',
+    'vote_wins'
 ];
 export const deleteChunkSize = 1000;
 

@@ -92,6 +92,9 @@ Details are in the [Cutover record](./MIGRATION_STATUS.md#cutover-record).
 
 - [x] Apply migration `20260929183002_mysterious_freak` to `princess-production`
       before merging (Workers Builds deploys code but does not run migrations).
+- [ ] Apply migration `20260930070822_thankful_magma` (`vote_wins`) to `princess-production`
+      (`pnpm run db:migrate:prod`) and `princess-preview` (`pnpm run db:migrate:preview`)
+      BEFORE merging the vote history change (Workers Builds does not run migrations).
 - [x] Merge to `main` (PR #1), announce 5.0.0 (90 sent, 127 skipped, 0 failed),
       and enable previews of the production Worker (`env.production.previews`);
       the `princess-preview` D1 id is set in `wrangler.jsonc`.

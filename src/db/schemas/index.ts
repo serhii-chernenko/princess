@@ -6,3 +6,4 @@ export {
     releaseAnnouncementStatuses
 } from './release-announcements';
 export { telegramUpdates, telegramUpdateStatuses } from './telegram-updates';
+export { voteWinModes, voteWins } from './vote-wins';
