@@ -3,8 +3,10 @@
 This is the data-transfer procedure used for the first production cutover, completed
 on 2026-09-29 (see the
 [cutover record](./MIGRATION_STATUS.md#cutover-record)); reuse it only for a re-run.
-The export can come from the `backup-dbs` workflow (`workflow_dispatch`), which
-commits to `princess-db`; the pinned SHA is then used as `MONGO_BACKUP_REF`. The broader
+Historical note: the export came from the `backup-dbs` workflow, which committed to
+`princess-db`; the pinned SHA was used as `MONGO_BACKUP_REF`. Since 2026-09-30 princess
+is no longer part of `backup-dbs` and `princess-db` is archived (read-only, last snapshot
+`d97cd8e`); a new re-import needs a manual `mongoexport` from Atlas or unarchiving the repo. The broader
 traffic sequence and rollback policy remain in
 [MIGRATION_STATUS.md](./MIGRATION_STATUS.md#safe-cutover-sequence).
 
