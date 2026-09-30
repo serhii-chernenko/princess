@@ -2,6 +2,7 @@ import type { Update, UserFromGetMe } from 'telegraf/types';
 import { Effect } from 'effect';
 
 import { createPrincessBot } from '../../bot';
+import type { PrincessBotTelemetry } from '../../bot/telegraf/bot';
 import { createDb } from '../../db/client';
 import { createRepositories } from '../../db/repositories';
 import type { TelegramUpdateClaim } from '../../db/repositories/telegram-update-repository';
@@ -17,6 +18,11 @@ import {
     type SecretComparisonCrypto,
     type SecretMatcher
 } from '../telegram-auth';
+import {
+    emitTelemetryEvent,
+    getTelegramCommandCategory,
+    type TelemetryContext
+} from '../telemetry';
 
 export { compareSecrets, type SecretComparisonCrypto } from '../telegram-auth';
 
@@ -28,7 +34,8 @@ export interface TelegramRouteDependencies {
     handleUpdate?: (
         env: WorkerBindings,
         update: RuntimeTelegramUpdate,
-        botKey: string
+        botKey: string,
+        context?: TelemetryContext
     ) => Promise<void>;
     secretsMatch?: SecretMatcher;
     createUpdateLedger?: (env: WorkerBindings) => TelegramUpdateLedger;
@@ -264,9 +271,33 @@ export const handleUpdateWithPrincessBot = async (
     env: WorkerBindings,
     update: RuntimeTelegramUpdate,
     botKey: string,
-    createBot: (env: WorkerBindings) => PrincessBot = createPrincessBot
+    createBot: (
+        env: WorkerBindings,
+        telemetry?: PrincessBotTelemetry
+    ) => PrincessBot = createPrincessBot,
+    context?: TelemetryContext
 ) => {
-    const bot = createBot(env);
+    const bot = createBot(env, {
+        botActionCompleted(input) {
+            emitTelemetryEvent(env, context, {
+                event: 'bot_action_completed',
+                ...input
+            });
+        },
+        voteCompleted(input) {
+            emitTelemetryEvent(env, context, {
+                event: 'vote_completed',
+                outcome: 'success',
+                ...input
+            });
+        },
+        internalFailure(input) {
+            emitTelemetryEvent(env, context, {
+                ...input,
+                outcome: 'error'
+            });
+        }
+    });
     const cachedBotInfo = botInfoByBotKey.get(botKey);
 
     if (cachedBotInfo) {
@@ -296,7 +327,16 @@ export const registerTelegramRoutes = (
     dependencies: TelegramRouteDependencies = {}
 ) => {
     const handleUpdate =
-        dependencies.handleUpdate ?? handleUpdateWithPrincessBot;
+        dependencies.handleUpdate ??
+        ((env, update, botKey, context) => {
+            return handleUpdateWithPrincessBot(
+                env,
+                update,
+                botKey,
+                createPrincessBot,
+                context
+            );
+        });
     const secretsMatch = dependencies.secretsMatch ?? compareSecrets;
     const createUpdateLedger =
         dependencies.createUpdateLedger ?? createD1UpdateLedger;
@@ -307,12 +347,46 @@ export const registerTelegramRoutes = (
     const logWarning = dependencies.logWarning ?? console.warn;
 
     app.post('*', async c => {
+        const startedAt = Date.now();
+        let commandCategory = 'notParsed';
+        const getTelemetryContext = () => {
+            try {
+                return c.executionCtx;
+            } catch {
+                return undefined;
+            }
+        };
+        const respond = (
+            response: Response,
+            outcome: string,
+            idempotencyOutcome: string,
+            rejectionReason?: string
+        ) => {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_webhook_completed',
+                method: 'POST',
+                path: '/telegram/webhook',
+                status: response.status,
+                durationMs: Math.max(0, Date.now() - startedAt),
+                outcome,
+                commandCategory,
+                idempotencyOutcome,
+                ...(rejectionReason === undefined ? {} : { rejectionReason })
+            });
+            return response;
+        };
+
         if (!hasRequiredWorkerConfiguration(c.env)) {
-            return c.json(
-                {
-                    error: 'Telegram webhook is unavailable'
-                },
-                503
+            return respond(
+                c.json(
+                    {
+                        error: 'Telegram webhook is unavailable'
+                    },
+                    503
+                ),
+                'rejected',
+                'notClaimed',
+                'configuration'
             );
         }
 
@@ -320,7 +394,12 @@ export const registerTelegramRoutes = (
         const pathname = new URL(c.req.url).pathname;
 
         if (expectedPath === null || pathname !== expectedPath) {
-            return c.notFound();
+            return respond(
+                await c.notFound(),
+                'rejected',
+                'notClaimed',
+                'path'
+            );
         }
 
         const providedSecret = c.req.header(TELEGRAM_SECRET_HEADER) ?? '';
@@ -328,58 +407,88 @@ export const registerTelegramRoutes = (
         if (
             !(await secretsMatch(providedSecret, c.env.TELEGRAM_WEBHOOK_SECRET))
         ) {
-            return c.json(
-                {
-                    error: 'Invalid Telegram webhook secret'
-                },
-                401
+            return respond(
+                c.json(
+                    {
+                        error: 'Invalid Telegram webhook secret'
+                    },
+                    401
+                ),
+                'rejected',
+                'notClaimed',
+                'authentication'
             );
         }
 
         if (!isJsonRequest(c.req.header('Content-Type'))) {
-            return c.json(
-                {
-                    error: 'Content-Type must be application/json'
-                },
-                415
+            return respond(
+                c.json(
+                    {
+                        error: 'Content-Type must be application/json'
+                    },
+                    415
+                ),
+                'rejected',
+                'notClaimed',
+                'contentType'
             );
         }
 
         const body = await readLimitedJsonBody(c.req.raw);
 
         if (body.state === 'too-large') {
-            return c.json(
-                {
-                    error: 'Telegram update payload is too large'
-                },
-                413
+            return respond(
+                c.json(
+                    {
+                        error: 'Telegram update payload is too large'
+                    },
+                    413
+                ),
+                'rejected',
+                'notClaimed',
+                'payloadTooLarge'
             );
         }
 
         if (body.state === 'malformed') {
-            return c.json(
-                {
-                    error: 'Malformed JSON payload'
-                },
-                400
+            return respond(
+                c.json(
+                    {
+                        error: 'Malformed JSON payload'
+                    },
+                    400
+                ),
+                'rejected',
+                'notClaimed',
+                'malformedPayload'
             );
         }
 
         const payload = body.payload;
+        commandCategory = getTelegramCommandCategory(payload);
 
         if (isIgnorableTelegramUpdate(payload)) {
-            return c.json({
-                ignored: true,
-                updateId: payload.update_id
-            });
+            return respond(
+                c.json({
+                    ignored: true,
+                    updateId: payload.update_id
+                }),
+                'ignored',
+                'notClaimed'
+            );
         }
 
         if (!isRuntimeTelegramUpdate(payload)) {
-            return c.json(
-                {
-                    error: 'Invalid Telegram update payload'
-                },
-                400
+            return respond(
+                c.json(
+                    {
+                        error: 'Invalid Telegram update payload'
+                    },
+                    400
+                ),
+                'rejected',
+                'notClaimed',
+                'invalidUpdate'
             );
         }
 
@@ -399,40 +508,58 @@ export const registerTelegramRoutes = (
                 now()
             );
         } catch (error) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_ledger_unavailable',
+                outcome: 'error',
+                errorType: getErrorType(error)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_ledger_unavailable',
                     errorType: getErrorType(error),
-                    phase: 'claim',
-                    updateId: payload.update_id
+                    phase: 'claim'
                 })
             );
 
-            return c.json(
-                {
-                    error: 'Telegram update ledger is unavailable'
-                },
-                503
+            return respond(
+                c.json(
+                    {
+                        error: 'Telegram update ledger is unavailable'
+                    },
+                    503
+                ),
+                'error',
+                'unavailable',
+                'ledger'
             );
         }
 
         if (claim.state === 'duplicate') {
-            return c.json(
-                {
-                    accepted: true,
-                    duplicate: true,
-                    updateId: payload.update_id
-                },
-                200
+            return respond(
+                c.json(
+                    {
+                        accepted: true,
+                        duplicate: true,
+                        updateId: payload.update_id
+                    },
+                    200
+                ),
+                'accepted',
+                'duplicate'
             );
         }
 
         if (claim.state === 'busy') {
-            return c.json(
-                {
-                    error: 'Telegram update is already processing'
-                },
-                503
+            return respond(
+                c.json(
+                    {
+                        error: 'Telegram update is already processing'
+                    },
+                    503
+                ),
+                'rejected',
+                'busy',
+                'processing'
             );
         }
 
@@ -441,7 +568,7 @@ export const registerTelegramRoutes = (
                 JSON.stringify({
                     event: 'telegram_update_claim_reclaimed',
                     botEnvironment: c.env.BOT_ENVIRONMENT,
-                    updateId: payload.update_id
+                    webhook: 'telegram'
                 })
             );
         }
@@ -450,7 +577,7 @@ export const registerTelegramRoutes = (
         let dispatchError: unknown;
 
         try {
-            await handleUpdate(c.env, payload, botKey);
+            await handleUpdate(c.env, payload, botKey, getTelemetryContext());
         } catch (error) {
             dispatchFailed = true;
             dispatchError = error;
@@ -466,6 +593,13 @@ export const registerTelegramRoutes = (
                 now()
             );
         } catch (error) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_terminalization_failed',
+                outcome: dispatchFailed
+                    ? 'dispatchFailed'
+                    : 'dispatchSucceeded',
+                errorType: getErrorType(error)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_terminalization_failed',
@@ -474,20 +608,33 @@ export const registerTelegramRoutes = (
                         : null,
                     dispatchOutcome: dispatchFailed ? 'failed' : 'succeeded',
                     errorType: getErrorType(error),
-                    updateId: payload.update_id
+                    phase: 'terminalize'
                 })
             );
 
-            return c.json(
-                {
-                    accepted: true,
-                    updateId: payload.update_id
-                },
-                200
+            return respond(
+                c.json(
+                    {
+                        accepted: true,
+                        updateId: payload.update_id
+                    },
+                    200
+                ),
+                'accepted',
+                'uncertain'
             );
         }
 
         if (!terminalized) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_lease_lost',
+                outcome: dispatchFailed
+                    ? 'dispatchFailed'
+                    : 'dispatchSucceeded',
+                ...(dispatchFailed
+                    ? { errorType: getErrorType(dispatchError) }
+                    : {})
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_lease_lost',
@@ -495,45 +642,62 @@ export const registerTelegramRoutes = (
                         ? getErrorType(dispatchError)
                         : null,
                     dispatchOutcome: dispatchFailed ? 'failed' : 'succeeded',
-                    updateId: payload.update_id
+                    phase: 'leaseLost'
                 })
             );
 
-            return c.json(
-                {
-                    accepted: true,
-                    updateId: payload.update_id
-                },
-                200
+            return respond(
+                c.json(
+                    {
+                        accepted: true,
+                        updateId: payload.update_id
+                    },
+                    200
+                ),
+                'accepted',
+                'leaseLost'
             );
         }
 
         if (dispatchFailed) {
+            emitTelemetryEvent(c.env, getTelemetryContext(), {
+                event: 'telegram_update_dispatch_failed',
+                outcome: 'error',
+                errorType: getErrorType(dispatchError)
+            });
             console.error(
                 JSON.stringify({
                     event: 'telegram_update_dispatch_failed',
                     dispatchOutcome: 'failed',
                     errorType: getErrorType(dispatchError),
                     ledgerState: 'processed',
-                    updateId: payload.update_id
+                    phase: 'dispatch'
                 })
             );
 
-            return c.json(
+            return respond(
+                c.json(
+                    {
+                        accepted: true,
+                        updateId: payload.update_id
+                    },
+                    200
+                ),
+                'error',
+                'processed'
+            );
+        }
+
+        return respond(
+            c.json(
                 {
                     accepted: true,
                     updateId: payload.update_id
                 },
                 200
-            );
-        }
-
-        return c.json(
-            {
-                accepted: true,
-                updateId: payload.update_id
-            },
-            200
+            ),
+            'accepted',
+            'processed'
         );
     });
 };

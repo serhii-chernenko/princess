@@ -8,6 +8,10 @@ export const channels = snakeCase.table(
         language: text().notNull().default('ua'),
         releaseVersion: text().notNull(),
         lastVoteAt: integer({ mode: 'timestamp_ms' }),
+        botAdminStatus: text({
+            enum: ['admin', 'nonAdmin', 'unavailable']
+        }),
+        botAdminCheckedAt: integer({ mode: 'timestamp_ms' }),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
             .$defaultFn(() => new Date())

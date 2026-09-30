@@ -1,0 +1,523 @@
+{
+    "name": "Princess Bot — Game & Audience",
+    "description": "Production bot behavior across Telegram groups: audience, wins, game lifecycle, and command use. Aggregate metrics only; no user or chat identities leave D1.",
+    "permissions": "PUBLIC_READ_WRITE",
+    "pages": [
+        {
+            "name": "Game & audience",
+            "description": "Current D1 snapshot and completed votes across production Telegram groups.",
+            "widgets": [
+                {
+                    "title": "Active users",
+                    "layout": {
+                        "column": 1,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(activeUsers) AS 'Active users' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' SINCE 2 hours ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Active chats",
+                    "layout": {
+                        "column": 5,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(activeChats) AS 'Active chats' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' SINCE 2 hours ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Chats with vote in last 7 days",
+                    "layout": {
+                        "column": 9,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(recentlyVotingChats) AS 'Voting chats' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' SINCE 2 hours ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Highest active score",
+                    "layout": {
+                        "column": 1,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(topScore) AS 'Top score' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' SINCE 2 hours ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Wins in last 30 days",
+                    "layout": {
+                        "column": 5,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Wins' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'vote_completed' SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Snapshots in last hour",
+                    "layout": {
+                        "column": 9,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Snapshots' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' SINCE 1 hour ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Active users and chats",
+                    "layout": {
+                        "column": 1,
+                        "row": 7,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(activeUsers) AS 'Users', latest(activeChats) AS 'Chats' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' TIMESERIES SINCE 7 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Registered vs active chats",
+                    "layout": {
+                        "column": 7,
+                        "row": 7,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(registeredChats) AS 'Registered', latest(activeChats) AS 'Active' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' TIMESERIES SINCE 7 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Winners per hour",
+                    "layout": {
+                        "column": 1,
+                        "row": 11,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.area"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'vote_completed' TIMESERIES 1 hour SINCE 7 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Wins by mode",
+                    "layout": {
+                        "column": 7,
+                        "row": 11,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'vote_completed' FACET mode SINCE 30 days ago LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Eligible players per vote",
+                    "layout": {
+                        "column": 1,
+                        "row": 15,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT average(eligibleCount) AS 'Average', percentile(eligibleCount, 95) AS 'p95' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'vote_completed' TIMESERIES SINCE 7 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Active memberships",
+                    "layout": {
+                        "column": 7,
+                        "row": 15,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(activeMemberships) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_state_snapshot' TIMESERIES SINCE 7 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Bot admin rights across registered chats",
+                    "layout": {
+                        "column": 1,
+                        "row": 19,
+                        "width": 6,
+                        "height": 5
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.pie"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT latest(groupCount) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_admin_status_count' FACET adminStatus SINCE 2 days ago LIMIT 3"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Commands & lifecycle",
+            "description": "Completed state changes and command requests; join retries are shown separately.",
+            "widgets": [
+                {
+                    "title": "New or returning joins (30d)",
+                    "layout": {
+                        "column": 1,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Joins' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'join' AND result IN ('joined', 'reactivated') SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Leaves (30d)",
+                    "layout": {
+                        "column": 5,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Leaves' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'leave' SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Resets (30d)",
+                    "layout": {
+                        "column": 9,
+                        "row": 1,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Resets' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'reset' SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Stopped games (30d)",
+                    "layout": {
+                        "column": 1,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Stopped games' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'stop' SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Join requests already active (30d)",
+                    "layout": {
+                        "column": 5,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Repeat joins' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'join' AND result = 'already-active' SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Command requests (30d)",
+                    "layout": {
+                        "column": 9,
+                        "row": 4,
+                        "width": 4,
+                        "height": 3
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.billboard"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) AS 'Commands' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome = 'accepted' AND commandCategory NOT IN ('nonCommand', 'message') SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Joins and leaves per day",
+                    "layout": {
+                        "column": 1,
+                        "row": 7,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND (action = 'leave' OR (action = 'join' AND result IN ('joined', 'reactivated'))) FACET action TIMESERIES 1 day SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Resets and stops per day",
+                    "layout": {
+                        "column": 7,
+                        "row": 7,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.line"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action IN ('reset', 'stop') FACET action TIMESERIES 1 day SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Join outcomes",
+                    "layout": {
+                        "column": 1,
+                        "row": 11,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'join' FACET result SINCE 30 days ago LIMIT 10"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Commands by category",
+                    "layout": {
+                        "column": 7,
+                        "row": 11,
+                        "width": 6,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.bar"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome = 'accepted' AND commandCategory NOT IN ('nonCommand', 'message') FACET commandCategory SINCE 30 days ago LIMIT 15"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Command requests per day",
+                    "layout": {
+                        "column": 1,
+                        "row": 15,
+                        "width": 12,
+                        "height": 4
+                    },
+                    "linkedEntityGuids": null,
+                    "visualization": {
+                        "id": "viz.area"
+                    },
+                    "rawConfiguration": {
+                        "nrqlQueries": [
+                            {
+                                "accountIds": [8569908],
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'telegram_webhook_completed' AND outcome = 'accepted' AND commandCategory NOT IN ('nonCommand', 'message') TIMESERIES 1 day SINCE 30 days ago"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -45,7 +45,8 @@ Examples with placeholder values are committed next to them (`*.example`).
 
 | File                   | Variable names                                                                                                             |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                                         |
+| `.dev.vars`            | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                                         |
+| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `NEW_RELIC_LICENSE_KEY`, `WORKER_BASE_URL`                |
 | `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`                                       |
 | `env/.env.d1`          | `CLOUDFLARE_AUTH_MODE=wrangler-login`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_PREVIEW_DATABASE_ID` |
 
@@ -276,6 +277,100 @@ The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on
 
 ## 9. Data and analytics
 
+Workers keeps Cloudflare Logs and traces enabled. The Worker emits one safe evlog
+wide event for each HTTP request, Telegram webhook outcome, scheduled run,
+release broadcast, and release-announcement queue batch. Production events are
+sent by evlog's OTLP drain to the New Relic EU endpoint in account `8569908`.
+The `NEW_RELIC_LICENSE_KEY` secret exists only on the production Worker and in
+the ignored `.dev.vars.production` file. Local development and previews do not
+ingest into New Relic. Delivery is registered with `waitUntil`, and drain
+failure only produces a local warning; it does not change bot behavior.
+
+Use the enabled `Log_princess` data partition in account `8569908` (standard
+30-day retention). Its partition rule is
+`` `service.name` = 'princess' AND botEnvironment = 'production' ``. Filter by
+those same attributes when querying logs. The `eventName`,
+`outcome`, `durationMs`, `commandCategory`, `errorType`, counts and other safe
+dimensions are top-level attributes for NRQL. Events contain normalized route
+names and aggregate counts; they do not contain webhook paths, headers,
+message text, bot tokens, Telegram IDs, or display names.
+
+The [Princess production observability dashboard](https://one.eu.newrelic.com/dashboards/detail/ODU2OTkwOHxWSVp8REFTSEJPQVJEfGRhOjI3NjEzODE?account=8569908)
+has 16 widgets for ingest freshness, webhook outcomes and latency, processing
+and queue errors, scheduled run health, vote completions, command mix, and
+release broadcast coverage. Its import template is in
+`docs/newrelic-dashboard.json`. Queries read `Log_princess`, not the default
+`Log` event type. The OTLP ingest path was verified with a single production
+partition probe before deployment; operational event charts will populate after
+the code reaches `main`. A zero error count does not prove the drain works.
+Check ingest freshness and the most recent scheduled run together when
+investigating missing data.
+
+The separate [Princess game and audience dashboard](https://one.eu.newrelic.com/dashboards/detail/ODU2OTkwOHxWSVp8REFTSEJPQVJEfGRhOjI3NjEzODQ?account=8569908)
+has two pages and 24 widgets. `Game & audience` shows active users and chats,
+chats with a vote in the preceding seven days, the highest active player score,
+memberships, wins per hour and by mode, eligible player counts, and the share of
+registered chats where the bot has administrator rights. The admin pie also
+shows `unknown` for unchecked or stale groups; it must not be read as
+`nonAdmin`. Administrator rights matter because Telegram only guarantees
+`getChatMember` for arbitrary members when the bot is an administrator, which
+affects the eligible vote pool. `Commands &
+lifecycle` shows completed joins, leaves, resets, stops, join outcomes, and
+command request volume and categories. Its import template is
+`docs/newrelic-behavior-dashboard.json`.
+
+Both dashboard imports currently have New Relic's `Edit – everyone in account`
+permission. The Settings control for changing it is disabled in this account,
+and a JSON permission edit did not persist. Limit account membership to trusted
+operators until the account permits `Read-only – everyone in account`.
+
+Each production scheduled invocation refreshes administrator status for up to
+10 unchecked or day-old groups, then emits a `bot_state_snapshot` after reading
+aggregate counts from D1. An _active user_ has at least one active channel
+membership; an _active chat_ has at least one active member. `registeredChats`
+includes channels with no active members. `recentlyVotingChats` counts channels
+whose most recent completed vote was in the preceding seven days. `topScore` is
+the highest score of an active membership across chats; it is a score, not a
+Telegram identity. Snapshot failure emits `bot_state_snapshot_failed` and does
+not fail the release or maintenance task. The existing `*/10` cron is expected
+to update snapshots every ten minutes, with a daily snapshot from the `0 0`
+cron; use the `Snapshots in last hour` widget to catch missing cron activity.
+Cloudflare Cron Events showed successful `*/10` production runs through
+2026-09-30 19:50 UTC, confirming the trigger is active before this release.
+The admin status check uses Telegram `getChatMember` for the bot itself and
+stores only `admin`, `nonAdmin`, or `unavailable` plus check time in D1. It
+emits three aggregate `bot_admin_status_count` events per snapshot, including
+the `unknown` count for groups without a successful check in the last 48 hours.
+At ten checks per ten-minute run, an initial scan of 217 registered groups
+requires roughly four hours if the cron fires consistently. The pie uses the
+latest count in each status category from the preceding two days.
+The additive admin-status migration `20260930194648_messy_jetstream` was
+applied to both production and preview D1 on 2026-09-30 before the Worker
+release; preview still does not send New Relic data.
+
+`bot_action_completed` is emitted after the game service mutation, before its
+Telegram reply. A `join` result is `joined`, `reactivated`, or `already-active`;
+the dashboard counts the first two as joins and exposes the last separately.
+`leave`, `reset`, and `stop` count only completed service calls. `vote_completed`
+counts recorded wins for auto, manual, and sudo runs. `telegram_webhook_completed`
+command categories count accepted command requests, not successful command
+effects. None of these events include Telegram IDs, chat IDs, names, message
+text, or per-chat membership lists. Behavior history starts when this PR is
+deployed; earlier commands cannot be reconstructed from current D1 tables.
+
+The official New Relic `apm` and `newrelic-mcp`, Cloudflare `cloudflare`,
+`wrangler`, and `workers-best-practices`, and evlog `analyze-logs` and
+`review-logging-patterns` skills are copied into `.agents/skills/` through
+`npx skills` and tracked by `skills-lock.json`. Codex uses
+`.codex/config.toml` for this project's New Relic MCP server. `.mcp.json` and
+`.pi/mcp.json` provide the same EU endpoint to compatible clients. The URL is
+`https://mcp.eu.newrelic.com/mcp/`. OAuth cannot complete until an account
+administrator enables MCP Server and Local Clients in New Relic Feature
+Control; the current account denies that feature. The ingestion key is not an
+MCP credential. No Telegraf-specific or general Telegram Bot API engineering
+skill with a relevant, maintained source was found in `npx skills`; use the
+installed Telegraf types and the official Telegram Bot API documentation.
+
 | Table                   | Purpose                                                                             |
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `players`               | Telegram users (`telegram_user_id`, `display_name`)                                 |
@@ -304,7 +399,6 @@ Production queries are live: prefer `select`.
 
 ## 10. Known issues and open follow-ups
 
-- The production `*/10` cron has not been observed firing. Single-cron configs fired, production has two crons. Check Workers Observability for `scheduled` events and investigate.
 - The daily `telegram_updates` ledger prune depends on the cron.
 - D1 error 7403 on the first call of a session: rerun.
 - `ENABLE_SCHEDULED_CLEANUP` stays `"false"` on production until the deletion set is reviewed.

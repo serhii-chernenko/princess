@@ -376,8 +376,6 @@ export const createGameService = (
                         event: 'chat_member_lookup_failed',
                         errorType: getErrorType(error),
                         errorCode: getTelegramErrorCode(error),
-                        chatId: telegramChatId,
-                        playerId: row.player.id,
                         mode
                     })
                 );
@@ -670,10 +668,7 @@ export const createGameService = (
             console.error(
                 JSON.stringify({
                     event: 'vote_win_record_failed',
-                    errorType: getErrorType(error),
-                    chatId: telegramChatId,
-                    channelId: channel.id,
-                    playerId: winner.player.id
+                    errorType: getErrorType(error)
                 })
             );
         }
@@ -692,7 +687,8 @@ export const createGameService = (
         return {
             channel: claimedChannel,
             printablePlayers,
-            winner
+            winner,
+            eligibleCount: activePlayers.length
         };
     };
 

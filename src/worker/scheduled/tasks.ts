@@ -8,6 +8,12 @@ import {
     telegramUpdateRetentionMilliseconds
 } from '../../db/repositories/telegram-update-repository';
 import type { WorkerBindings } from '../env';
+import { emitTelemetryEvent } from '../telemetry';
+import {
+    refreshBotAdminStatuses,
+    readBotStateSnapshot,
+    type BotStateSnapshot
+} from './bot-state-snapshot';
 import { runReleaseBroadcast } from './release-broadcast';
 
 const TASKS = {
@@ -45,7 +51,40 @@ interface ScheduledTaskDependencies {
         env: WorkerBindings,
         startedBefore: Date
     ) => Promise<number>;
+    readBotStateSnapshot?: (
+        env: WorkerBindings,
+        asOf: Date
+    ) => Promise<BotStateSnapshot>;
+    refreshBotAdminStatuses?: (
+        env: WorkerBindings,
+        asOf: Date
+    ) => Promise<void>;
 }
+
+export interface ScheduledTasksSummary {
+    taskNames: string[];
+    cleanedChannels: number;
+    prunedProcessedTelegramUpdates: number;
+    prunedAbandonedTelegramUpdates: number;
+}
+
+const isReleaseBroadcastSummary = (
+    value: unknown
+): value is {
+    releaseVersion: string;
+    candidates: number;
+    inserted: number;
+    enqueued: number;
+} => {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as Record<string, unknown>).releaseVersion === 'string' &&
+        typeof (value as Record<string, unknown>).candidates === 'number' &&
+        typeof (value as Record<string, unknown>).inserted === 'number' &&
+        typeof (value as Record<string, unknown>).enqueued === 'number'
+    );
+};
 
 const cleanupInactiveChannels = async (
     env: WorkerBindings,
@@ -83,18 +122,83 @@ const getErrorType = (error: unknown) => {
 export const runScheduledTasks = async (
     controller: ScheduledController,
     env: WorkerBindings,
-    _ctx: ExecutionContext,
+    ctx: ExecutionContext,
     dependencies: ScheduledTaskDependencies = {}
 ) => {
     const taskNames = getScheduledTaskNames(controller.cron);
+    let cleanedChannels = 0;
+    let prunedProcessedTelegramUpdates = 0;
+    let prunedAbandonedTelegramUpdates = 0;
+
+    if (env.BOT_ENVIRONMENT === 'production') {
+        const asOf = new Date(controller.scheduledTime);
+
+        try {
+            await (
+                dependencies.refreshBotAdminStatuses ?? refreshBotAdminStatuses
+            )(env, asOf);
+        } catch {
+            // Permission refreshes must never block the scheduled work or release cron.
+        }
+
+        try {
+            const snapshot = await (
+                dependencies.readBotStateSnapshot ?? readBotStateSnapshot
+            )(env, asOf);
+
+            emitTelemetryEvent(env, ctx, {
+                event: 'bot_state_snapshot',
+                cron: controller.cron,
+                outcome: 'success',
+                ...snapshot
+            });
+            for (const [adminStatus, groupCount] of [
+                ['admin', snapshot.adminChats],
+                ['nonAdmin', snapshot.nonAdminChats],
+                ['unknown', snapshot.unknownAdminChats]
+            ] as const) {
+                emitTelemetryEvent(env, ctx, {
+                    event: 'bot_admin_status_count',
+                    adminStatus,
+                    groupCount,
+                    outcome: 'success'
+                });
+            }
+        } catch (error) {
+            emitTelemetryEvent(env, ctx, {
+                event: 'bot_state_snapshot_failed',
+                cron: controller.cron,
+                outcome: 'error',
+                errorType: getErrorType(error)
+            });
+        }
+    }
 
     if (taskNames.includes(TASKS.releaseBroadcast)) {
         const broadcastRelease =
             dependencies.broadcastRelease ?? runReleaseBroadcast;
 
         try {
-            await broadcastRelease(env);
+            const summary = await broadcastRelease(env);
+
+            if (isReleaseBroadcastSummary(summary)) {
+                emitTelemetryEvent(env, ctx, {
+                    event: 'release_broadcast_completed',
+                    cron: controller.cron,
+                    outcome: 'success',
+                    releaseVersion: summary.releaseVersion,
+                    candidates: summary.candidates,
+                    inserted: summary.inserted,
+                    enqueued: summary.enqueued
+                });
+            }
         } catch (error) {
+            emitTelemetryEvent(env, ctx, {
+                event: 'release_broadcast_failed',
+                cron: controller.cron,
+                outcome: 'error',
+                errorType: getErrorType(error)
+            });
             console.error(
                 JSON.stringify({
                     event: 'release_broadcast_failed',
@@ -119,11 +223,11 @@ export const runScheduledTasks = async (
             pruneAbandonedTelegramUpdates;
 
         try {
-            const prunedProcessedTelegramUpdates = await pruneProcessed(
+            prunedProcessedTelegramUpdates = await pruneProcessed(
                 env,
                 new Date(Date.now() - telegramUpdateRetentionMilliseconds)
             );
-            const prunedAbandonedTelegramUpdates = await pruneAbandoned(
+            prunedAbandonedTelegramUpdates = await pruneAbandoned(
                 env,
                 new Date(
                     Date.now() - telegramAbandonedUpdateRetentionMilliseconds
@@ -167,7 +271,7 @@ export const runScheduledTasks = async (
                 dependencies.cleanupInactiveChannels ?? cleanupInactiveChannels;
 
             try {
-                const cleanedChannels = await cleanup(
+                cleanedChannels = await cleanup(
                     env,
                     new Date(Date.now() - 30 * 24 * 3600 * 1000)
                 );
@@ -203,4 +307,11 @@ export const runScheduledTasks = async (
             taskNames
         })
     );
+
+    return {
+        taskNames,
+        cleanedChannels,
+        prunedProcessedTelegramUpdates,
+        prunedAbandonedTelegramUpdates
+    } satisfies ScheduledTasksSummary;
 };

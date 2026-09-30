@@ -14,9 +14,33 @@ import {
     processReleaseAnnouncementBatch,
     type ReleaseAnnouncementConsumerDependencies
 } from './release-announcements';
+import { emitTelemetryEvent } from '../telemetry';
+
+const releaseAnnouncementTelemetryFields = (entry: Record<string, unknown>) => {
+    return {
+        event:
+            typeof entry.event === 'string'
+                ? entry.event
+                : 'release_announcement_event',
+        ...(typeof entry.releaseVersion === 'string'
+            ? { releaseVersion: entry.releaseVersion }
+            : {}),
+        ...(typeof entry.errorCode === 'number'
+            ? { errorCode: entry.errorCode }
+            : {}),
+        ...(typeof entry.delaySeconds === 'number'
+            ? { delaySeconds: entry.delaySeconds }
+            : {}),
+        ...(typeof entry.attempts === 'number'
+            ? { attempts: entry.attempts }
+            : {}),
+        ...(typeof entry.reason === 'string' ? { reason: entry.reason } : {})
+    };
+};
 
 export const createReleaseAnnouncementDependencies = (
-    env: WorkerBindings
+    env: WorkerBindings,
+    context?: ExecutionContext
 ): ReleaseAnnouncementConsumerDependencies => {
     const repositories = createRepositories(createDb(env));
     const telegram = new Telegram(env.BOT_TOKEN);
@@ -121,16 +145,23 @@ export const createReleaseAnnouncementDependencies = (
             });
         },
         now: () => Date.now(),
-        log: entry => console.log(JSON.stringify(entry))
+        log: entry => {
+            emitTelemetryEvent(
+                env,
+                context,
+                releaseAnnouncementTelemetryFields(entry)
+            );
+        }
     };
 };
 
 export const handleReleaseAnnouncementQueue = (
     batch: MessageBatch<ReleaseAnnouncementJob>,
-    env: WorkerBindings
+    env: WorkerBindings,
+    context?: ExecutionContext
 ) => {
     return processReleaseAnnouncementBatch(
         batch.messages,
-        createReleaseAnnouncementDependencies(env)
+        createReleaseAnnouncementDependencies(env, context)
     );
 };

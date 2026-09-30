@@ -34,6 +34,25 @@ import type { WorkerBindings } from '../../worker/env';
 const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
 
+export interface PrincessBotTelemetry {
+    botActionCompleted(input: {
+        action: 'join' | 'leave' | 'reset' | 'stop';
+        result: 'joined' | 'reactivated' | 'already-active' | 'success';
+    }): void;
+    voteCompleted(input: {
+        mode: 'auto' | 'manual' | 'sudo';
+        eligibleCount: number;
+        durationMs: number;
+    }): void;
+    internalFailure(input: {
+        event:
+            | 'generic_error_reply_failed'
+            | 'vote_announcement_failed'
+            | 'telegraf_middleware_failed';
+        errorType: string;
+    }): void;
+}
+
 type ChatMemberReader = {
     getChatMember(
         chatId: number,
@@ -48,7 +67,8 @@ type ChatMemberReader = {
 const handleCommandError = async (
     ctx: Context,
     error: unknown,
-    locale: AppLocale = getDefaultAppLocale()
+    locale: AppLocale = getDefaultAppLocale(),
+    telemetry?: PrincessBotTelemetry
 ) => {
     if (isBotUserError(error)) {
         if (error.silent) {
@@ -67,6 +87,10 @@ const handleCommandError = async (
     try {
         await ctx.sendMessage(getMessages(locale).error());
     } catch (replyError) {
+        telemetry?.internalFailure({
+            event: 'generic_error_reply_failed',
+            errorType: getErrorType(replyError)
+        });
         console.error(
             JSON.stringify({
                 event: 'generic_error_reply_failed',
@@ -241,7 +265,8 @@ const announceWinner = async (
             telegramMember: { user: User };
         };
     },
-    locale: AppLocale
+    locale: AppLocale,
+    telemetry?: PrincessBotTelemetry
 ) => {
     const LL = getMessages(locale);
 
@@ -260,12 +285,14 @@ const announceWinner = async (
         );
         await postPrintablePlayers(ctx, result.printablePlayers, 'top', locale);
     } catch (error) {
+        telemetry?.internalFailure({
+            event: 'vote_announcement_failed',
+            errorType: getErrorType(error)
+        });
         console.error(
             JSON.stringify({
                 event: 'vote_announcement_failed',
-                errorType: getErrorType(error),
-                chatId: ctx.chat?.id ?? null,
-                winnerPlayerId: result.winner.player.id
+                errorType: getErrorType(error)
             })
         );
 
@@ -292,7 +319,10 @@ const getRequestedLanguage = (ctx: Context) => {
     };
 };
 
-export const createPrincessBot = (env: WorkerBindings) => {
+export const createPrincessBot = (
+    env: WorkerBindings,
+    telemetry?: PrincessBotTelemetry
+) => {
     if (!env.BOT_TOKEN) {
         throw new Error('BOT_TOKEN is required to create the Telegram bot');
     }
@@ -301,6 +331,10 @@ export const createPrincessBot = (env: WorkerBindings) => {
     const game = createGameService(env);
 
     bot.catch(error => {
+        telemetry?.internalFailure({
+            event: 'telegraf_middleware_failed',
+            errorType: getErrorType(error)
+        });
         console.error(
             JSON.stringify({
                 event: 'telegraf_middleware_failed',
@@ -349,7 +383,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}`
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -377,7 +411,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -398,6 +432,10 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 actor.user,
                 locale
             );
+            telemetry?.botActionCompleted({
+                action: 'join',
+                result: result.state
+            });
 
             await ctx.sendMessage(
                 result.state === 'already-active'
@@ -409,7 +447,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                       })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -426,6 +464,10 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const LL = getMessages(locale);
             assertHumanSender(actor.user, locale);
             await game.leaveChannel(actor.chatId, actor.user, locale);
+            telemetry?.botActionCompleted({
+                action: 'leave',
+                result: 'success'
+            });
 
             await ctx.sendMessage(
                 LL.successLeave({
@@ -433,7 +475,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -448,6 +490,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const telegramDate = getTelegramDate(ctx.message?.date);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 actor.chatId,
                 actor.user.id,
@@ -457,9 +500,14 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
-            await announceWinner(ctx, result, locale);
+            telemetry?.voteCompleted({
+                mode: 'manual',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -474,6 +522,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const telegramDate = getTelegramDate(ctx.message?.date);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 actor.chatId,
                 actor.user.id,
@@ -483,9 +532,14 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 true,
                 locale
             );
-            await announceWinner(ctx, result, locale);
+            telemetry?.voteCompleted({
+                mode: 'sudo',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -521,7 +575,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             await postPrintablePlayers(ctx, printablePlayers, 'all', locale);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -557,7 +611,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
 
             await postPrintablePlayers(ctx, printablePlayers, 'top', locale);
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -583,9 +637,13 @@ export const createPrincessBot = (env: WorkerBindings) => {
             assertAdminActor(actorMember, locale);
 
             await game.resetScores(actor.chatId, locale);
+            telemetry?.botActionCompleted({
+                action: 'reset',
+                result: 'success'
+            });
             await ctx.sendMessage(LL.successReset());
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -611,9 +669,13 @@ export const createPrincessBot = (env: WorkerBindings) => {
             assertAdminActor(actorMember, locale);
 
             await game.stopChannel(actor.chatId, locale);
+            telemetry?.botActionCompleted({
+                action: 'stop',
+                result: 'success'
+            });
             await ctx.sendMessage(LL.successStop());
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -639,7 +701,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -655,7 +717,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             locale = await game.getChannelLocale(actor.chatId);
             await ctx.replyWithHTML(renderReleaseNotes(0, locale));
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -705,7 +767,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 })
             );
         } catch (error) {
-            await handleCommandError(ctx, error, locale);
+            await handleCommandError(ctx, error, locale, telemetry);
         }
     });
 
@@ -730,6 +792,7 @@ export const createPrincessBot = (env: WorkerBindings) => {
             }
 
             locale = await game.getChannelLocale(ctx.chat.id);
+            const startedAt = Date.now();
             const result = await game.runVote(
                 ctx.chat.id,
                 ctx.from.id,
@@ -739,7 +802,12 @@ export const createPrincessBot = (env: WorkerBindings) => {
                 false,
                 locale
             );
-            await announceWinner(ctx, result, locale);
+            telemetry?.voteCompleted({
+                mode: 'auto',
+                eligibleCount: result.eligibleCount,
+                durationMs: Math.max(0, Date.now() - startedAt)
+            });
+            await announceWinner(ctx, result, locale, telemetry);
         } catch (error) {
             await handleListenerError(ctx, error);
         }

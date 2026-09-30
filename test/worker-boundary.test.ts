@@ -101,6 +101,7 @@ const createBindings = (
         YT_CHANNEL: 'https://youtube.com/@serhii.chernenko',
         MAIL: 'contact@chernenko.digital',
         BOT_TOKEN: '123456:test-token',
+        NEW_RELIC_LICENSE_KEY: '',
         TELEGRAM_WEBHOOK_SECRET: 'test-webhook-secret',
         TELEGRAM_WEBHOOK_PATH: '/telegram/test'
     };
@@ -454,7 +455,7 @@ test('webhook logs a secret-safe warning when reclaiming a stale claim', async (
             {
                 event: 'telegram_update_claim_reclaimed',
                 botEnvironment: 'local',
-                updateId: 42
+                webhook: 'telegram'
             }
         ]
     );

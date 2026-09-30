@@ -82,6 +82,14 @@ describe('D1 migrations', () => {
             'index'
         );
         assert.match(findObject('channels')?.sql ?? '', /`language` text/);
+        assert.match(
+            findObject('channels')?.sql ?? '',
+            /`bot_admin_status` text/
+        );
+        assert.match(
+            findObject('channels')?.sql ?? '',
+            /`bot_admin_checked_at` integer/
+        );
     });
 
     it('is a no-op when applied a second time', async () => {
@@ -90,7 +98,7 @@ describe('D1 migrations', () => {
 
         await harness.applyMigrations();
 
-        assert.equal(appliedBefore, 5);
+        assert.equal(appliedBefore, 6);
         assert.equal(
             await countRows(harness, '__drizzle_migrations'),
             appliedBefore
@@ -115,7 +123,7 @@ describe('D1 migrations', () => {
         assert.equal(table?.name, migrationsTableName);
         assert.ok(columns.some(column => column.name === 'hash'));
         assert.ok(columns.some(column => column.name === 'id'));
-        assert.equal(hashes.length, 5);
+        assert.equal(hashes.length, 6);
         assert.ok(hashes.every(row => row.hash.length > 0));
     });
 
