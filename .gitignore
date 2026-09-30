@@ -27,6 +27,8 @@
 !MONGO_TO_D1_RUNBOOK.md
 !USER_MIGRATION_TODO.md
 !README.md
+!/docs
+!/docs/OPERATIONS.md
 !.oxfmtrc.json
 !.oxlintrc.json
 !package.json

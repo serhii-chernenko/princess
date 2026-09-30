@@ -1,5 +1,7 @@
 # Princess of the Day
 
+> Operators: read [docs/OPERATIONS.md](./docs/OPERATIONS.md) first. It is the runbook for deploys, migrations, previews, data copies and releases.
+
 Telegram bot for friend groups. The runtime is now:
 
 - `Cloudflare Workers`
