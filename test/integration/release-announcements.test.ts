@@ -200,6 +200,54 @@ describe('Release announcements on D1', () => {
         );
     });
 
+    it('does not broadcast to stopped channels', async () => {
+        await seedChannels(3, '4.0.1');
+        await harness.env.DB.prepare(
+            'UPDATE channels SET stopped_at = 1 WHERE telegram_chat_id = -1002'
+        ).run();
+
+        const batches: ReleaseAnnouncementJob[][] = [];
+        const summary = await runProducer(batches);
+        const stoppedId = await findChannelId(-1002);
+
+        assert.equal(summary?.enqueued, 2);
+        assert.equal(
+            batches.flat().some(job => job.channelId === stoppedId),
+            false
+        );
+        assert.equal(await readAnnouncement(stoppedId), null);
+        assert.equal(await countRows(harness, 'release_announcements'), 2);
+    });
+
+    it('skips a channel paused after it was enqueued when the consumer runs', async () => {
+        await seedChannels(2, '4.0.1');
+        await runProducer([]);
+
+        const pausedId = await findChannelId(-1001);
+        const activeId = await findChannelId(-1002);
+        const delivered: number[] = [];
+
+        await harness.env.DB.prepare(
+            'UPDATE channels SET stopped_at = 1 WHERE id = ?'
+        )
+            .bind(pausedId)
+            .run();
+
+        for (const channelId of [pausedId, activeId]) {
+            await runConsumer(createMessage(channelId), async chatId => {
+                delivered.push(chatId);
+            });
+        }
+
+        assert.deepEqual(delivered, [-1002]);
+        assert.equal((await readAnnouncement(pausedId))?.status, 'skipped');
+        assert.equal((await readAnnouncement(activeId))?.status, 'sent');
+        assert.equal(
+            (await readChannel(pausedId))?.releaseVersion,
+            currentVersion
+        );
+    });
+
     it('never enqueues a channel twice when crons overlap', async () => {
         await seedChannels(120, '4.0.1');
 

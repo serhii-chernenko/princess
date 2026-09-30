@@ -51,6 +51,10 @@ interface ScheduledTaskDependencies {
         env: WorkerBindings,
         startedBefore: Date
     ) => Promise<number>;
+    pruneExpiredChannelSnapshots?: (
+        env: WorkerBindings,
+        now: Date
+    ) => Promise<number>;
     readBotStateSnapshot?: (
         env: WorkerBindings,
         asOf: Date
@@ -66,6 +70,7 @@ export interface ScheduledTasksSummary {
     cleanedChannels: number;
     prunedProcessedTelegramUpdates: number;
     prunedAbandonedTelegramUpdates: number;
+    prunedChannelSnapshots: number;
 }
 
 const isReleaseBroadcastSummary = (
@@ -115,6 +120,12 @@ const pruneAbandonedTelegramUpdates = (
     );
 };
 
+const pruneExpiredChannelSnapshots = (env: WorkerBindings, now: Date) => {
+    const repository = createRepositories(createDb(env)).channelSnapshots;
+
+    return Effect.runPromise(repository.deleteExpiredSnapshots(now));
+};
+
 const getErrorType = (error: unknown) => {
     return error instanceof Error ? error.name : typeof error;
 };
@@ -129,6 +140,7 @@ export const runScheduledTasks = async (
     let cleanedChannels = 0;
     let prunedProcessedTelegramUpdates = 0;
     let prunedAbandonedTelegramUpdates = 0;
+    let prunedChannelSnapshots = 0;
 
     if (env.BOT_ENVIRONMENT === 'production') {
         const asOf = new Date(controller.scheduledTime);
@@ -208,6 +220,37 @@ export const runScheduledTasks = async (
                 })
             );
             throw error;
+        }
+    }
+
+    if (
+        env.BOT_ENVIRONMENT === 'production' &&
+        !taskNames.includes(TASKS.releaseBroadcast)
+    ) {
+        const pruneSnapshots =
+            dependencies.pruneExpiredChannelSnapshots ??
+            pruneExpiredChannelSnapshots;
+
+        try {
+            prunedChannelSnapshots = await pruneSnapshots(env, new Date());
+
+            console.log(
+                JSON.stringify({
+                    event: 'channel_snapshots_pruned',
+                    botEnvironment: env.BOT_ENVIRONMENT,
+                    cron: controller.cron,
+                    prunedChannelSnapshots
+                })
+            );
+        } catch (error) {
+            console.error(
+                JSON.stringify({
+                    event: 'channel_snapshot_prune_failed',
+                    botEnvironment: env.BOT_ENVIRONMENT,
+                    cron: controller.cron,
+                    errorType: getErrorType(error)
+                })
+            );
         }
     }
 
@@ -312,6 +355,7 @@ export const runScheduledTasks = async (
         taskNames,
         cleanedChannels,
         prunedProcessedTelegramUpdates,
-        prunedAbandonedTelegramUpdates
+        prunedAbandonedTelegramUpdates,
+        prunedChannelSnapshots
     } satisfies ScheduledTasksSummary;
 };

@@ -85,19 +85,46 @@ type RootTranslation = {
 	 */
 	alreadyLeave: RequiredParams<'name'>
 	/**
-	 * P​r​i​n​c​e​s​s​ ​a​c​h​i​e​v​e​m​e​n​t​s​ ​w​i​p​e​d​ ​c​l​e​a​n​!​ ​�​�​‍​♀​️
+	 * P​r​i​n​c​e​s​s​ ​a​c​h​i​e​v​e​m​e​n​t​s​ ​w​i​p​e​d​ ​c​l​e​a​n​!​ ​�​�​‍​♀​️​
+​C​h​a​n​g​e​d​ ​y​o​u​r​ ​m​i​n​d​?​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
 	 */
 	successReset: string
 	/**
-	 * A​l​l​ ​d​a​t​a​ ​a​b​o​u​t​ ​t​h​i​s​ ​g​r​o​u​p​ ​h​a​s​ ​b​e​e​n​ ​d​e​l​e​t​e​d​!​ ​�​�​‍​♀​️​
-​T​o​ ​p​l​a​y​ ​a​g​a​i​n​,​ ​u​s​e​ ​/​s​t​a​r​t​.
+	 * T​h​e​ ​g​a​m​e​ ​i​s​ ​p​a​u​s​e​d​ ​⏸​️​ ​P​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​a​r​e​ ​k​e​p​t​.​
+​T​o​ ​r​e​s​u​m​e​,​ ​a​n​ ​a​d​m​i​n​ ​r​u​n​s​ ​/​s​t​a​r​t​.
 	 */
 	successStop: string
 	/**
-	 * I​ ​d​o​n​'​t​ ​h​a​v​e​ ​a​n​y​ ​i​n​f​o​ ​a​b​o​u​t​ ​t​h​i​s​ ​g​r​o​u​p​.​
-​U​s​e​ ​/​s​t​a​r​t​!​ ​�​�​‍​♀​️
+	 * T​h​e​ ​g​a​m​e​ ​i​s​ ​a​l​r​e​a​d​y​ ​p​a​u​s​e​d​ ​⏸​️​
+​T​o​ ​r​e​s​u​m​e​,​ ​a​n​ ​a​d​m​i​n​ ​r​u​n​s​ ​/​s​t​a​r​t​.
 	 */
 	alreadyStop: string
+	/**
+	 * T​h​e​ ​g​a​m​e​ ​i​s​ ​p​a​u​s​e​d​ ​⏸​️​ ​T​h​e​ ​p​r​i​n​c​e​s​s​ ​d​e​t​e​c​t​o​r​ ​i​s​ ​r​e​s​t​i​n​g​.​
+​T​o​ ​r​e​s​u​m​e​,​ ​a​n​ ​a​d​m​i​n​ ​r​u​n​s​ ​/​s​t​a​r​t​.
+	 */
+	gameStopped: string
+	/**
+	 * T​h​e​ ​g​a​m​e​ ​i​s​ ​b​a​c​k​ ​o​n​!​ ​▶​️​ ​T​h​e​ ​p​r​i​n​c​e​s​s​ ​d​e​t​e​c​t​o​r​ ​i​s​ ​w​o​r​k​i​n​g​ ​a​g​a​i​n​.
+	 */
+	successResume: string
+	/**
+	 * A​l​l​ ​d​a​t​a​ ​a​b​o​u​t​ ​t​h​i​s​ ​g​r​o​u​p​ ​h​a​s​ ​b​e​e​n​ ​d​e​l​e​t​e​d​!​ ​�​�​‍​♀​️​
+​I​f​ ​t​h​i​s​ ​w​a​s​ ​a​n​ ​a​c​c​i​d​e​n​t​,​ ​a​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​i​t​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
+	 */
+	successForget: string
+	/**
+	 * G​r​o​u​p​ ​d​a​t​a​ ​r​e​s​t​o​r​e​d​!​ ​�​�​ ​P​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​a​r​e​ ​b​a​c​k​.
+	 */
+	successRestore: string
+	/**
+	 * T​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​r​e​s​t​o​r​e​.​ ​B​a​c​k​u​p​s​ ​a​r​e​ ​k​e​p​t​ ​f​o​r​ ​7​ ​d​a​y​s​.​ ​�​�​‍​♀​️
+	 */
+	restoreNotFound: string
+	/**
+	 * T​h​i​s​ ​g​r​o​u​p​ ​i​s​ ​t​o​o​ ​l​a​r​g​e​ ​t​o​ ​b​a​c​k​ ​u​p​,​ ​s​o​ ​t​h​e​ ​c​o​m​m​a​n​d​ ​w​a​s​ ​c​a​n​c​e​l​l​e​d​.​ ​P​l​e​a​s​e​ ​c​o​n​t​a​c​t​ ​t​h​e​ ​b​o​t​ ​a​u​t​h​o​r​.​ ​�​�​‍​♀​️
+	 */
+	snapshotTooLarge: string
 	/**
 	 * T​h​e​ ​p​r​i​n​c​e​s​s​ ​d​e​t​e​c​t​o​r​ ​c​o​u​l​d​n​'​t​ ​f​i​n​d​ ​a​n​y​ ​p​l​a​y​e​r​s​ ​w​i​t​h​ ​a​ ​s​c​o​r​e​!​ ​�​�​‍​♀​️​️
 	 */
@@ -172,7 +199,7 @@ type RootTranslation = {
 	commandsLabel: string
 	commands: {
 		/**
-		 * /​s​t​a​r​t​ ​-​ ​I​n​i​t​i​a​l​i​z​e​ ​t​h​e​ ​b​o​t​ ​i​n​ ​t​h​e​ ​g​r​o​u​p​ ​a​n​d​ ​s​h​o​w​ ​c​o​m​m​a​n​d​s
+		 * /​s​t​a​r​t​ ​-​ ​I​n​i​t​i​a​l​i​z​e​ ​t​h​e​ ​b​o​t​ ​i​n​ ​t​h​e​ ​g​r​o​u​p​,​ ​r​e​s​u​m​e​ ​a​ ​p​a​u​s​e​d​ ​g​a​m​e​ ​a​n​d​ ​s​h​o​w​ ​c​o​m​m​a​n​d​s
 		 */
 		start: string
 		/**
@@ -204,13 +231,21 @@ type RootTranslation = {
 		 */
 		top: string
 		/**
-		 * /​r​e​s​e​t​ ​-​ ​R​e​s​e​t​ ​p​l​a​y​e​r​ ​a​c​h​i​e​v​e​m​e​n​t​s
+		 * /​r​e​s​e​t​ ​-​ ​R​e​s​e​t​ ​p​l​a​y​e​r​ ​s​c​o​r​e​s​ ​(​c​a​n​ ​b​e​ ​u​n​d​o​n​e​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​)
 		 */
 		reset: string
 		/**
-		 * /​s​t​o​p​ ​-​ ​S​t​o​p​ ​t​h​e​ ​g​a​m​e​ ​a​n​d​ ​d​e​l​e​t​e​ ​a​l​l​ ​g​r​o​u​p​ ​d​a​t​a
+		 * /​s​t​o​p​ ​-​ ​P​a​u​s​e​ ​t​h​e​ ​g​a​m​e​ ​(​d​a​t​a​ ​i​s​ ​k​e​p​t​)
 		 */
 		stop: string
+		/**
+		 * /​f​o​r​g​e​t​ ​-​ ​D​e​l​e​t​e​ ​a​l​l​ ​g​r​o​u​p​ ​d​a​t​a​ ​(​c​a​n​ ​b​e​ ​u​n​d​o​n​e​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​)
+		 */
+		forget: string
+		/**
+		 * /​r​e​s​t​o​r​e​ ​-​ ​B​r​i​n​g​ ​b​a​c​k​ ​d​a​t​a​ ​a​f​t​e​r​ ​/​r​e​s​e​t​ ​o​r​ ​/​f​o​r​g​e​t​ ​(​w​i​t​h​i​n​ ​7​ ​d​a​y​s​)
+		 */
+		restore: string
 		/**
 		 * /​s​t​a​t​s​ ​-​ ​S​h​o​w​ ​b​o​t​ ​u​s​a​g​e​ ​s​t​a​t​s
 		 */
@@ -409,6 +444,18 @@ type RootTranslation = {
 				 */
 				answer: RequiredParams<'chatGPTUrlGH' | 'tgChannel' | 'tgGroup' | 'wishlistUrlTg' | 'youtube'>
 			}
+			restore: {
+				/**
+				 * W​h​a​t​ ​i​f​ ​t​h​e​ ​g​r​o​u​p​ ​d​a​t​a​ ​w​a​s​ ​d​e​l​e​t​e​d​ ​b​y​ ​a​c​c​i​d​e​n​t​?
+				 */
+				question: string
+				/**
+				 * -​ ​/​s​t​o​p​ ​o​n​l​y​ ​p​a​u​s​e​s​ ​t​h​e​ ​g​a​m​e​:​ ​p​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​s​t​a​y​,​ ​a​n​d​ ​/​s​t​a​r​t​ ​r​e​s​u​m​e​s​ ​i​t​.​
+			​-​ ​B​e​f​o​r​e​ ​/​r​e​s​e​t​ ​a​n​d​ ​/​f​o​r​g​e​t​ ​t​h​e​ ​b​o​t​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​k​e​e​p​s​ ​a​ ​b​a​c​k​u​p​ ​f​o​r​ ​7​ ​d​a​y​s​.​
+			​-​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​r​u​n​ ​/​r​e​s​t​o​r​e​ ​t​o​ ​b​r​i​n​g​ ​b​a​c​k​ ​t​h​e​ ​l​a​t​e​s​t​ ​b​a​c​k​u​p​.
+				 */
+				answer: string
+			}
 		}
 	}
 	releases: {
@@ -513,18 +560,45 @@ Wait <strong>{hours}</strong> more {label}! 🙅‍♀️
 	alreadyLeave: (arg: { name: string }) => LocalizedString
 	/**
 	 * Princess achievements wiped clean! 💇‍♀️
+Changed your mind? An admin can bring them back with /restore within 7 days.
 	 */
 	successReset: () => LocalizedString
 	/**
-	 * All data about this group has been deleted! 💇‍♀️
-To play again, use /start.
+	 * The game is paused ⏸️ Players and scores are kept.
+To resume, an admin runs /start.
 	 */
 	successStop: () => LocalizedString
 	/**
-	 * I don't have any info about this group.
-Use /start! 🙅‍♀️
+	 * The game is already paused ⏸️
+To resume, an admin runs /start.
 	 */
 	alreadyStop: () => LocalizedString
+	/**
+	 * The game is paused ⏸️ The princess detector is resting.
+To resume, an admin runs /start.
+	 */
+	gameStopped: () => LocalizedString
+	/**
+	 * The game is back on! ▶️ The princess detector is working again.
+	 */
+	successResume: () => LocalizedString
+	/**
+	 * All data about this group has been deleted! 💇‍♀️
+If this was an accident, an admin can bring it back with /restore within 7 days.
+	 */
+	successForget: () => LocalizedString
+	/**
+	 * Group data restored! 👸 Players and scores are back.
+	 */
+	successRestore: () => LocalizedString
+	/**
+	 * There is nothing to restore. Backups are kept for 7 days. 🤷‍♀️
+	 */
+	restoreNotFound: () => LocalizedString
+	/**
+	 * This group is too large to back up, so the command was cancelled. Please contact the bot author. 🙅‍♀️
+	 */
+	snapshotTooLarge: () => LocalizedString
 	/**
 	 * The princess detector couldn't find any players with a score! 🤷‍♀️️
 	 */
@@ -590,7 +664,7 @@ Players: <strong>{players}</strong>
 	commandsLabel: () => LocalizedString
 	commands: {
 		/**
-		 * /start - Initialize the bot in the group and show commands
+		 * /start - Initialize the bot in the group, resume a paused game and show commands
 		 */
 		start: () => LocalizedString
 		/**
@@ -622,13 +696,21 @@ Players: <strong>{players}</strong>
 		 */
 		top: () => LocalizedString
 		/**
-		 * /reset - Reset player achievements
+		 * /reset - Reset player scores (can be undone with /restore)
 		 */
 		reset: () => LocalizedString
 		/**
-		 * /stop - Stop the game and delete all group data
+		 * /stop - Pause the game (data is kept)
 		 */
 		stop: () => LocalizedString
+		/**
+		 * /forget - Delete all group data (can be undone with /restore within 7 days)
+		 */
+		forget: () => LocalizedString
+		/**
+		 * /restore - Bring back data after /reset or /forget (within 7 days)
+		 */
+		restore: () => LocalizedString
 		/**
 		 * /stats - Show bot usage stats
 		 */
@@ -797,6 +879,18 @@ Players: <strong>{players}</strong>
 			- {chatGPTUrlGH}
 				 */
 				answer: (arg: { chatGPTUrlGH: string, tgChannel: string, tgGroup: string, wishlistUrlTg: string, youtube: string }) => LocalizedString
+			}
+			restore: {
+				/**
+				 * What if the group data was deleted by accident?
+				 */
+				question: () => LocalizedString
+				/**
+				 * - /stop only pauses the game: players and scores stay, and /start resumes it.
+			- Before /reset and /forget the bot automatically keeps a backup for 7 days.
+			- An admin can run /restore to bring back the latest backup.
+				 */
+				answer: () => LocalizedString
 			}
 		}
 	}

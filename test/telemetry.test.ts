@@ -44,6 +44,14 @@ test('telemetry normalizes Telegram routes and classifies commands without retai
         getTelegramCommandCategory({ message: { text: '/stop' } }),
         'stop'
     );
+    assert.equal(
+        getTelegramCommandCategory({ message: { text: '/forget' } }),
+        'forget'
+    );
+    assert.equal(
+        getTelegramCommandCategory({ message: { text: '/restore' } }),
+        'restore'
+    );
 });
 
 test('Princess telemetry exposes safe dimensions as queryable log attributes', () => {

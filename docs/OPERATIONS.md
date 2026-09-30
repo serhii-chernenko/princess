@@ -109,7 +109,7 @@ Use this to test with realistic data. Direction is hard-coded: production to pre
 6. Imports parent-first: `players`, `channels`, `channel_members`, `vote_wins`.
 7. Verifies preview row counts equal production counts.
 
-`telegram_updates` and `release_announcements` are not copied.
+`telegram_updates`, `release_announcements` and `channel_snapshots` are not copied.
 
 ### Prerequisites
 
@@ -316,7 +316,7 @@ shows `unknown` for unchecked or stale groups; it must not be read as
 `nonAdmin`. Administrator rights matter because Telegram only guarantees
 `getChatMember` for arbitrary members when the bot is an administrator, which
 affects the eligible vote pool. `Commands &
-lifecycle` shows completed joins, leaves, resets, stops, join outcomes, and
+lifecycle` shows completed joins, leaves, resets, pauses, forgets, restores, join outcomes, and
 command request volume and categories. Its import template is
 `docs/newrelic-behavior-dashboard.json`.
 
@@ -352,7 +352,8 @@ release; preview still does not send New Relic data.
 `bot_action_completed` is emitted after the game service mutation, before its
 Telegram reply. A `join` result is `joined`, `reactivated`, or `already-active`;
 the dashboard counts the first two as joins and exposes the last separately.
-`leave`, `reset`, and `stop` count only completed service calls. `vote_completed`
+`leave`, `reset`, `stop` (a pause), `resume` (an admin `/start` on a paused
+group), `forget`, and `restore` count only completed service calls. `vote_completed`
 counts recorded wins for auto, manual, and sudo runs. `telegram_webhook_completed`
 command categories count accepted command requests, not successful command
 effects. None of these events include Telegram IDs, chat IDs, names, message
@@ -372,16 +373,19 @@ MCP credential. No Telegraf-specific or general Telegram Bot API engineering
 skill with a relevant, maintained source was found in `npx skills`; use the
 installed Telegraf types and the official Telegram Bot API documentation.
 
-| Table                   | Purpose                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------- |
-| `players`               | Telegram users (`telegram_user_id`, `display_name`)                                 |
-| `channels`              | Telegram groups (`telegram_chat_id`, `language`, `release_version`, `last_vote_at`) |
-| `channel_members`       | Player in a channel (`score`, `is_active`, `is_auto_joined`)                        |
-| `vote_wins`             | One row per daily vote win (history, see below)                                     |
-| `release_announcements` | Announcement status per release version and channel                                 |
-| `telegram_updates`      | Webhook idempotency ledger, pruned by the daily cron                                |
+| Table                   | Purpose                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`               | Telegram users (`telegram_user_id`, `display_name`)                                                                                         |
+| `channels`              | Telegram groups (`telegram_chat_id`, `language`, `release_version`, `last_vote_at`, `stopped_at`)                                           |
+| `channel_members`       | Player in a channel (`score`, `is_active`, `is_auto_joined`)                                                                                |
+| `vote_wins`             | One row per daily vote win (history, see below)                                                                                             |
+| `release_announcements` | Announcement status per release version and channel                                                                                         |
+| `channel_snapshots`     | Automatic backups taken before `/reset`, `/forget` and `/restore` (`reason`, JSON `payload`, `expires_at` after 7 days, at most 5 per chat) |
+| `telegram_updates`      | Webhook idempotency ledger, pruned by the daily cron                                                                                        |
 
 `vote_wins` columns: `channel_id`, `player_id`, `won_at` (ms timestamp), `mode` (`auto`, `manual`, `sudo`), `eligible_count` (number of eligible players at draw time, at least 2).
+
+A group with a non-null `channels.stopped_at` is paused: `/stop` sets it, an admin `/start` clears it. While paused, `/run`, `/sudorun` and the automatic vote are refused and players and scores are kept. The release broadcast does not enqueue a paused group, and the queue consumer marks an already queued announcement for a group that was paused meanwhile as `skipped` without sending it. Inactive-group cleanup never deletes a paused group. Resuming sets `release_version` to the current release, so notes for releases shipped during the pause are never announced afterwards.
 
 Fairness example: wins per player against the expected share (sum of `1 / eligible_count`):
 
@@ -398,11 +402,52 @@ pnpm db:query:preview --command "select count(*) from channels"
 
 Production queries are live: prefer `select`.
 
+### Restoring a group's data
+
+`/reset` and `/forget` first save a snapshot of the group in `channel_snapshots`: the channel row, every member with score and flags, and the full vote history, keyed by Telegram user id. A snapshot expires after 7 days. Expired rows are pruned on every snapshot insert and by the daily cron (not gated by `ENABLE_SCHEDULED_CLEANUP`), and `/restore` ignores them even before they are pruned. A group whose snapshot would exceed about 1.9 MB or need more than 900 restore statements is refused for `/reset` and `/forget` and logs `channel_snapshot_too_large`.
+
+The preferred recovery is the group itself: an administrator runs `/restore` in the group. It restores the latest unexpired snapshot. If the group still has data, the current state is saved first as a `restore` snapshot, so a second `/restore` undoes the first. The group does not need a channel row, so it also works after `/forget`.
+
+At most 5 snapshots are kept per Telegram chat. Every snapshot insert (`/reset`, `/forget` and the safety snapshot of `/restore`) deletes the chat's older rows beyond the newest 5 by `created_at` and `id` in the same D1 batch, so the cap holds even if the daily cron never runs. Other chats are not affected.
+
+`/restore` is never blocked by the size of the current state. If the current data of the group would exceed the snapshot limits (about 1.9 MB or more than 900 restore statements), the safety `restore` snapshot is skipped, the restore still runs and `channel_restore_safety_snapshot_skipped` is logged with `bytes` and `estimatedStatements` only. In that case the post-incident state cannot be undone with a second `/restore`.
+
+`/restore` always resumes a paused group: `stopped_at` is not restored and the restored channel starts unpaused. It also sets `release_version` to the current release, so notes for releases shipped while the group was paused or deleted are not announced after the restore or after a `/start` resume. Players that are in the group now but not in the snapshot are removed from the group, and their player rows are deleted when no other group uses them.
+
+Inspect snapshots of a group:
+
+```sh
+pnpm db:query:prod --command "select id, reason, created_at, expires_at, length(payload) from channel_snapshots where telegram_chat_id = <id> order by created_at desc"
+```
+
+Extend the retention of a snapshot (milliseconds timestamp), then ask an admin to run `/restore`:
+
+```sh
+pnpm db:query:prod --command "update channel_snapshots set expires_at = <ms> where id = <id>"
+```
+
+Export a payload locally with `--json` for inspection. A payload holds Telegram user ids and display names: never commit it.
+
+Erasure request for a group:
+
+```sh
+pnpm db:query:prod --command "delete from channel_snapshots where telegram_chat_id = <id>"
+```
+
+Last resort when no usable snapshot exists: D1 Time Travel. It restores the whole database, so every write made after the chosen time is lost for all groups. Never automate it.
+
+1. `pnpm exec wrangler d1 time-travel info princess-production --env production` and record the current bookmark.
+2. `pnpm exec wrangler d1 time-travel info princess-production --env production --timestamp <unix seconds>` to check the target point.
+3. `pnpm exec wrangler d1 time-travel restore princess-production --env production --timestamp <unix seconds>`.
+4. Export the rows of the affected group.
+5. `pnpm exec wrangler d1 time-travel restore princess-production --env production --bookmark <bookmark from step 1>` to return to the present.
+6. Re-insert the exported rows.
+
 ## 10. Known issues and open follow-ups
 
 - The daily `telegram_updates` ledger prune depends on the cron.
 - D1 error 7403 on the first call of a session: rerun.
-- `ENABLE_SCHEDULED_CLEANUP` stays `"false"` on production until the deletion set is reviewed.
+- `ENABLE_SCHEDULED_CLEANUP` stays `"false"` on production until the deletion set is reviewed. Paused groups (`stopped_at` set) are never deleted by it.
 - Decide when to retire MongoDB Atlas (currently backup and re-import source only).
 - Rotate the bot tokens and webhook secrets.
 - Add edge rate limiting.

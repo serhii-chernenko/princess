@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
+import { getMessages } from '../../src/bot/content/messages';
 import {
     createD1Harness,
     createWorkerEnv,
@@ -28,20 +29,36 @@ const nodeFetchModulePath = () => {
     });
 };
 
+const nonAdminUserId = 79;
+
+const createTelegramResult = (method: string, payload: unknown) => {
+    if (method === 'getMe') {
+        return {
+            id: 123456,
+            is_bot: true,
+            first_name: 'Princess',
+            username: 'princess_test_bot'
+        };
+    }
+
+    if (method === 'getChatMember') {
+        const userId = (payload as { user_id: number }).user_id;
+
+        return {
+            status: userId === nonAdminUserId ? 'member' : 'creator',
+            user: { id: userId, is_bot: false, first_name: 'Ann' }
+        };
+    }
+
+    return { message_id: 1, date: 0, chat: { id: 1, type: 'private' } };
+};
+
 const createTelegramFetchStub = (calls: TelegramApiCall[]) => {
     return async (url: URL, init: { body?: unknown }) => {
         const method = url.pathname.split('/').pop() ?? '';
         const payload =
             typeof init.body === 'string' ? JSON.parse(init.body) : null;
-        const result =
-            method === 'getMe'
-                ? {
-                      id: 123456,
-                      is_bot: true,
-                      first_name: 'Princess',
-                      username: 'princess_test_bot'
-                  }
-                : { message_id: 1, date: 0, chat: { id: 1, type: 'private' } };
+        const result = createTelegramResult(method, payload);
 
         calls.push({ method, payload });
 
@@ -63,6 +80,20 @@ const createStartUpdate = (updateId: number) => {
             from: { id: 77, is_bot: false, first_name: 'Ann' },
             text: '/start',
             entities: [{ type: 'bot_command', offset: 0, length: 6 }]
+        }
+    };
+};
+
+const createGroupUpdate = (updateId: number, userId: number, text: string) => {
+    return {
+        update_id: updateId,
+        message: {
+            message_id: updateId,
+            date: 1_800_000_000,
+            chat: { id: -1001, type: 'supergroup', title: 'Princesses' },
+            from: { id: userId, is_bot: false, first_name: 'Ann' },
+            text,
+            entities: [{ type: 'bot_command', offset: 0, length: text.length }]
         }
     };
 };
@@ -93,6 +124,41 @@ describe('Telegram webhook through the Worker on D1', () => {
     };
     const countSendMessageCalls = () => {
         return apiCalls.filter(call => call.method === 'sendMessage').length;
+    };
+    let nextUpdateId = 9000;
+    const send = async (userId: number, command: string) => {
+        const response = await deliver(
+            createGroupUpdate(nextUpdateId, userId, command)
+        );
+
+        nextUpdateId += 1;
+
+        assert.equal(response.status, 200);
+    };
+    const readLastReplyText = () => {
+        const reply = apiCalls
+            .filter(call => call.method === 'sendMessage')
+            .at(-1);
+
+        return (reply?.payload as { text: string } | undefined)?.text ?? '';
+    };
+    const readChannel = () => {
+        return harness.env.DB.prepare(
+            'SELECT stopped_at AS stoppedAt, last_vote_at AS lastVoteAt, language FROM channels'
+        ).first<{
+            stoppedAt: number | null;
+            lastVoteAt: number | null;
+            language: string;
+        }>();
+    };
+    const readPlayerUserIds = async () => {
+        const { results } = await harness.env.DB.prepare(
+            'SELECT telegram_user_id AS telegramUserId FROM players ORDER BY telegram_user_id'
+        ).all<{ telegramUserId: number }>();
+
+        return results.map(row => {
+            return row.telegramUserId;
+        });
     };
 
     before(async () => {
@@ -135,6 +201,96 @@ describe('Telegram webhook through the Worker on D1', () => {
     beforeEach(async () => {
         await harness.clearApplicationTables();
         apiCalls.length = 0;
+    });
+
+    it('admin forget then restore works without a channel row and non-admins are refused', async () => {
+        await send(77, '/start');
+        await send(77, '/join');
+        await send(78, '/join');
+
+        assert.equal(await countRows(harness, 'channels'), 1);
+        assert.equal(await countRows(harness, 'channel_members'), 2);
+
+        await send(79, '/forget');
+
+        assert.equal(await countRows(harness, 'channels'), 1);
+        assert.equal(await countRows(harness, 'channel_snapshots'), 0);
+
+        await send(77, '/forget');
+
+        assert.equal(await countRows(harness, 'channels'), 0);
+        assert.equal(await countRows(harness, 'channel_snapshots'), 1);
+
+        await send(79, '/restore');
+
+        assert.equal(await countRows(harness, 'channels'), 0);
+
+        await send(77, '/restore');
+
+        assert.equal(await countRows(harness, 'channels'), 1);
+        assert.equal(await countRows(harness, 'channel_members'), 2);
+    });
+
+    it('resumes a paused group for an admin /start and keeps it paused for a non-admin', async () => {
+        await send(77, '/start');
+        await send(77, '/join');
+        await send(77, '/stop');
+
+        const pausedChannel = await readChannel();
+        const LL = getMessages(pausedChannel?.language as never);
+
+        assert.notEqual(pausedChannel?.stoppedAt, null);
+        assert.equal(readLastReplyText(), LL.successStop());
+
+        await send(nonAdminUserId, '/start');
+
+        assert.notEqual((await readChannel())?.stoppedAt, null);
+        assert.ok(readLastReplyText().includes(LL.gameStopped()));
+        assert.equal(readLastReplyText().includes(LL.successResume()), false);
+
+        await send(77, '/start');
+
+        assert.equal((await readChannel())?.stoppedAt, null);
+        assert.ok(readLastReplyText().includes(LL.successResume()));
+        assert.equal(readLastReplyText().includes(LL.gameStopped()), false);
+    });
+
+    it('refuses /run after /stop without drawing a winner', async () => {
+        await send(77, '/start');
+        await send(77, '/join');
+        await send(78, '/join');
+        await send(77, '/stop');
+
+        const LL = getMessages((await readChannel())?.language as never);
+
+        await send(77, '/run');
+
+        assert.equal(readLastReplyText(), LL.gameStopped());
+        assert.equal((await readChannel())?.lastVoteAt, null);
+        assert.equal(await countRows(harness, 'vote_wins'), 0);
+    });
+
+    it('restore over a different current roster removes the orphaned extra players', async () => {
+        await send(77, '/start');
+        await send(77, '/join');
+        await send(78, '/join');
+        await send(77, '/forget');
+
+        assert.equal(await countRows(harness, 'channels'), 0);
+        assert.deepEqual(await readPlayerUserIds(), []);
+
+        await send(77, '/start');
+        await send(81, '/join');
+        await send(82, '/join');
+
+        assert.deepEqual(await readPlayerUserIds(), [81, 82]);
+
+        await send(77, '/restore');
+
+        assert.equal(await countRows(harness, 'channels'), 1);
+        assert.equal(await countRows(harness, 'channel_members'), 2);
+        assert.deepEqual(await readPlayerUserIds(), [77, 78]);
+        assert.equal(await countRows(harness, 'channel_snapshots'), 2);
     });
 
     it('rejects a wrong secret without touching the ledger or Telegram', async () => {

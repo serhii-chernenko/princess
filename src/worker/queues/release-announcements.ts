@@ -31,6 +31,7 @@ export interface AnnouncementChannel {
     telegramChatId: number;
     language: string;
     releaseVersion: string;
+    stoppedAt: Date | null;
 }
 
 export interface ReleaseAnnouncementMessage {
@@ -261,6 +262,25 @@ const handleMessage = async (
         return false;
     };
     const timestamp = () => new Date(dependencies.now());
+
+    if (channel.stoppedAt) {
+        await writeState('paused', () => {
+            return dependencies.markSkipped(
+                announcement.id,
+                channel.id,
+                releaseVersion,
+                null,
+                timestamp()
+            );
+        });
+        dependencies.log({
+            event: 'release_announcement_skipped',
+            reason: 'channel_paused',
+            ...logContext
+        });
+        message.ack();
+        return;
+    }
 
     if (announcement.status === 'sending') {
         await writeState('ambiguous', () => {

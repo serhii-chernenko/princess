@@ -350,7 +350,7 @@
                     }
                 },
                 {
-                    "title": "Stopped games (30d)",
+                    "title": "Paused games (30d)",
                     "layout": {
                         "column": 1,
                         "row": 4,
@@ -365,7 +365,7 @@
                         "nrqlQueries": [
                             {
                                 "accountIds": [8569908],
-                                "query": "SELECT count(*) AS 'Stopped games' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'stop' SINCE 30 days ago"
+                                "query": "SELECT count(*) AS 'Paused games' FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action = 'stop' SINCE 30 days ago"
                             }
                         ]
                     }
@@ -434,7 +434,7 @@
                     }
                 },
                 {
-                    "title": "Resets and stops per day",
+                    "title": "Resets, pauses, forgets and restores per day",
                     "layout": {
                         "column": 7,
                         "row": 7,
@@ -449,7 +449,7 @@
                         "nrqlQueries": [
                             {
                                 "accountIds": [8569908],
-                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action IN ('reset', 'stop') FACET action TIMESERIES 1 day SINCE 30 days ago"
+                                "query": "SELECT count(*) FROM Log_princess WHERE `service.name` = 'princess' AND botEnvironment = 'production' AND eventName = 'bot_action_completed' AND action IN ('reset', 'stop', 'resume', 'forget', 'restore') FACET action TIMESERIES 1 day SINCE 30 days ago"
                             }
                         ]
                     }

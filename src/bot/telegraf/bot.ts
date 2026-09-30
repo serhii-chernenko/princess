@@ -36,7 +36,14 @@ const PRINCESS_STICKER_ID =
 
 export interface PrincessBotTelemetry {
     botActionCompleted(input: {
-        action: 'join' | 'leave' | 'reset' | 'stop';
+        action:
+            | 'join'
+            | 'leave'
+            | 'reset'
+            | 'stop'
+            | 'resume'
+            | 'forget'
+            | 'restore';
         result: 'joined' | 'reactivated' | 'already-active' | 'success';
     }): void;
     voteCompleted(input: {
@@ -376,11 +383,26 @@ export const createPrincessBot = (
                 return;
             }
 
-            await game.ensureChannel(actor.chatId);
+            const { state } = await game.ensureChannel(
+                actor.chatId,
+                isAdmin(actorMember)
+            );
+            const resumeNotice =
+                state === 'resumed' ? `${LL.successResume()}\n\n` : '';
+            const stoppedNotice =
+                state === 'stopped' ? `\n\n${LL.gameStopped()}` : '';
+
+            if (state === 'resumed') {
+                telemetry?.botActionCompleted({
+                    action: 'resume',
+                    result: 'success'
+                });
+            }
+
             await ctx.replyWithHTML(
-                `${LL.greetings({
+                `${resumeNotice}${LL.greetings({
                     name: escapeHtml(formatUserName(actor.user, 'name'))
-                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}`
+                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}${stoppedNotice}`
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
@@ -626,6 +648,12 @@ export const createPrincessBot = (
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
+
+            if (isPrivateChatStart(ctx)) {
+                await ctx.sendMessage(LL.greetingsError());
+                return;
+            }
+
             const { actorMember } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
@@ -658,6 +686,12 @@ export const createPrincessBot = (
             const actor = getCommandActor(ctx);
             locale = await game.getChannelLocale(actor.chatId);
             const LL = getMessages(locale);
+
+            if (isPrivateChatStart(ctx)) {
+                await ctx.sendMessage(LL.greetingsError());
+                return;
+            }
+
             const { actorMember } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
@@ -674,6 +708,85 @@ export const createPrincessBot = (
                 result: 'success'
             });
             await ctx.sendMessage(LL.successStop());
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('forget', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+
+            if (isPrivateChatStart(ctx)) {
+                await ctx.sendMessage(LL.greetingsError());
+                return;
+            }
+
+            const { actorMember } = await game.getChannelAndActor(
+                actor.chatId,
+                actor.user.id,
+                createChatMemberReader(ctx),
+                'command',
+                locale
+            );
+
+            assertAdminActor(actorMember, locale);
+
+            await game.forgetChannel(actor.chatId, locale);
+            telemetry?.botActionCompleted({
+                action: 'forget',
+                result: 'success'
+            });
+            await ctx.sendMessage(LL.successForget());
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('restore', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+
+            if (isPrivateChatStart(ctx)) {
+                await ctx.sendMessage(LL.greetingsError());
+                return;
+            }
+
+            const actorMember = await game.getActorMember(
+                actor.chatId,
+                actor.user.id,
+                createChatMemberReader(ctx),
+                'command',
+                locale
+            );
+
+            assertAdminActor(actorMember, locale);
+
+            const { locale: restoredLocale } = await game.restoreChannel(
+                actor.chatId,
+                locale
+            );
+            telemetry?.botActionCompleted({
+                action: 'restore',
+                result: 'success'
+            });
+            await ctx.sendMessage(getMessages(restoredLocale).successRestore());
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
         }

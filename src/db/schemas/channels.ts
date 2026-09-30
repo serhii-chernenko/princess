@@ -12,6 +12,7 @@ export const channels = snakeCase.table(
             enum: ['admin', 'nonAdmin', 'unavailable']
         }),
         botAdminCheckedAt: integer({ mode: 'timestamp_ms' }),
+        stoppedAt: integer({ mode: 'timestamp_ms' }),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
             .$defaultFn(() => new Date())

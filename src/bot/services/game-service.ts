@@ -14,13 +14,30 @@ import {
     isInactiveTelegramMember,
     randomInt
 } from '../utils/telegram';
+import {
+    buildChannelSnapshotPayload,
+    channelSnapshotPayloadMaxBytes,
+    channelSnapshotRestoreMaxStatements,
+    channelSnapshotRetentionMilliseconds,
+    estimateChannelSnapshotRestoreStatements,
+    parseChannelSnapshotPayload,
+    serializeChannelSnapshotPayload
+} from '../../db/channel-snapshot-payload';
 import { createRepositories } from '../../db/repositories';
+import type { NewChannelSnapshot } from '../../db/repositories/channel-snapshot-repository';
 import { createDb } from '../../db/client';
-import { channelMembers, players } from '../../db/schema';
+import {
+    channelMembers,
+    channelSnapshotReasons,
+    channels,
+    players
+} from '../../db/schema';
 import type { WorkerBindings } from '../../worker/env';
 
 type PlayerRow = typeof players.$inferSelect;
 type ChannelMemberRow = typeof channelMembers.$inferSelect;
+type ChannelRow = typeof channels.$inferSelect;
+type ChannelSnapshotReason = (typeof channelSnapshotReasons)[number];
 
 type ActivePlayer = {
     member: ChannelMemberRow;
@@ -177,7 +194,7 @@ export const createGameService = (
         return createdPlayer;
     };
 
-    const getChannelAndActor = async (
+    const getActorMember = async (
         telegramChatId: number,
         actorUserId: number,
         telegram: ChatMemberReader,
@@ -199,6 +216,25 @@ export const createGameService = (
             );
         }
 
+        return actorMember;
+    };
+
+    const getChannelAndActor = async (
+        telegramChatId: number,
+        actorUserId: number,
+        telegram: ChatMemberReader,
+        mode: RunType | 'command',
+        locale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const LL = getMessages(locale);
+        const actorMember = await getActorMember(
+            telegramChatId,
+            actorUserId,
+            telegram,
+            mode,
+            locale
+        );
+
         const channel = await findChannel(telegramChatId);
 
         if (!channel) {
@@ -218,20 +254,42 @@ export const createGameService = (
         };
     };
 
-    const ensureChannel = async (telegramChatId: number) => {
+    const ensureChannel = async (
+        telegramChatId: number,
+        canResume: boolean
+    ) => {
         const locale = getDefaultAppLocale();
         const currentRelease = getLatestReleaseVersion();
         const existingChannel = await findChannel(telegramChatId);
 
         if (existingChannel) {
+            const isResuming = Boolean(existingChannel.stoppedAt) && canResume;
+
             await runEffect(
-                repositories.channels.markChannelRelease(
-                    telegramChatId,
-                    currentRelease
-                )
+                isResuming
+                    ? repositories.channels.resumeChannel(
+                          telegramChatId,
+                          currentRelease
+                      )
+                    : repositories.channels.markChannelRelease(
+                          telegramChatId,
+                          currentRelease
+                      )
             );
 
-            return (await findChannel(telegramChatId)) ?? existingChannel;
+            const channel =
+                (await findChannel(telegramChatId)) ?? existingChannel;
+
+            if (isResuming) {
+                return { channel, state: 'resumed' as const };
+            }
+
+            return {
+                channel,
+                state: channel.stoppedAt
+                    ? ('stopped' as const)
+                    : ('existing' as const)
+            };
         }
 
         const createdChannel = await runEffect(
@@ -246,7 +304,7 @@ export const createGameService = (
             throw new Error('Failed to create channel');
         }
 
-        return createdChannel;
+        return { channel: createdChannel, state: 'created' as const };
     };
 
     const joinChannel = async (
@@ -511,6 +569,12 @@ export const createGameService = (
             throw new BotUserError(LL.hasNotData(), { silent: true });
         }
 
+        if (channel.stoppedAt) {
+            throw new BotUserError(LL.gameStopped(), {
+                silent: type === 'auto'
+            });
+        }
+
         const channelMembers = await runEffect(
             repositories.channels.listChannelMembers(channel.id)
         );
@@ -692,9 +756,79 @@ export const createGameService = (
         };
     };
 
+    const loadChannelSnapshot = async (channel: ChannelRow) => {
+        const [memberRows, winRows] = await Promise.all([
+            runEffect(
+                repositories.channelMembers.listMembersForChannel(channel.id)
+            ),
+            runEffect(repositories.voteWins.listWinsForChannel(channel.id))
+        ]);
+        const payload = buildChannelSnapshotPayload(
+            channel,
+            memberRows,
+            winRows
+        );
+        const serialized = serializeChannelSnapshotPayload(payload);
+        const estimatedStatements = estimateChannelSnapshotRestoreStatements(
+            payload.members.length,
+            payload.voteWins.length
+        );
+
+        return {
+            text: serialized.text,
+            bytes: serialized.bytes,
+            estimatedStatements,
+            exceedsLimits:
+                serialized.bytes > channelSnapshotPayloadMaxBytes ||
+                estimatedStatements > channelSnapshotRestoreMaxStatements,
+            memberPlayerIds: memberRows.map(row => {
+                return row.player.id;
+            })
+        };
+    };
+
+    const readChannelSnapshot = async (
+        channel: ChannelRow,
+        locale: AppLocale
+    ) => {
+        const snapshot = await loadChannelSnapshot(channel);
+
+        if (snapshot.exceedsLimits) {
+            console.error(
+                JSON.stringify({
+                    event: 'channel_snapshot_too_large',
+                    bytes: snapshot.bytes,
+                    estimatedStatements: snapshot.estimatedStatements
+                })
+            );
+
+            throw new BotUserError(getMessages(locale).snapshotTooLarge());
+        }
+
+        return snapshot;
+    };
+
+    const buildSnapshotRow = (
+        telegramChatId: number,
+        reason: ChannelSnapshotReason,
+        payload: string,
+        now: Date
+    ): NewChannelSnapshot => {
+        return {
+            telegramChatId,
+            reason,
+            payload,
+            createdAt: now,
+            expiresAt: new Date(
+                now.getTime() + channelSnapshotRetentionMilliseconds
+            )
+        };
+    };
+
     const resetScores = async (
         telegramChatId: number,
-        locale: AppLocale = getDefaultAppLocale()
+        locale: AppLocale = getDefaultAppLocale(),
+        now = new Date()
     ) => {
         const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
@@ -711,25 +845,20 @@ export const createGameService = (
             throw new BotUserError(LL.playersNotFound());
         }
 
-        await runEffect(
-            repositories.channelMembers.resetScoresForChannel(channel.id)
-        );
-        await resetChannelRun(channel.id);
-    };
+        const { text } = await readChannelSnapshot(channel, locale);
 
-    const deleteChannelAndOrphans = async (
-        channelId: number,
-        candidatePlayerIds: number[]
-    ) => {
-        await runEffect(repositories.channels.deleteChannel(channelId));
         await runEffect(
-            repositories.players.deleteOrphanedPlayers(candidatePlayerIds)
+            repositories.channelSnapshots.resetChannelWithSnapshot({
+                channelId: channel.id,
+                snapshot: buildSnapshotRow(telegramChatId, 'reset', text, now)
+            })
         );
     };
 
     const stopChannel = async (
         telegramChatId: number,
-        locale: AppLocale = getDefaultAppLocale()
+        locale: AppLocale = getDefaultAppLocale(),
+        now = new Date()
     ) => {
         const LL = getMessages(locale);
         const channel = await findChannel(telegramChatId);
@@ -738,18 +867,123 @@ export const createGameService = (
             throw new BotUserError(LL.hasNotData());
         }
 
-        const memberships = await runEffect(
-            repositories.channels.listChannelMembers(channel.id)
-        );
-
-        if (!memberships.length) {
+        if (channel.stoppedAt) {
             throw new BotUserError(LL.alreadyStop());
         }
 
-        await deleteChannelAndOrphans(
-            channel.id,
-            memberships.map(member => member.playerId)
+        await runEffect(
+            repositories.channels.markChannelStopped(channel.id, now)
         );
+    };
+
+    const forgetChannel = async (
+        telegramChatId: number,
+        locale: AppLocale = getDefaultAppLocale(),
+        now = new Date()
+    ) => {
+        const LL = getMessages(locale);
+        const channel = await findChannel(telegramChatId);
+
+        if (!channel) {
+            throw new BotUserError(LL.hasNotData());
+        }
+
+        const { text, memberPlayerIds } = await readChannelSnapshot(
+            channel,
+            locale
+        );
+
+        await runEffect(
+            repositories.channelSnapshots.forgetChannelWithSnapshot({
+                channelId: channel.id,
+                snapshot: buildSnapshotRow(telegramChatId, 'forget', text, now)
+            })
+        );
+        await runEffect(
+            repositories.players.deleteOrphanedPlayers(memberPlayerIds)
+        );
+    };
+
+    const restoreChannel = async (
+        telegramChatId: number,
+        locale: AppLocale = getDefaultAppLocale(),
+        now = new Date()
+    ) => {
+        const LL = getMessages(locale);
+        const latestSnapshot = await runEffect(
+            repositories.channelSnapshots.findLatestActiveSnapshot(
+                telegramChatId,
+                now
+            )
+        );
+
+        if (!latestSnapshot) {
+            throw new BotUserError(LL.restoreNotFound());
+        }
+
+        const payload = parseChannelSnapshotPayload(latestSnapshot.payload);
+
+        if (!payload || payload.channel.telegramChatId !== telegramChatId) {
+            console.error(
+                JSON.stringify({
+                    event: 'channel_snapshot_invalid',
+                    reason: latestSnapshot.reason
+                })
+            );
+
+            throw new BotUserError(LL.error());
+        }
+
+        const currentChannel = await findChannel(telegramChatId);
+        const currentSnapshot = currentChannel
+            ? await loadChannelSnapshot(currentChannel)
+            : null;
+        const safetySnapshotText =
+            currentSnapshot && !currentSnapshot.exceedsLimits
+                ? currentSnapshot.text
+                : null;
+
+        if (currentSnapshot?.exceedsLimits) {
+            console.error(
+                JSON.stringify({
+                    event: 'channel_restore_safety_snapshot_skipped',
+                    bytes: currentSnapshot.bytes,
+                    estimatedStatements: currentSnapshot.estimatedStatements
+                })
+            );
+        }
+
+        await runEffect(
+            repositories.channelSnapshots.restoreChannelFromSnapshot({
+                telegramChatId,
+                payload,
+                releaseVersion: getLatestReleaseVersion(),
+                safetySnapshot:
+                    safetySnapshotText === null
+                        ? null
+                        : buildSnapshotRow(
+                              telegramChatId,
+                              'restore',
+                              safetySnapshotText,
+                              now
+                          ),
+                now
+            })
+        );
+
+        if (currentSnapshot) {
+            await runEffect(
+                repositories.players.deleteOrphanedPlayers(
+                    currentSnapshot.memberPlayerIds
+                )
+            );
+        }
+
+        return {
+            locale:
+                normalizeAppLocale(payload.channel.language) ??
+                getDefaultAppLocale()
+        };
     };
 
     const cleanupInactiveChannels = async (cutoff: Date) => {
@@ -810,12 +1044,15 @@ export const createGameService = (
         getChannelLocale,
         setChannelLocale,
         getChannelAndActor,
+        getActorMember,
         joinChannel,
         leaveChannel,
         getPrintablePlayers,
         runVote,
         resetScores,
         stopChannel,
+        forgetChannel,
+        restoreChannel,
         cleanupInactiveChannels,
         getStats
     };

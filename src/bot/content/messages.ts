@@ -19,6 +19,8 @@ const commandOrder = [
     'top',
     'reset',
     'stop',
+    'forget',
+    'restore',
     'stats',
     'releases',
     'lang'
@@ -120,6 +122,10 @@ export const getHelpEntries = (
                 wishlistUrlTg: env.WISHLIST_TG_URL || '',
                 chatGPTUrlGH: env.CHATGPT_GITHUB_REPO_URL || ''
             })
+        },
+        {
+            question: LL.help.items.restore.question(),
+            answer: LL.help.items.restore.answer()
         }
     ];
 };

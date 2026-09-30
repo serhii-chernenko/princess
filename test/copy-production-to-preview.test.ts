@@ -32,6 +32,7 @@ const allProductionTables = [
     '__drizzle_migrations',
     '_cf_KV',
     'channel_members',
+    'channel_snapshots',
     'channels',
     'players',
     'release_announcements',

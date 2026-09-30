@@ -1,7 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
-import { voteWins } from '../schema';
+import { players, voteWins } from '../schema';
 
 type NewVoteWin = Pick<
     typeof voteWins.$inferInsert,
@@ -10,6 +11,26 @@ type NewVoteWin = Pick<
 
 export const createVoteWinRepository = (db: AppDb) => {
     return {
+        listWinsForChannel(channelId: number) {
+            return Effect.tryPromise({
+                try: () => {
+                    return db
+                        .select({
+                            win: voteWins,
+                            telegramUserId: players.telegramUserId
+                        })
+                        .from(voteWins)
+                        .innerJoin(players, eq(voteWins.playerId, players.id))
+                        .where(eq(voteWins.channelId, channelId))
+                        .orderBy(voteWins.wonAt, voteWins.id);
+                },
+                catch: cause => {
+                    return new Error(
+                        `Vote win repository failure: ${String(cause)}`
+                    );
+                }
+            });
+        },
         recordWin(win: NewVoteWin) {
             return Effect.tryPromise({
                 try: async () => {

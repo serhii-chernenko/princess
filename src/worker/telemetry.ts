@@ -40,6 +40,7 @@ type TelemetryFields = {
     cleanedChannels?: number;
     prunedProcessedTelegramUpdates?: number;
     prunedAbandonedTelegramUpdates?: number;
+    prunedChannelSnapshots?: number;
     releaseVersion?: string;
     errorCode?: number | null;
     delaySeconds?: number;
@@ -47,7 +48,14 @@ type TelemetryFields = {
     reason?: string;
     mode?: 'auto' | 'manual' | 'sudo';
     eligibleCount?: number;
-    action?: 'join' | 'leave' | 'reset' | 'stop';
+    action?:
+        | 'join'
+        | 'leave'
+        | 'reset'
+        | 'stop'
+        | 'resume'
+        | 'forget'
+        | 'restore';
     result?: 'joined' | 'reactivated' | 'already-active' | 'success';
     registeredChats?: number;
     adminChats?: number;
@@ -75,6 +83,8 @@ const commandCategories = new Set([
     'sudorun',
     'reset',
     'stop',
+    'forget',
+    'restore',
     'stats',
     'releases',
     'lang'
