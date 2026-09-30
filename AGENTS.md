@@ -66,3 +66,7 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - The `princess-db/` directory is local-only backup input.
 - You may read from it for validation and migration work.
 - Do not add files from `princess-db/` to git.
+
+## Operations
+
+- Operators and agents must read `docs/OPERATIONS.md` before any deploy, migration, data copy or release work.
