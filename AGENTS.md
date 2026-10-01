@@ -45,7 +45,7 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 ## Deployment
 
 - Cloudflare Workers Builds deploys production (`princess`, from `main`) and creates Worker Previews for other branches.
-- GitHub Actions only validate; do not add a deploy job.
+- GitHub Actions only validate and publish GitHub release notes (the `release` job in `.github/workflows/main.yml`); do not add a deploy job.
 
 ## Worker Previews
 
@@ -60,6 +60,7 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 - `.changeset/*.md` files are pre-release inputs.
 - `releases.generated.json` is the generated runtime artifact for `/releases`.
 - Do not edit `releases.generated.json` by hand.
+- GitHub Releases are published from `CHANGELOG.md` (English text) by `pnpm releases:github`; never create them by hand for the current version.
 
 ## Backup Data
 
