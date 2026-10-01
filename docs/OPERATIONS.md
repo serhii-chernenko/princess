@@ -95,6 +95,23 @@ pnpm db:migrate:preview
 
 The migrator is idempotent and reports `applied` and `alreadyApplied` migrations. The first D1 call of a session sometimes fails with D1 error 7403. Just rerun the same command.
 
+### Applying migrations automatically (not implemented)
+
+Migrations are manual today. Forgetting one before a merge deploys code that reads columns or tables that do not exist yet. This is the plan to remove that step. It needs an owner decision because it changes the rule that Workers Builds only deploys and GitHub Actions only validate.
+
+Why not a GitHub Actions job: it would race with Workers Builds, which deploys independently, so the new code could start before the migration ran. `AGENTS.md` also forbids deploy jobs in GitHub Actions.
+
+Plan, run inside Workers Builds so the order is guaranteed:
+
+1. Put the migration in the Workers Builds build command, before the build and deploy steps. A failed migration must fail the build, so production is never deployed on top of an unmigrated schema.
+2. Guard it by branch. On `main` run `pnpm db:migrate:prod`. On every other branch run `pnpm db:migrate:preview`. A branch build must never touch `princess-production`. Workers Builds exposes the branch in `WORKERS_CI_BRANCH`; confirm the variable name in the Cloudflare docs before relying on it.
+3. Authenticate with an API token, not `wrangler login`. The migration scripts already support `CLOUDFLARE_AUTH_MODE=token` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; `wrangler-login` is rejected in CI. Create a token limited to this account with D1 edit permission only, and store it as a Workers Builds build secret (not a Worker secret and not in `wrangler.jsonc`).
+4. Retry the migration command on D1 error 7403, as operators do by hand, and fail on any other error.
+5. Keep every migration additive (new tables, new nullable or defaulted columns, new indexes). During a deploy the old code runs against the new schema for a short time. Ship destructive changes (drop, rename, new NOT NULL without default) in two releases: first stop using the column, then drop it.
+6. All preview branches share the one `princess-preview` database. The migrator is idempotent, so concurrent branch builds are safe, but a branch with a migration that is not on `main` leaves preview ahead of production until it merges.
+
+When this is implemented, update the "Workers Builds does NOT run migrations" sentence above, section 3 step 4, and the Deployment rules in `AGENTS.md`. Record the new build command here as well.
+
 ## 5. Copy production data into preview
 
 Use this to test with realistic data. Direction is hard-coded: production to preview, never the reverse.
