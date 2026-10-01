@@ -53,7 +53,8 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 
 - Worker Previews (`env.production.previews`) of the production Worker use their own D1 database, `princess-preview`.
 - Previews get the preview bot token as a Preview base-config secret, never the production bot token.
-- Point the preview bot webhook at a preview only with `pnpm telegram:webhook:set:preview --url <preview url> --drop-pending-updates=true|false`.
+- Point the preview bot webhook at a branch preview with `pnpm preview:point` (it wraps `pnpm telegram:webhook:set:preview`) and restore it with `pnpm preview:reset`; see `docs/OPERATIONS.md` section 6.
+- The raw `pnpm telegram:webhook:set:preview --url <preview url> --drop-pending-updates=true|false` is still allowed for a specific URL. Like `preview:point`, it loads `.dev.vars.preview` over any shell secrets and, for set and delete, requires `getMe` to return `princess_debug_bot` first.
 - Previews run with `BOT_ENVIRONMENT="preview"`: no cron, no cleanup, no release broadcast.
 
 ## Releases

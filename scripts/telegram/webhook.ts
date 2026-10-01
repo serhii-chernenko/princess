@@ -6,6 +6,12 @@ import {
     createWebhookUrl,
     requireEnv
 } from '../cloudflare/runtime-env';
+import {
+    loadPreviewEnvironment,
+    PreviewOperatorError,
+    requirePreviewBot,
+    runLocalCommand
+} from './preview-environment';
 
 type WebhookAction = 'set' | 'info' | 'delete';
 type EnvTarget = 'local' | 'production' | 'preview';
@@ -13,7 +19,7 @@ type EnvTarget = 'local' | 'production' | 'preview';
 export const TELEGRAM_API_MAX_RESPONSE_BYTES = 64 * 1024;
 export const TELEGRAM_API_TIMEOUT_MILLISECONDS = 15_000;
 
-interface TelegramApiCallOptions {
+export interface TelegramApiCallOptions {
     botToken?: string;
     fetchImplementation?: typeof fetch;
     timeoutMilliseconds?: number;
@@ -76,6 +82,9 @@ const dropPendingUpdatesFlagPrefix = '--drop-pending-updates=';
 const urlFlag = '--url';
 const urlFlagPrefix = `${urlFlag}=`;
 const workersDevHostSuffix = '.workers.dev';
+export const ACCOUNT_SUBDOMAIN = 'chernenko';
+export const WORKER_NAME = 'princess';
+export const PRODUCTION_WORKER_HOSTNAME = `${WORKER_NAME}.${ACCOUNT_SUBDOMAIN}${workersDevHostSuffix}`;
 
 export const parsePreviewBaseUrl = (value: string) => {
     let url: URL;
@@ -95,6 +104,10 @@ export const parsePreviewBaseUrl = (value: string) => {
         url.hostname === workersDevHostSuffix.slice(1)
     ) {
         throw new Error(`--url host must end with ${workersDevHostSuffix}`);
+    }
+
+    if (url.hostname === PRODUCTION_WORKER_HOSTNAME) {
+        throw new Error('--url must not be the production Worker origin');
     }
 
     if (
@@ -410,75 +423,83 @@ const readSafeAllowedUpdates = (result: Record<string, unknown>) => {
     return value as string[];
 };
 
+const readWebhookInfoResult = (payload: TelegramApiPayload) => {
+    return typeof payload.result === 'object' &&
+        payload.result !== null &&
+        !Array.isArray(payload.result)
+        ? (payload.result as Record<string, unknown>)
+        : {};
+};
+
+const readConfiguredWebhookUrl = (payload: TelegramApiPayload) => {
+    const { url } = readWebhookInfoResult(payload);
+
+    return typeof url === 'string' && url.length > 0 ? url : null;
+};
+
+export const readConfiguredWebhookOrigin = (payload: TelegramApiPayload) => {
+    const configuredUrl = readConfiguredWebhookUrl(payload);
+
+    if (configuredUrl === null) {
+        return null;
+    }
+
+    try {
+        const { hostname, origin } = new URL(configuredUrl);
+
+        return hostname.endsWith(workersDevHostSuffix) ? origin : null;
+    } catch {
+        return null;
+    }
+};
+
+export const summarizeTelegramWebhookInfo = (
+    payload: TelegramApiPayload,
+    expectedWebhookUrl: string
+) => {
+    const result = readWebhookInfoResult(payload);
+    const configuredUrl = readConfiguredWebhookUrl(payload);
+
+    return {
+        event: 'telegram_webhook_info',
+        urlConfigured: configuredUrl !== null,
+        urlMatchesExpected:
+            configuredUrl !== null && configuredUrl === expectedWebhookUrl,
+        hasCustomCertificate: readSafeBoolean(result, 'has_custom_certificate'),
+        pendingUpdateCount: readSafeInteger(result, 'pending_update_count'),
+        lastErrorDate: readSafeInteger(result, 'last_error_date'),
+        lastErrorMessagePresent:
+            typeof result.last_error_message === 'string' &&
+            result.last_error_message.length > 0,
+        lastSynchronizationErrorDate: readSafeInteger(
+            result,
+            'last_synchronization_error_date'
+        ),
+        maxConnections: readSafeInteger(result, 'max_connections'),
+        allowedUpdates: readSafeAllowedUpdates(result)
+    };
+};
+
 export const formatTelegramWebhookInfo = (
     payload: TelegramApiPayload,
     expectedWebhookUrl: string
 ) => {
-    const result =
-        typeof payload.result === 'object' &&
-        payload.result !== null &&
-        !Array.isArray(payload.result)
-            ? (payload.result as Record<string, unknown>)
-            : {};
-    const configuredUrl =
-        typeof result.url === 'string' && result.url.length > 0
-            ? result.url
-            : null;
-
     return JSON.stringify(
-        {
-            event: 'telegram_webhook_info',
-            urlConfigured: configuredUrl !== null,
-            urlMatchesExpected:
-                configuredUrl !== null && configuredUrl === expectedWebhookUrl,
-            hasCustomCertificate: readSafeBoolean(
-                result,
-                'has_custom_certificate'
-            ),
-            pendingUpdateCount: readSafeInteger(result, 'pending_update_count'),
-            lastErrorDate: readSafeInteger(result, 'last_error_date'),
-            lastErrorMessagePresent:
-                typeof result.last_error_message === 'string' &&
-                result.last_error_message.length > 0,
-            lastSynchronizationErrorDate: readSafeInteger(
-                result,
-                'last_synchronization_error_date'
-            ),
-            maxConnections: readSafeInteger(result, 'max_connections'),
-            allowedUpdates: readSafeAllowedUpdates(result)
-        },
+        summarizeTelegramWebhookInfo(payload, expectedWebhookUrl),
         null,
         2
     );
 };
 
-const run = async () => {
-    const action = parseAction(process.argv[2]);
-    const target = parseTarget(process.argv[3]);
-    const { dropPendingUpdates, baseUrl } = parseWebhookArguments(
-        action,
-        target,
-        process.argv.slice(4)
-    );
+export const readWebhookInfo = (options: TelegramApiCallOptions = {}) => {
+    return callTelegramApi('getWebhookInfo', undefined, options);
+};
 
-    loadOptionalEnvFile(target);
-
-    if (action === 'info') {
-        const expectedWebhookUrl = createWebhookUrl(baseUrl);
-        const payload = await callTelegramApi('getWebhookInfo');
-
-        console.log(formatTelegramWebhookInfo(payload, expectedWebhookUrl));
-        return;
-    }
-
-    if (action === 'delete') {
-        await callTelegramApi(
-            'deleteWebhook',
-            createDropPendingUpdatesParameters(dropPendingUpdates)
-        );
-        return;
-    }
-
+export const setTelegramWebhook = async (
+    baseUrl: string | undefined,
+    dropPendingUpdates: boolean | undefined,
+    options: TelegramApiCallOptions = {}
+) => {
     const webhookUrl = createWebhookUrl(baseUrl);
     const secretToken = requireEnv('TELEGRAM_WEBHOOK_SECRET');
     const params = createDropPendingUpdatesParameters(dropPendingUpdates);
@@ -488,7 +509,78 @@ const run = async () => {
     params.set('url', webhookUrl);
     params.set('secret_token', secretToken);
 
-    await callTelegramApi('setWebhook', params);
+    await callTelegramApi('setWebhook', params, options);
+
+    return webhookUrl;
+};
+
+export interface WebhookRunDependencies {
+    loadPreviewEnvironment: () => Promise<unknown>;
+    loadOptionalEnvFile: (target: 'local' | 'production') => unknown;
+    telegram: TelegramApiCallOptions;
+}
+
+export const runWebhookCommand = async (
+    action: WebhookAction,
+    target: EnvTarget,
+    arguments_: string[],
+    dependencies: WebhookRunDependencies
+) => {
+    const { dropPendingUpdates, baseUrl } = parseWebhookArguments(
+        action,
+        target,
+        arguments_
+    );
+
+    if (target === 'preview') {
+        await dependencies.loadPreviewEnvironment();
+    } else {
+        dependencies.loadOptionalEnvFile(target);
+    }
+
+    if (target === 'preview' && action !== 'info') {
+        await requirePreviewBot(() => {
+            return callTelegramApi('getMe', undefined, dependencies.telegram);
+        });
+    }
+
+    if (action === 'info') {
+        const expectedWebhookUrl = createWebhookUrl(baseUrl);
+        const payload = await readWebhookInfo(dependencies.telegram);
+
+        console.log(formatTelegramWebhookInfo(payload, expectedWebhookUrl));
+        return;
+    }
+
+    if (action === 'delete') {
+        await callTelegramApi(
+            'deleteWebhook',
+            createDropPendingUpdatesParameters(dropPendingUpdates),
+            dependencies.telegram
+        );
+        return;
+    }
+
+    await setTelegramWebhook(
+        baseUrl,
+        dropPendingUpdates,
+        dependencies.telegram
+    );
+};
+
+const run = async () => {
+    await runWebhookCommand(
+        parseAction(process.argv[2]),
+        parseTarget(process.argv[3]),
+        process.argv.slice(4),
+        {
+            loadPreviewEnvironment: () => {
+                return loadPreviewEnvironment({ runCommand: runLocalCommand });
+            },
+            loadOptionalEnvFile,
+            telegram: {}
+        }
+    );
 };
 
 const scriptPath = process.argv[1];
@@ -501,7 +593,10 @@ if (
         console.error(
             JSON.stringify({
                 event: 'telegram_webhook_command_failed',
-                errorType: error instanceof Error ? error.name : typeof error
+                errorType: error instanceof Error ? error.name : typeof error,
+                ...(error instanceof PreviewOperatorError
+                    ? { message: error.message }
+                    : {})
             })
         );
         process.exitCode = 1;

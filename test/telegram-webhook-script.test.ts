@@ -2,13 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    loadPreviewEnvironment,
+    PreviewOperatorError
+} from '../scripts/telegram/preview-environment';
+import {
     callTelegramApi,
     createDropPendingUpdatesParameters,
     parseDropPendingUpdates,
     parsePreviewBaseUrl,
     parseWebhookArguments,
     formatTelegramWebhookInfo,
-    TELEGRAM_API_MAX_RESPONSE_BYTES
+    runWebhookCommand,
+    TELEGRAM_API_MAX_RESPONSE_BYTES,
+    type WebhookRunDependencies
 } from '../scripts/telegram/webhook';
 
 const asFetch = (
@@ -385,5 +391,270 @@ test('preview base URL validation rejects non-workers.dev, non-https and decorat
         assert.throws(() => {
             parsePreviewBaseUrl(invalid);
         }, /--url/);
+    }
+});
+
+test('preview base URL validation rejects the production Worker origin only', () => {
+    assert.throws(
+        () => parsePreviewBaseUrl('https://princess.chernenko.workers.dev'),
+        /production Worker origin/
+    );
+    assert.equal(
+        parsePreviewBaseUrl('https://preview-princess.chernenko.workers.dev'),
+        'https://preview-princess.chernenko.workers.dev'
+    );
+    assert.equal(
+        parsePreviewBaseUrl('https://princess.other.workers.dev'),
+        'https://princess.other.workers.dev'
+    );
+});
+
+const shellBotToken = '999999:production-shell-token';
+const previewFileBotToken = '123456:preview-file-token';
+const previewFileSecret = 'preview-file-secret';
+const previewFilePath = '/telegram/preview-file-path';
+const shellEnvironment = {
+    BOT_TOKEN: shellBotToken,
+    TELEGRAM_WEBHOOK_SECRET: 'production-shell-secret',
+    TELEGRAM_WEBHOOK_PATH: '/telegram/production-shell-path'
+};
+const previewOrigin = 'https://feat-demo-princess.chernenko.workers.dev';
+const previewWebhookArguments = [
+    '--url',
+    previewOrigin,
+    '--drop-pending-updates=true'
+];
+
+const createTelegramFake = (username: string) => {
+    const requests: { method: string; url: string; body: string }[] = [];
+    const fetchImplementation = asFetch(async (input, init) => {
+        const url = String(input);
+
+        requests.push({
+            method: url.slice(url.lastIndexOf('/') + 1),
+            url,
+            body: String(init?.body ?? '')
+        });
+
+        return new Response(
+            JSON.stringify({ ok: true, result: { username } }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+    });
+
+    return {
+        requests,
+        fetchImplementation,
+        methods: () => {
+            return requests.map(request => {
+                return request.method;
+            });
+        }
+    };
+};
+
+const withShellEnvironment = async (action: () => Promise<void>) => {
+    const names = [...Object.keys(shellEnvironment), 'WORKER_BASE_URL'];
+    const previous = names.map(name => {
+        return [name, process.env[name]] as const;
+    });
+    const originalLog = console.log;
+
+    Object.assign(process.env, shellEnvironment);
+    console.log = () => undefined;
+
+    try {
+        await action();
+    } finally {
+        console.log = originalLog;
+
+        for (const [name, value] of previous) {
+            if (value === undefined) {
+                Reflect.deleteProperty(process.env, name);
+            } else {
+                process.env[name] = value;
+            }
+        }
+    }
+};
+
+const createRunDependencies = (
+    fake: ReturnType<typeof createTelegramFake>,
+    overrides: Partial<WebhookRunDependencies> = {}
+): WebhookRunDependencies => {
+    return {
+        loadPreviewEnvironment: () => {
+            return loadPreviewEnvironment({
+                runCommand: async () => {
+                    throw new Error('not a git checkout');
+                },
+                cwd: '/repo',
+                fileExists: () => true,
+                load: (_filePath, environment) => {
+                    environment.BOT_TOKEN = previewFileBotToken;
+                    environment.TELEGRAM_WEBHOOK_SECRET = previewFileSecret;
+                    environment.TELEGRAM_WEBHOOK_PATH = previewFilePath;
+                }
+            });
+        },
+        loadOptionalEnvFile: () => {
+            throw new Error('Unexpected env file load');
+        },
+        telegram: { fetchImplementation: fake.fetchImplementation },
+        ...overrides
+    };
+};
+
+test('raw preview set uses the preview env file over a shell BOT_TOKEN', async () => {
+    await withShellEnvironment(async () => {
+        const fake = createTelegramFake('princess_debug_bot');
+
+        await runWebhookCommand(
+            'set',
+            'preview',
+            previewWebhookArguments,
+            createRunDependencies(fake)
+        );
+
+        assert.deepEqual(fake.methods(), ['getMe', 'setWebhook']);
+
+        for (const request of fake.requests) {
+            assert.equal(
+                request.url.startsWith(
+                    `https://api.telegram.org/bot${previewFileBotToken}/`
+                ),
+                true
+            );
+            assert.equal(request.url.includes(shellBotToken), false);
+        }
+
+        const setBody = new URLSearchParams(fake.requests[1]?.body);
+
+        assert.equal(setBody.get('url'), `${previewOrigin}${previewFilePath}`);
+        assert.equal(setBody.get('secret_token'), previewFileSecret);
+    });
+});
+
+test('raw preview delete checks the bot identity before deleting', async () => {
+    await withShellEnvironment(async () => {
+        const fake = createTelegramFake('princess_debug_bot');
+
+        await runWebhookCommand(
+            'delete',
+            'preview',
+            ['--drop-pending-updates=false'],
+            createRunDependencies(fake)
+        );
+
+        assert.deepEqual(fake.methods(), ['getMe', 'deleteWebhook']);
+        assert.equal(
+            fake.requests.every(request => {
+                return request.url.includes(`bot${previewFileBotToken}/`);
+            }),
+            true
+        );
+    });
+});
+
+test('raw preview set and delete abort before changing anything for another bot', async () => {
+    const attempts: [string, string[]][] = [
+        ['set', previewWebhookArguments],
+        ['delete', ['--drop-pending-updates=true']]
+    ];
+
+    for (const [action, arguments_] of attempts) {
+        await withShellEnvironment(async () => {
+            const fake = createTelegramFake('princess_prod_bot');
+
+            await assert.rejects(
+                runWebhookCommand(
+                    action as 'set' | 'delete',
+                    'preview',
+                    arguments_,
+                    createRunDependencies(fake)
+                ),
+                PreviewOperatorError
+            );
+            assert.deepEqual(fake.methods(), ['getMe']);
+        });
+    }
+});
+
+test('raw preview info does not require getMe', async () => {
+    await withShellEnvironment(async () => {
+        const fake = createTelegramFake('princess_prod_bot');
+
+        await runWebhookCommand(
+            'info',
+            'preview',
+            ['--url', previewOrigin],
+            createRunDependencies(fake)
+        );
+
+        assert.deepEqual(fake.methods(), ['getWebhookInfo']);
+        assert.equal(
+            fake.requests[0]?.url.includes(`bot${previewFileBotToken}/`),
+            true
+        );
+    });
+});
+
+test('raw preview commands stop when the preview env file is missing', async () => {
+    await withShellEnvironment(async () => {
+        const fake = createTelegramFake('princess_debug_bot');
+
+        await assert.rejects(
+            runWebhookCommand(
+                'set',
+                'preview',
+                previewWebhookArguments,
+                createRunDependencies(fake, {
+                    loadPreviewEnvironment: () => {
+                        return loadPreviewEnvironment({
+                            runCommand: async () => {
+                                throw new Error('not a git checkout');
+                            },
+                            cwd: '/repo',
+                            fileExists: () => false
+                        });
+                    }
+                })
+            ),
+            PreviewOperatorError
+        );
+        assert.deepEqual(fake.methods(), []);
+        assert.equal(process.env.BOT_TOKEN, shellBotToken);
+    });
+});
+
+test('raw local and production targets keep the previous loading and skip getMe', async () => {
+    for (const target of ['local', 'production'] as const) {
+        await withShellEnvironment(async () => {
+            const fake = createTelegramFake('anyone');
+            const loadedTargets: string[] = [];
+
+            process.env.WORKER_BASE_URL = 'https://worker.example';
+
+            await runWebhookCommand(
+                'set',
+                target,
+                target === 'local' ? [] : ['--drop-pending-updates=true'],
+                createRunDependencies(fake, {
+                    loadPreviewEnvironment: async () => {
+                        throw new Error('Unexpected preview env load');
+                    },
+                    loadOptionalEnvFile: loadedTarget => {
+                        loadedTargets.push(loadedTarget);
+                    }
+                })
+            );
+
+            assert.deepEqual(loadedTargets, [target]);
+            assert.deepEqual(fake.methods(), ['setWebhook']);
+            assert.equal(
+                fake.requests[0]?.url.includes(`bot${shellBotToken}/`),
+                true
+            );
+        });
     }
 });

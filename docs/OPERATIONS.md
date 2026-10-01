@@ -69,12 +69,14 @@ An expired login shows up as `Invalid access token`. Run `pnpm exec wrangler log
 1. Create a branch and open a PR to `main`.
 2. GitHub CI job `validate` runs `pnpm run check`, checks generated artifacts for drift and does a `wrangler deploy --dry-run`.
 3. Workers Builds deploys a preview automatically at `https://<branch>-princess.chernenko.workers.dev`. Check the "Workers Builds: princess" status on the PR.
-4. If the PR has a migration, the branch build applies it to `princess-preview` before the preview deploys (see [section 4](#4-database-migrations)). Nothing to do by hand.
-5. Merge to `main`. Workers Builds applies pending migrations to `princess-production`, deploys production and runs `pnpm releases:broadcast:prod`. When `CHANGELOG.md` changed, the `release` job in `main.yml` also publishes the GitHub Release (see [section 8](#8-releases-and-announcements)).
-6. Delete merged branches and their previews:
+4. To test the preview with the debug bot, push the branch and run `pnpm preview:point`. It waits for the Workers Builds check and for the preview to be ready, then points the preview bot webhook at it. Test in the preview-only group (see [section 6](#6-previews-and-the-preview-bot)).
+5. If the PR has a migration, the branch build applies it to `princess-preview` before the preview deploys (see [section 4](#4-database-migrations)). Nothing to do by hand.
+6. Merge to `main`. Workers Builds applies pending migrations to `princess-production`, deploys production and runs `pnpm releases:broadcast:prod`. When `CHANGELOG.md` changed, the `release` job in `main.yml` also publishes the GitHub Release (see [section 8](#8-releases-and-announcements)).
+7. Delete merged branches and their previews, then point the preview bot back at the long-lived preview:
 
 ```sh
 pnpm exec wrangler preview delete --name <branch-slug> --env production -y
+pnpm preview:reset
 ```
 
 Run all local checks before pushing:
@@ -213,15 +215,49 @@ printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put TELEGRAM_
 printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env production
 ```
 
-Point the preview bot webhook at a preview (needs `.dev.vars.preview`):
+Point the preview bot webhook at a branch preview. This needs `.dev.vars.preview`, `gh` logged in, and the branch pushed:
+
+```sh
+pnpm preview:url                 # print the preview origin for the current branch
+pnpm preview:wait                # wait for the Workers Builds check, then for the preview to answer
+pnpm preview:point               # url, wait, then setWebhook with --drop-pending-updates=true
+pnpm preview:point --no-wait --drop-pending-updates=false
+pnpm preview:reset               # back to https://preview-princess.chernenko.workers.dev
+```
+
+`preview:url` needs no env file. `preview:wait`, `preview:point`, `preview:smoke` and `preview:reset` load `.dev.vars.preview` from the current directory, or from the main checkout when you run them in a git worktree, and let it override any `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_WEBHOOK_PATH` already in your shell. The file must exist in one of those two places. `preview:point` and `preview:reset` call Telegram `getMe` first and refuse to change the webhook unless the token belongs to `@princess_debug_bot`.
+
+Timeouts. `preview:wait` and `preview:point` give the Workers Builds check `--timeout-seconds N` (default 600) and then give the preview its own `--ready-timeout-seconds N` (default 120) to answer on `/` and `/health`. `--interval-seconds N` (default 10) sets the polling interval. A failing `gh` call counts as pending until it fails 5 times in a row.
+
+Output. `preview:url` prints only the bare origin. `preview:wait` prints one-line JSON events. `preview:point` and `preview:reset` print events plus the sanitized webhook info. No command prints the bot token, the webhook secret or the webhook path.
+
+Where the origin comes from. It is computed from the branch, with no network call: `https://<branch-slug>-princess.chernenko.workers.dev`. `preview:url --branch <name>` computes it for another branch. Only when the branch label is too long to compute (see the caveat below) does the CLI read the newest `### Preview URL:` header from a comment by `cloudflare-workers-and-pages[bot]` on the commit's pull request. Only `<name>-princess.chernenko.workers.dev` hosts are accepted, and per-commit hosts (8 hex characters followed by `-princess`) are rejected.
+
+The webhook is shared: one branch at a time. `preview:point` prints `previousOrigin` (origin only) when the bot currently points at a different `workers.dev` preview, so you can see which branch you are taking it from. Pending updates are dropped by default.
+
+If the preview does not respond before the timeout, check the URL in the Workers Builds comment on the pull request and point the webhook at it manually with `pnpm telegram:webhook:set:preview --url <url> --drop-pending-updates=true`.
+
+Opt-in smoke test. This sends a synthetic `/start` update to the preview webhook, so the preview bot may reply in that chat. Use a preview-only chat id, there is no default:
+
+```sh
+pnpm preview:smoke --chat-id <id> [--user-id <id>] [--url https://<name>-princess.chernenko.workers.dev]
+```
+
+A negative chat id is sent as a supergroup message, any other id as a private chat. `--url` must be a `<name>-princess.chernenko.workers.dev` host. The command prints the target origin and chat id before it sends. `--user-id` sets the sender; without it a synthetic sender is used, which in a group is not a member and may take the bot's error path, so pass a real member id for group tests. `preview_smoke_accepted` only proves that the Worker answered HTTP 200 to the update. It does not prove that the bot replied or replied correctly, so check the chat.
+
+Lower-level commands. `--url` is always explicit and must not be the production origin `https://princess.chernenko.workers.dev`:
 
 ```sh
 pnpm telegram:webhook:set:preview --url https://preview-princess.chernenko.workers.dev --drop-pending-updates=true
-pnpm telegram:webhook:info:preview
+pnpm telegram:webhook:info:preview --url https://preview-princess.chernenko.workers.dev
 pnpm telegram:webhook:delete:preview --drop-pending-updates=true
 ```
 
 `--url` must be a bare `https://<name>.<account>.workers.dev` origin. `--drop-pending-updates=true|false` is mandatory for set and delete.
+
+The raw `preview` commands load `.dev.vars.preview` the same way as `preview:point` (a shell `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` or `TELEGRAM_WEBHOOK_PATH` is ignored, and the file must exist). `set` and `delete` call Telegram `getMe` first and refuse to run unless the token belongs to `@princess_debug_bot`; `info` does not.
+
+Branch name caveat. The computed slug is the lowercased branch name with every character outside `a-z0-9` replaced by `-`, and it must start with a letter. It has been verified only for simple names (letters, digits, and single `/` or `-`). The Workers docs state that the name defaults to the git branch and that the name and Worker name combined must not exceed 63 characters; they do not spell out the replacement rules. For names of 64 characters or more, Cloudflare shortens the branch name and adds a hash derived from the full branch name ([changelog](https://developers.cloudflare.com/changelog/post/2025-08-08-support-long-branch-names-preview-aliases/)). The exact result cannot be computed here, so the CLI fails for a `<slug>-princess` label over 63 characters unless the bot comment fallback finds the URL. Prefer short branch names.
 
 Rules:
 

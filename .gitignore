@@ -21,6 +21,8 @@
 !/.agents/skills/analyze-logs/**
 !/.agents/skills/review-logging-patterns/
 !/.agents/skills/review-logging-patterns/**
+!/.agents/skills/preview-bot/
+!/.agents/skills/preview-bot/SKILL.md
 !/.codex/
 !/.codex/config.toml
 !/.pi/
