@@ -60,11 +60,12 @@ const uk: Translation = {
             '/restore - Повернути дані після /reset або /forget (протягом 7 днів)',
         stats: '/stats - Показати статистику використання боту',
         releases: '/releases - Показати всі версії боту та зміни у них',
-        lang: '/lang - Показати або змінити мову спільноти'
+        lang: '/lang - Показати або змінити мову'
     },
     lang: {
         available: 'Available languages: en, ua\nДоступні мови: en, ua',
         updated: 'Мову спільноти змінено на {language}.',
+        updatedPrivate: 'Мову чату змінено на {language}.',
         invalid:
             'Невідомий код мови: {language}.\n\nAvailable languages: {languages}\nДоступні мови: {languages}'
     },

@@ -1,0 +1,888 @@
+{
+    "version": "7",
+    "dialect": "sqlite",
+    "id": "b9b51033-da92-492d-9237-cb38a3708cd7",
+    "prevIds": ["68c6b3be-c629-4635-969c-96cdb76ffbf2"],
+    "ddl": [
+        {
+            "name": "channel_members",
+            "entityType": "tables"
+        },
+        {
+            "name": "channel_snapshots",
+            "entityType": "tables"
+        },
+        {
+            "name": "channels",
+            "entityType": "tables"
+        },
+        {
+            "name": "players",
+            "entityType": "tables"
+        },
+        {
+            "name": "release_announcements",
+            "entityType": "tables"
+        },
+        {
+            "name": "telegram_updates",
+            "entityType": "tables"
+        },
+        {
+            "name": "vote_wins",
+            "entityType": "tables"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "channel_id",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "player_id",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": "0",
+            "generated": null,
+            "name": "score",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": "true",
+            "generated": null,
+            "name": "is_active",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": "true",
+            "generated": null,
+            "name": "is_auto_joined",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "created_at",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "updated_at",
+            "entityType": "columns",
+            "table": "channel_members"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "telegram_chat_id",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "reason",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "payload",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "created_at",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "expires_at",
+            "entityType": "columns",
+            "table": "channel_snapshots"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "telegram_chat_id",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": "'ua'",
+            "generated": null,
+            "name": "language",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "release_version",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "last_vote_at",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "text",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "bot_admin_status",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "bot_admin_checked_at",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "stopped_at",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "created_at",
+            "entityType": "columns",
+            "table": "channels"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "telegram_user_id",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "display_name",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "text",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "language",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "created_at",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "updated_at",
+            "entityType": "columns",
+            "table": "players"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "release_version",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "channel_id",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "status",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": "0",
+            "generated": null,
+            "name": "attempts",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "last_error_code",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "created_at",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "updated_at",
+            "entityType": "columns",
+            "table": "release_announcements"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "bot_key",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "update_id",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "status",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "lease_id",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "started_at",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "processed_at",
+            "entityType": "columns",
+            "table": "telegram_updates"
+        },
+        {
+            "type": "integer",
+            "notNull": false,
+            "autoincrement": true,
+            "default": null,
+            "generated": null,
+            "name": "id",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "channel_id",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "player_id",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "won_at",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "type": "text",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "mode",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "type": "integer",
+            "notNull": true,
+            "autoincrement": false,
+            "default": null,
+            "generated": null,
+            "name": "eligible_count",
+            "entityType": "columns",
+            "table": "vote_wins"
+        },
+        {
+            "columns": ["channel_id"],
+            "tableTo": "channels",
+            "columnsTo": ["id"],
+            "onUpdate": "NO ACTION",
+            "onDelete": "CASCADE",
+            "nameExplicit": false,
+            "name": "fk_channel_members_channel_id_channels_id_fk",
+            "entityType": "fks",
+            "table": "channel_members"
+        },
+        {
+            "columns": ["player_id"],
+            "tableTo": "players",
+            "columnsTo": ["id"],
+            "onUpdate": "NO ACTION",
+            "onDelete": "CASCADE",
+            "nameExplicit": false,
+            "name": "fk_channel_members_player_id_players_id_fk",
+            "entityType": "fks",
+            "table": "channel_members"
+        },
+        {
+            "columns": ["channel_id"],
+            "tableTo": "channels",
+            "columnsTo": ["id"],
+            "onUpdate": "NO ACTION",
+            "onDelete": "CASCADE",
+            "nameExplicit": false,
+            "name": "fk_release_announcements_channel_id_channels_id_fk",
+            "entityType": "fks",
+            "table": "release_announcements"
+        },
+        {
+            "columns": ["channel_id"],
+            "tableTo": "channels",
+            "columnsTo": ["id"],
+            "onUpdate": "NO ACTION",
+            "onDelete": "CASCADE",
+            "nameExplicit": false,
+            "name": "fk_vote_wins_channel_id_channels_id_fk",
+            "entityType": "fks",
+            "table": "vote_wins"
+        },
+        {
+            "columns": ["player_id"],
+            "tableTo": "players",
+            "columnsTo": ["id"],
+            "onUpdate": "NO ACTION",
+            "onDelete": "CASCADE",
+            "nameExplicit": false,
+            "name": "fk_vote_wins_player_id_players_id_fk",
+            "entityType": "fks",
+            "table": "vote_wins"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "channel_members_pk",
+            "table": "channel_members",
+            "entityType": "pks"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "channel_snapshots_pk",
+            "table": "channel_snapshots",
+            "entityType": "pks"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "channels_pk",
+            "table": "channels",
+            "entityType": "pks"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "players_pk",
+            "table": "players",
+            "entityType": "pks"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "release_announcements_pk",
+            "table": "release_announcements",
+            "entityType": "pks"
+        },
+        {
+            "columns": ["id"],
+            "nameExplicit": false,
+            "name": "vote_wins_pk",
+            "table": "vote_wins",
+            "entityType": "pks"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                },
+                {
+                    "value": "player_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": true,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_members_channel_player_unique",
+            "entityType": "indexes",
+            "table": "channel_members"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_members_channel_id_index",
+            "entityType": "indexes",
+            "table": "channel_members"
+        },
+        {
+            "columns": [
+                {
+                    "value": "player_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_members_player_id_index",
+            "entityType": "indexes",
+            "table": "channel_members"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                },
+                {
+                    "value": "is_active",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_members_active_index",
+            "entityType": "indexes",
+            "table": "channel_members"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                },
+                {
+                    "value": "score",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_members_score_index",
+            "entityType": "indexes",
+            "table": "channel_members"
+        },
+        {
+            "columns": [
+                {
+                    "value": "telegram_chat_id",
+                    "isExpression": false
+                },
+                {
+                    "value": "created_at",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_snapshots_chat_created_at_index",
+            "entityType": "indexes",
+            "table": "channel_snapshots"
+        },
+        {
+            "columns": [
+                {
+                    "value": "expires_at",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "channel_snapshots_expires_at_index",
+            "entityType": "indexes",
+            "table": "channel_snapshots"
+        },
+        {
+            "columns": [
+                {
+                    "value": "telegram_chat_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": true,
+            "where": null,
+            "origin": "manual",
+            "name": "channels_telegram_chat_id_unique",
+            "entityType": "indexes",
+            "table": "channels"
+        },
+        {
+            "columns": [
+                {
+                    "value": "telegram_user_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": true,
+            "where": null,
+            "origin": "manual",
+            "name": "players_telegram_user_id_unique",
+            "entityType": "indexes",
+            "table": "players"
+        },
+        {
+            "columns": [
+                {
+                    "value": "release_version",
+                    "isExpression": false
+                },
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": true,
+            "where": null,
+            "origin": "manual",
+            "name": "release_announcements_version_channel_unique",
+            "entityType": "indexes",
+            "table": "release_announcements"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "release_announcements_channel_id_index",
+            "entityType": "indexes",
+            "table": "release_announcements"
+        },
+        {
+            "columns": [
+                {
+                    "value": "bot_key",
+                    "isExpression": false
+                },
+                {
+                    "value": "update_id",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": true,
+            "where": null,
+            "origin": "manual",
+            "name": "telegram_updates_bot_update_unique",
+            "entityType": "indexes",
+            "table": "telegram_updates"
+        },
+        {
+            "columns": [
+                {
+                    "value": "status",
+                    "isExpression": false
+                },
+                {
+                    "value": "processed_at",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "telegram_updates_cleanup_index",
+            "entityType": "indexes",
+            "table": "telegram_updates"
+        },
+        {
+            "columns": [
+                {
+                    "value": "channel_id",
+                    "isExpression": false
+                },
+                {
+                    "value": "won_at",
+                    "isExpression": false
+                }
+            ],
+            "isUnique": false,
+            "where": null,
+            "origin": "manual",
+            "name": "vote_wins_channel_won_at_index",
+            "entityType": "indexes",
+            "table": "vote_wins"
+        },
+        {
+            "value": "\"score\" >= 0",
+            "name": "channel_members_score_non_negative",
+            "entityType": "checks",
+            "table": "channel_members"
+        },
+        {
+            "value": "\"reason\" in ('reset', 'forget', 'restore')",
+            "name": "channel_snapshots_reason_check",
+            "entityType": "checks",
+            "table": "channel_snapshots"
+        },
+        {
+            "value": "\"status\" in ('queued', 'sending', 'sent', 'skipped', 'failed')",
+            "name": "release_announcements_status_check",
+            "entityType": "checks",
+            "table": "release_announcements"
+        },
+        {
+            "value": "\"status\" in ('processing', 'processed')",
+            "name": "telegram_updates_status_check",
+            "entityType": "checks",
+            "table": "telegram_updates"
+        },
+        {
+            "value": "\"mode\" in ('auto', 'manual', 'sudo')",
+            "name": "vote_wins_mode_check",
+            "entityType": "checks",
+            "table": "vote_wins"
+        },
+        {
+            "value": "\"eligible_count\" >= 2",
+            "name": "vote_wins_eligible_count_check",
+            "entityType": "checks",
+            "table": "vote_wins"
+        }
+    ],
+    "renames": []
+}

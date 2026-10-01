@@ -156,6 +156,38 @@ export const createGameService = (
         return locale ?? fallbackLocale;
     };
 
+    const getPlayerLocale = async (
+        telegramUserId: number,
+        fallbackLocale: AppLocale = getDefaultAppLocale()
+    ) => {
+        const player = await runEffect(
+            repositories.players.findPlayerByTelegramUserId(telegramUserId)
+        );
+        const locale = normalizeAppLocale(player?.language || fallbackLocale);
+
+        return locale ?? fallbackLocale;
+    };
+
+    const getLocale = async ({
+        chatId,
+        userId,
+        isPrivateChat
+    }: {
+        chatId: number;
+        userId?: number;
+        isPrivateChat: boolean;
+    }) => {
+        if (!isPrivateChat) {
+            return getChannelLocale(chatId);
+        }
+
+        if (userId === undefined) {
+            return getDefaultAppLocale();
+        }
+
+        return getPlayerLocale(userId);
+    };
+
     const findOrCreatePlayer = async (user: User) => {
         const existingPlayer = await runEffect(
             repositories.players.findPlayerByTelegramUserId(user.id)
@@ -1039,10 +1071,18 @@ export const createGameService = (
         );
     };
 
+    const setPlayerLocale = async (user: User, locale: AppLocale) => {
+        const player = await findOrCreatePlayer(user);
+
+        await runEffect(repositories.players.updateLanguage(player.id, locale));
+    };
+
     return {
         ensureChannel,
         getChannelLocale,
+        getLocale,
         setChannelLocale,
+        setPlayerLocale,
         getChannelAndActor,
         getActorMember,
         joinChannel,

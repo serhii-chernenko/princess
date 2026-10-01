@@ -269,7 +269,7 @@ type RootTranslation = {
 		 */
 		releases: string
 		/**
-		 * /​l​a​n​g​ ​-​ ​S​h​o​w​ ​o​r​ ​c​h​a​n​g​e​ ​t​h​e​ ​g​r​o​u​p​ ​l​a​n​g​u​a​g​e
+		 * /​l​a​n​g​ ​-​ ​S​h​o​w​ ​o​r​ ​c​h​a​n​g​e​ ​t​h​e​ ​l​a​n​g​u​a​g​e
 		 */
 		lang: string
 	}
@@ -284,6 +284,11 @@ type RootTranslation = {
 		 * @param {string} language
 		 */
 		updated: RequiredParams<'language'>
+		/**
+		 * C​h​a​t​ ​l​a​n​g​u​a​g​e​ ​c​h​a​n​g​e​d​ ​t​o​ ​{​l​a​n​g​u​a​g​e​}​.
+		 * @param {string} language
+		 */
+		updatedPrivate: RequiredParams<'language'>
 		/**
 		 * U​n​k​n​o​w​n​ ​l​a​n​g​u​a​g​e​ ​c​o​d​e​:​ ​{​l​a​n​g​u​a​g​e​}​.​
 	​
@@ -744,7 +749,7 @@ Players: <strong>{players}</strong>
 		 */
 		releases: () => LocalizedString
 		/**
-		 * /lang - Show or change the group language
+		 * /lang - Show or change the language
 		 */
 		lang: () => LocalizedString
 	}
@@ -758,6 +763,10 @@ Players: <strong>{players}</strong>
 		 * Group language changed to {language}.
 		 */
 		updated: (arg: { language: string }) => LocalizedString
+		/**
+		 * Chat language changed to {language}.
+		 */
+		updatedPrivate: (arg: { language: string }) => LocalizedString
 		/**
 		 * Unknown language code: {language}.
 

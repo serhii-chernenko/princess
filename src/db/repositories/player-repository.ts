@@ -1,4 +1,4 @@
-import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, notExists, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -71,13 +71,34 @@ export const createPlayerRepository = (db: AppDb) => {
                     .where(eq(players.id, playerId));
             });
         },
+        updateLanguage(playerId: number, language: string) {
+            return try_db(() => {
+                return db
+                    .update(players)
+                    .set({
+                        language,
+                        updatedAt: new Date()
+                    })
+                    .where(eq(players.id, playerId));
+            });
+        },
         countPlayers() {
             return try_db(async () => {
                 const [result] = await db
                     .select({
                         count: sql<number>`count(*)`
                     })
-                    .from(players);
+                    .from(players)
+                    .where(
+                        exists(
+                            db
+                                .select({
+                                    playerId: channelMembers.playerId
+                                })
+                                .from(channelMembers)
+                                .where(eq(channelMembers.playerId, players.id))
+                        )
+                    );
 
                 return Number(result?.count ?? 0);
             });

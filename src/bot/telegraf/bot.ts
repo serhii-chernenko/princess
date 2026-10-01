@@ -150,8 +150,8 @@ const assertAdminActor = (actorMember: ChatMember, locale: AppLocale) => {
     }
 };
 
-const isPrivateChatStart = (ctx: Context) => {
-    return ctx.from?.id === ctx.chat?.id;
+const isPrivateChat = (ctx: Context) => {
+    return ctx.chat?.type === 'private';
 };
 
 const formatTopList = (
@@ -438,10 +438,14 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
 
-            if (isPrivateChatStart(ctx)) {
+            if (isPrivateChat(ctx)) {
                 await ctx.replyWithHTML(
                     `${LL.greetings({
                         name: escapeHtml(formatUserName(actor.user, 'name'))
@@ -500,7 +504,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
             const faq = getHelpEntries(env, locale).map(
                 ({ question, answer }) => {
@@ -528,7 +536,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
             assertHumanSender(actor.user, locale);
             const result = await game.joinChannel(
@@ -564,7 +576,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
             assertHumanSender(actor.user, locale);
             await game.leaveChannel(actor.chatId, actor.user, locale);
@@ -592,7 +608,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const telegramDate = getTelegramDate(ctx.message?.date);
             const startedAt = Date.now();
             const result = await game.runVote(
@@ -624,7 +644,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const telegramDate = getTelegramDate(ctx.message?.date);
             const startedAt = Date.now();
             const result = await game.runVote(
@@ -656,7 +680,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const { channel } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
@@ -692,7 +720,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const { channel } = await game.getChannelAndActor(
                 actor.chatId,
                 actor.user.id,
@@ -728,10 +760,14 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
 
-            if (isPrivateChatStart(ctx)) {
+            if (isPrivateChat(ctx)) {
                 await ctx.sendMessage(LL.greetingsError());
                 return;
             }
@@ -766,10 +802,14 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
 
-            if (isPrivateChatStart(ctx)) {
+            if (isPrivateChat(ctx)) {
                 await ctx.sendMessage(LL.greetingsError());
                 return;
             }
@@ -804,10 +844,14 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
 
-            if (isPrivateChatStart(ctx)) {
+            if (isPrivateChat(ctx)) {
                 await ctx.sendMessage(LL.greetingsError());
                 return;
             }
@@ -842,10 +886,14 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
 
-            if (isPrivateChatStart(ctx)) {
+            if (isPrivateChat(ctx)) {
                 await ctx.sendMessage(LL.greetingsError());
                 return;
             }
@@ -883,7 +931,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
             const { channelsCount, playersCount } = await game.getStats();
 
@@ -909,7 +961,11 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             await ctx.replyWithHTML(renderReleaseNotes(0, locale));
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
@@ -925,9 +981,17 @@ export const createPrincessBot = (
             }
 
             const actor = getCommandActor(ctx);
-            locale = await game.getChannelLocale(actor.chatId);
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const LL = getMessages(locale);
             const { raw, normalized } = getRequestedLanguage(ctx);
+
+            if (isPrivateChat(ctx)) {
+                assertHumanSender(actor.user, locale);
+            }
 
             if (!raw) {
                 await ctx.sendMessage(getAvailableLanguagesMessage(locale));
@@ -939,6 +1003,16 @@ export const createPrincessBot = (
                     LL.lang.invalid({
                         language: raw,
                         languages: getAvailableLanguageCodes().join(', ')
+                    })
+                );
+                return;
+            }
+
+            if (isPrivateChat(ctx)) {
+                await game.setPlayerLocale(actor.user, normalized);
+                await ctx.sendMessage(
+                    getMessages(normalized).lang.updatedPrivate({
+                        language: normalized
                     })
                 );
                 return;
@@ -986,7 +1060,11 @@ export const createPrincessBot = (
                 return;
             }
 
-            locale = await game.getChannelLocale(ctx.chat.id);
+            locale = await game.getLocale({
+                chatId: ctx.chat.id,
+                userId: ctx.from.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
             const startedAt = Date.now();
             const result = await game.runVote(
                 ctx.chat.id,

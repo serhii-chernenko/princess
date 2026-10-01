@@ -59,11 +59,12 @@ const en: BaseTranslation = {
             '/restore - Bring back data after /reset or /forget (within 7 days)',
         stats: '/stats - Show bot usage stats',
         releases: '/releases - Show all bot versions and changes',
-        lang: '/lang - Show or change the group language'
+        lang: '/lang - Show or change the language'
     },
     lang: {
         available: 'Available languages: en, ua\nДоступні мови: en, ua',
         updated: 'Group language changed to {language:string}.',
+        updatedPrivate: 'Chat language changed to {language:string}.',
         invalid:
             'Unknown language code: {language:string}.\n\nAvailable languages: {languages:string}\nДоступні мови: {languages:string}'
     },

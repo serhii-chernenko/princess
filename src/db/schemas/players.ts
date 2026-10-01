@@ -6,6 +6,7 @@ export const players = snakeCase.table(
         id: integer().primaryKey({ autoIncrement: true }),
         telegramUserId: integer().notNull(),
         displayName: text().notNull(),
+        language: text(),
         createdAt: integer({ mode: 'timestamp_ms' })
             .notNull()
             .$defaultFn(() => new Date()),
