@@ -28,7 +28,8 @@ export const migrationsTableName = '__drizzle_migrations';
 export const excludedTableNames = [
     migrationsTableName,
     'telegram_updates',
-    'release_announcements'
+    'release_announcements',
+    'channel_snapshots'
 ];
 export const copiedTablesInInsertOrder = [
     'players',

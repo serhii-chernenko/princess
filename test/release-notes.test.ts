@@ -23,11 +23,11 @@ const bilingualRelease: ReleaseRecord = {
     }
 };
 
-test('the newest release is 5.0.0 with Ukrainian and English items', () => {
+test('the newest release is 5.1.0 with Ukrainian and English items', () => {
     const latest = getLatestRelease();
     const items = Object.values(latest?.groups ?? {}).flat();
 
-    assert.equal(latest?.version, '5.0.0');
+    assert.equal(latest?.version, '5.1.0');
     assert.ok(items.length > 0);
     assert.ok(items.every(item => item.uk.length > 0));
     assert.ok(items.every(item => (item.en ?? '').length > 0));
@@ -95,8 +95,15 @@ test('release notes and announcements escape HTML in item text', () => {
 });
 
 test('/releases renders English text for en channels', () => {
-    assert.match(renderReleaseNotes(1, 'en'), /New \/lang command/);
-    assert.match(renderReleaseNotes(1, 'ua'), /Команда \/lang/);
+    assert.match(renderReleaseNotes(2, 'en'), /New \/lang command/);
+    assert.match(renderReleaseNotes(2, 'ua'), /Команда \/lang/);
+});
+
+test('the newest release describes /forget and /restore in both languages', () => {
+    assert.match(renderReleaseNotes(1, 'en'), /New admin command \/forget/);
+    assert.match(renderReleaseNotes(1, 'ua'), /Нова команда \/forget/);
+    assert.match(renderReleaseNotes(1, 'en'), /\/restore/);
+    assert.match(renderReleaseNotes(1, 'ua'), /\/restore/);
 });
 
 test('oversized announcements are truncated below the Telegram limit', () => {

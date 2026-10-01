@@ -7,7 +7,8 @@ import { Effect } from 'effect';
 import { renderReleaseNotes } from '../src/bot/content/releases';
 import {
     getAvailableLanguagesMessage,
-    getCommandList
+    getCommandList,
+    getMessages
 } from '../src/bot/content/messages';
 import { mapAppLocaleToI18nLocale, normalizeAppLocale } from '../src/bot/i18n';
 import { getTelegramWebhookPath } from '../src/worker/env';
@@ -130,6 +131,32 @@ test('ordinary bot commands cannot trigger global stale-data cleanup', async () 
     );
 });
 
+test('forget and restore handlers call their service methods and never trigger global cleanup', async () => {
+    const botSource = await readFile(
+        new URL('../src/bot/telegraf/bot.ts', import.meta.url),
+        'utf8'
+    );
+    const forgetHandlerSource = botSource.slice(
+        botSource.indexOf("    bot.command('forget'"),
+        botSource.indexOf("    bot.command('restore'")
+    );
+    const restoreHandlerSource = botSource.slice(
+        botSource.indexOf("    bot.command('restore'"),
+        botSource.indexOf("    bot.command('stats'")
+    );
+
+    assert.match(
+        forgetHandlerSource,
+        /game\.forgetChannel\(actor\.chatId, locale\)/
+    );
+    assert.match(
+        restoreHandlerSource,
+        /game\.restoreChannel\(\s*actor\.chatId,\s*locale\s*\)/
+    );
+    assert.doesNotMatch(forgetHandlerSource, /cleanupInactiveChannels/);
+    assert.doesNotMatch(restoreHandlerSource, /cleanupInactiveChannels/);
+});
+
 test('forwarded reply guard only blocks the legacy forwarded-reply shape', () => {
     assert.equal(
         isForwardedReply({
@@ -193,7 +220,7 @@ interface RecordedWin {
 
 const createVoteHarness = (
     memberCount: number,
-    options: { failRecordWin?: boolean } = {}
+    options: { failRecordWin?: boolean; stoppedAt?: Date } = {}
 ) => {
     const calls = {
         resetChannelRun: 0,
@@ -223,7 +250,12 @@ const createVoteHarness = (
     });
     const repositories = {
         channels: {
-            findChannelByTelegramChatId: () => Effect.succeed(voteChannel),
+            findChannelByTelegramChatId: () => {
+                return Effect.succeed({
+                    ...voteChannel,
+                    stoppedAt: options.stoppedAt ?? null
+                });
+            },
             listChannelMembers: () => {
                 return Effect.succeed(rows.map(row => row.member));
             },
@@ -544,5 +576,49 @@ test('no history row is written when the vote is rejected', async () => {
         game.runVote(-1001, 100, runAt, createTelegram(), 'manual', false, 'en')
     );
 
+    assert.equal(recordedWins.length, 0);
+});
+
+test('runVote on a paused channel rejects manual runs loudly and auto runs silently without claiming', async () => {
+    const { calls, game, recordedWins } = createVoteHarness(3, {
+        stoppedAt: new Date('2026-01-02T00:00:00Z')
+    });
+    const stoppedMessage = getMessages('en').gameStopped();
+
+    await assert.rejects(
+        game.runVote(
+            -1001,
+            100,
+            runAt,
+            createTelegram(),
+            'manual',
+            false,
+            'en'
+        ),
+        error => {
+            return (
+                (error as Error).message === stoppedMessage &&
+                (error as { silent?: boolean }).silent === false
+            );
+        }
+    );
+    await assert.rejects(
+        game.runVote(-1001, 100, runAt, createTelegram(), 'auto', false, 'en'),
+        error => {
+            return (
+                (error as Error).message === stoppedMessage &&
+                (error as { silent?: boolean }).silent === true
+            );
+        }
+    );
+    await assert.rejects(
+        game.runVote(-1001, 100, runAt, createTelegram(), 'manual', true, 'en'),
+        error => {
+            return (error as Error).message === stoppedMessage;
+        }
+    );
+
+    assert.equal(calls.claimChannelRun, 0);
+    assert.equal(calls.resetChannelRun, 0);
     assert.equal(recordedWins.length, 0);
 });

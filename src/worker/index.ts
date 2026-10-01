@@ -45,7 +45,8 @@ export default {
                 prunedProcessedTelegramUpdates:
                     summary.prunedProcessedTelegramUpdates,
                 prunedAbandonedTelegramUpdates:
-                    summary.prunedAbandonedTelegramUpdates
+                    summary.prunedAbandonedTelegramUpdates,
+                prunedChannelSnapshots: summary.prunedChannelSnapshots
             });
         } catch (error) {
             emitTelemetryEvent(env, ctx, {

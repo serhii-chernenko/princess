@@ -14,7 +14,11 @@ const try_db = <A>(execute: () => Promise<A>) => {
 };
 
 const getInactiveChannelCondition = (cutoff: Date) => {
-    return and(isNotNull(channels.lastVoteAt), lt(channels.lastVoteAt, cutoff));
+    return and(
+        isNotNull(channels.lastVoteAt),
+        lt(channels.lastVoteAt, cutoff),
+        isNull(channels.stoppedAt)
+    );
 };
 
 const getLastVoteAtCondition = (lastVoteAt: Date | null) => {
@@ -80,6 +84,27 @@ export const createChannelRepository = (db: AppDb) => {
                 return db
                     .update(channels)
                     .set({
+                        releaseVersion
+                    })
+                    .where(eq(channels.telegramChatId, telegramChatId));
+            });
+        },
+        markChannelStopped(channelId: number, stoppedAt: Date) {
+            return try_db(() => {
+                return db
+                    .update(channels)
+                    .set({
+                        stoppedAt
+                    })
+                    .where(eq(channels.id, channelId));
+            });
+        },
+        resumeChannel(telegramChatId: number, releaseVersion: string) {
+            return try_db(() => {
+                return db
+                    .update(channels)
+                    .set({
+                        stoppedAt: null,
                         releaseVersion
                     })
                     .where(eq(channels.telegramChatId, telegramChatId));

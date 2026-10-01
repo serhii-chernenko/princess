@@ -19,10 +19,17 @@ const en: BaseTranslation = {
     successBack: `Glad you're back, {name:string}! 🙋‍♀️`,
     successLeave: `You won't be today's princess anymore, {name:string}! 🙍‍♀️`,
     alreadyLeave: `You already opted out of the game, {name:string}! 🙅‍♀️`,
-    successReset: `Princess achievements wiped clean! 💇‍♀️`,
-    successStop:
-        'All data about this group has been deleted! 💇‍♀️\nTo play again, use /start.',
-    alreadyStop: `I don't have any info about this group.\nUse /start! 🙅‍♀️`,
+    successReset: `Princess achievements wiped clean! 💇‍♀️\nChanged your mind? An admin can bring them back with /restore@{username:string} within 7 days.`,
+    successStop: `The game is paused ⏸️ Players and scores are kept.\nTo resume, an admin runs /start.`,
+    alreadyStop: `The game is already paused ⏸️\nTo resume, an admin runs /start.`,
+    gameStopped: `The game is paused ⏸️ The princess detector is resting.\nTo resume, an admin runs /start.`,
+    successResume: `The game is back on! ▶️ The princess detector is working again.`,
+    successForget: `All data about this group has been deleted! 💇‍♀️\nIf this was an accident, an admin can bring it back with /restore@{username:string} within 7 days.`,
+    successRestore: `Group data restored! 👸 Players and scores are back.`,
+    restoreNotFound: `There is nothing to restore. Backups are kept for 7 days. 🤷‍♀️`,
+    snapshotTooLarge: `This group is too large to back up, so the command was cancelled. Please contact the bot author. 🙅‍♀️`,
+    groupCommandNeedsBotName: `In groups this command only works with the bot's name, so several bots don't run it by accident 🙅‍♀️\nWrite /{command:string}@{username:string}`,
+    groupCommandsNote: `In groups, write /reset, /stop, /forget and /restore with the bot's name, for example /stop@{username:string}`,
     playersWithScoresNotFound: `The princess detector couldn't find any players with a score! 🤷‍♀️️`,
     playersNotFound: `Nobody in this group wants to be a princess yet! 🤷‍♀️`,
     playersNotEnough: `This group doesn't have enough princess volunteers yet. You need at least 2! 🤷‍♀️`,
@@ -37,7 +44,7 @@ const en: BaseTranslation = {
     stats: `<strong>Bot usage stats:</strong>\n\nGroups: <strong>{groups:number}</strong>\nPlayers: <strong>{players:number}</strong>\n\n<strong>Bot author:</strong>\n- {youtube:string}\n- Email: {mail:string}`,
     commandsLabel: 'Bot commands',
     commands: {
-        start: '/start - Initialize the bot in the group and show commands',
+        start: '/start - Initialize the bot in the group, resume a paused game and show commands',
         help: '/help - Questions and answers',
         propose: '/propose - Suggest your own princess greeting',
         join: '/join - Join the game',
@@ -45,8 +52,11 @@ const en: BaseTranslation = {
         run: '/run - Start the first vote',
         list: '/list - Show all players',
         top: '/top - Show TOP-10 players',
-        reset: '/reset - Reset player achievements',
-        stop: '/stop - Stop the game and delete all group data',
+        reset: '/reset - Reset player scores (can be undone with /restore)',
+        stop: '/stop - Pause the game (data is kept)',
+        forget: '/forget - Delete all group data (can be undone with /restore within 7 days)',
+        restore:
+            '/restore - Bring back data after /reset or /forget (within 7 days)',
         stats: '/stats - Show bot usage stats',
         releases: '/releases - Show all bot versions and changes',
         lang: '/lang - Show or change the group language'
@@ -92,6 +102,10 @@ const en: BaseTranslation = {
             projects: {
                 question: `Does the author have other projects?`,
                 answer: `Yep, absolutely. Thanks for being curious :)\n\n<i>YouTube channel</i>:\n- {youtube:string}\n- {tgChannel:string}\n- {tgGroup:string}\n\n<i>Wishlist</i>:\n- {wishlistUrlTg:string}\n\n<i>ChatGPT Telegram bot</i>:\n- {chatGPTUrlGH:string}`
+            },
+            restore: {
+                question: 'What if the group data was deleted by accident?',
+                answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.'
             }
         }
     },

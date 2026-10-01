@@ -66,7 +66,8 @@ const createHarness = (scenario: Scenario = {}) => {
                   id: 1,
                   telegramChatId: -1001,
                   language: 'ua',
-                  releaseVersion: '4.0.1'
+                  releaseVersion: '4.0.1',
+                  stoppedAt: null
               }
             : scenario.channel;
     const pendingErrors = [...(scenario.sendErrors ?? [])];
@@ -203,7 +204,8 @@ test('the announcement is rendered in the channel language', async () => {
             id: 1,
             telegramChatId: -1001,
             language: 'en',
-            releaseVersion: '4.0.1'
+            releaseVersion: '4.0.1',
+            stoppedAt: null
         }
     });
 
@@ -421,7 +423,8 @@ test('a channel already on or past the version is acknowledged without sending',
                 id: 1,
                 telegramChatId: -1001,
                 language: 'ua',
-                releaseVersion: channelVersion
+                releaseVersion: channelVersion,
+                stoppedAt: null
             }
         });
 
@@ -437,6 +440,26 @@ test('a missing channel or announcement row is acknowledged', async () => {
         assert.equal(outcome.acked, true);
         assert.deepEqual(state.sent, []);
     }
+});
+
+test('a paused channel is skipped without sending and pinned to the release', async () => {
+    const { outcome, state } = await runOne({
+        channel: {
+            id: 1,
+            telegramChatId: -1001,
+            language: 'ua',
+            releaseVersion: '4.0.1',
+            stoppedAt: new Date(500)
+        }
+    });
+
+    assert.equal(outcome.acked, true);
+    assert.equal(outcome.retried, false);
+    assert.deepEqual(state.sent, []);
+    assert.equal(state.claims, 0);
+    assert.deepEqual(state.marks, [['skipped', 10, 1, releaseVersion, null]]);
+    assert.equal(state.logs[0]?.event, 'release_announcement_skipped');
+    assert.equal(state.logs[0]?.reason, 'channel_paused');
 });
 
 test('missing release notes retry without touching state', async () => {

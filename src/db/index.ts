@@ -9,6 +9,7 @@ export {
 } from './service';
 export {
     channelMembers,
+    channelSnapshots,
     channels,
     players,
     releaseAnnouncements,

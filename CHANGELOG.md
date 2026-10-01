@@ -1,5 +1,20 @@
 # princess
 
+## 5.1.0 - 01.10.2026
+
+### Minor Changes
+
+- [updated] Команда /stop більше нічого не видаляє: вона лише ставить гру на паузу, а учасниці, рахунок та історія зберігаються. Поки гра на паузі, /run, /sudorun та автоматичне голосування не працюють. Щоб продовжити, адміністратор виконує /start.
+    - en: /stop no longer deletes anything: it only pauses the game, and players, scores and history are kept. While the game is paused, /run, /sudorun and the automatic vote do not work. To continue, an admin runs /start.
+- [added] Нова команда /forget для адміністраторів повністю видаляє дані спільноти: раніше це робила /stop. На відміну від /reset, який лише обнуляє рахунок і залишає учасниць, /forget видаляє й учасниць.
+    - en: New admin command /forget deletes all community data, which is what /stop used to do. Unlike /reset, which only zeroes the scores and keeps the players, /forget removes the players too.
+- [added] Резервні копії: перед /reset та /forget бот автоматично зберігає копію даних спільноти на 7 днів. Адміністратор може повернути її командою /restore, навіть якщо спільноту вже видалено.
+    - en: Backups: before /reset and /forget the bot automatically keeps a copy of the community data for 7 days. An admin can bring it back with /restore, even after the community was deleted.
+- [notes] У групах команди /stop, /reset, /forget та /restore працюють лише з іменем бота, наприклад /stop@bot_username. Так звичайна /stop, призначена іншому боту, не спрацює ще й у цьому. Без імені бот підкаже правильний запис.
+    - en: In groups, /stop, /reset, /forget and /restore only work with the bot name, for example /stop@bot_username. This way a plain /stop meant for another bot is not also acted on by this bot. Without the name the bot replies with the correct form.
+- [notes] Боту потрібен лише статус адміністратора спільноти, щоб бачити всіх учасниць і чесно проводити розіграш. Окремі права адміністратора (видалення повідомлень, блокування, закріплення тощо) не потрібні, їх вмикати не обов'язково.
+    - en: The bot only needs administrator status in the community so it can see every player and run a fair draw. Individual administrator permissions (delete messages, ban users, pin messages and so on) are not needed, so you do not have to enable them.
+
 ## 5.0.0 - 29.09.2026
 
 ### Major Changes
@@ -10,8 +25,8 @@
     - en: The bot is now faster and more reliable.
 - [added] Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Admins can switch the bot to English with /lang en.
     - en: New /lang command: community admins can choose the bot language (Ukrainian or English).
-- [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Жодних додаткових прав не потрібно.
-    - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. No extra permissions are needed.
+- [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Окремі права адміністратора (видалення повідомлень, блокування, закріплення тощо) не потрібні: достатньо самого статусу.
+    - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. Individual administrator permissions (delete messages, ban users, pin messages and so on) are not needed: the status alone is enough.
 - [updated] Повідомлення про нові версії бота тепер надходять надійніше. Усі зміни завжди можна переглянути командою /releases.
     - en: New version announcements are now delivered more reliably. All changes are always available via /releases.
 

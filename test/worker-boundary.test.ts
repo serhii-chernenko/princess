@@ -3,7 +3,7 @@ import {
     createHash,
     timingSafeEqual as nodeTimingSafeEqual
 } from 'node:crypto';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 
 import { Telegraf } from 'telegraf';
 
@@ -642,6 +642,9 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
         async pruneAbandonedTelegramUpdates() {
             abandonedLedgerPruneCalls += 1;
             return 2;
+        },
+        async pruneExpiredChannelSnapshots() {
+            return 0;
         }
     };
 
@@ -661,6 +664,96 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
     assert.equal(cleanupCalls, 1);
     assert.equal(abandonedLedgerPruneCalls, 1);
     assert.equal(processedLedgerPruneCalls, 1);
+});
+
+test('daily maintenance prunes expired channel snapshots even with cleanup disabled', async () => {
+    const { database } = createReadinessDatabase(1);
+    const controller = {
+        cron: '0 0 * * *',
+        scheduledTime: Date.now(),
+        noRetry() {}
+    } satisfies ScheduledController;
+    const bindings = createBindings(database, 'production');
+    let cleanupCalls = 0;
+    let snapshotPruneCalls = 0;
+
+    const summary = await runScheduledTasks(
+        controller,
+        bindings,
+        {} as ExecutionContext,
+        {
+            async cleanupInactiveChannels() {
+                cleanupCalls += 1;
+                return 0;
+            },
+            async pruneProcessedTelegramUpdates() {
+                return 0;
+            },
+            async pruneAbandonedTelegramUpdates() {
+                return 0;
+            },
+            async pruneExpiredChannelSnapshots() {
+                snapshotPruneCalls += 1;
+                return 4;
+            }
+        }
+    );
+
+    assert.equal(bindings.ENABLE_SCHEDULED_CLEANUP, 'false');
+    assert.equal(cleanupCalls, 0);
+    assert.equal(snapshotPruneCalls, 1);
+    assert.equal(summary.prunedChannelSnapshots, 4);
+});
+
+test('a failing channel snapshot prune is logged and does not fail the scheduled run', async () => {
+    const { database } = createReadinessDatabase(1);
+    const controller = {
+        cron: '0 0 * * *',
+        scheduledTime: Date.now(),
+        noRetry() {}
+    } satisfies ScheduledController;
+    const errorLog = mock.method(console, 'error', () => undefined);
+    let processedLedgerPruneCalls = 0;
+
+    try {
+        const summary = await runScheduledTasks(
+            controller,
+            createBindings(database, 'production'),
+            {} as ExecutionContext,
+            {
+                async cleanupInactiveChannels() {
+                    return 0;
+                },
+                async pruneProcessedTelegramUpdates() {
+                    processedLedgerPruneCalls += 1;
+                    return 1;
+                },
+                async pruneAbandonedTelegramUpdates() {
+                    return 0;
+                },
+                async pruneExpiredChannelSnapshots() {
+                    throw new TypeError('d1 unavailable');
+                }
+            }
+        );
+        const logged = errorLog.mock.calls.map(call => {
+            return String(call.arguments[0]);
+        });
+
+        assert.equal(summary.prunedChannelSnapshots, 0);
+        assert.equal(processedLedgerPruneCalls, 1);
+        assert.ok(
+            logged.some(entry => {
+                return (
+                    entry.includes('channel_snapshot_prune_failed') &&
+                    entry.includes('TypeError') &&
+                    !entry.includes('d1 unavailable')
+                );
+            })
+        );
+    } finally {
+        errorLog.mock.restore();
+    }
 });
 
 test('preview environment serves health and webhook but never runs scheduled work', async () => {

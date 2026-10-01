@@ -3,6 +3,11 @@ import test from 'node:test';
 import { Effect } from 'effect';
 
 import { createGameService } from '../src/bot/services/game-service';
+import {
+    channelSnapshotRestoreMaxStatements,
+    estimateChannelSnapshotRestoreStatements,
+    type ChannelSnapshotPayload
+} from '../src/db/channel-snapshot-payload';
 import { createDb } from '../src/db/client';
 import { createRepositories } from '../src/db/repositories';
 import type { WorkerBindings } from '../src/worker/env';
@@ -242,6 +247,87 @@ test('inactive-channel cleanup uses set-based channel work and chunked orphan de
         assert.match(statement.query, /^delete from "players"/);
         assert.match(statement.query, /not exists/);
     }
+});
+
+test('restore batch statements stay within 100 bound parameters', async () => {
+    const memberCount = 250;
+    const winCount = 600;
+    const payload: ChannelSnapshotPayload = {
+        version: 1,
+        channel: {
+            telegramChatId: -100,
+            language: 'en',
+            releaseVersion: '1.0.0',
+            lastVoteAt: 1_800_000_000_000,
+            stoppedAt: null,
+            createdAt: 1_700_000_000_000
+        },
+        members: Array.from({ length: memberCount }, (_value, index) => {
+            return {
+                telegramUserId: index + 1,
+                displayName: `player ${index + 1}`,
+                score: index % 7,
+                isActive: true,
+                isAutoJoined: true,
+                createdAt: 1_700_000_000_000,
+                updatedAt: 1_700_000_001_000
+            };
+        }),
+        voteWins: Array.from({ length: winCount }, (_value, index) => {
+            return {
+                telegramUserId: (index % memberCount) + 1,
+                wonAt: 1_700_000_000_000 + index * 1000,
+                mode: 'auto',
+                eligibleCount: 5
+            };
+        })
+    };
+    const { database, statements } = createRecordingDatabase(() => []);
+    const repositories = createRepositories(
+        createDb(createTestWorkerBindings(database))
+    );
+
+    await Effect.runPromise(
+        repositories.channelSnapshots.restoreChannelFromSnapshot({
+            telegramChatId: -100,
+            payload,
+            releaseVersion: '1.0.0',
+            safetySnapshot: {
+                telegramChatId: -100,
+                reason: 'restore',
+                payload: '{}',
+                createdAt: new Date(1_800_000_000_000),
+                expiresAt: new Date(1_800_000_600_000)
+            },
+            now: new Date(1_800_000_000_000)
+        })
+    );
+
+    assert.ok(statements.length > 0);
+    assert.ok(
+        statements.every(statement => {
+            return statement.boundValues.length <= 100;
+        })
+    );
+    assert.ok(
+        statements.length <=
+            estimateChannelSnapshotRestoreStatements(memberCount, winCount)
+    );
+});
+
+test('restore statement estimate counts chunks and fixed statements', () => {
+    assert.equal(estimateChannelSnapshotRestoreStatements(0, 0), 6);
+    assert.equal(estimateChannelSnapshotRestoreStatements(25, 20), 10);
+    assert.equal(estimateChannelSnapshotRestoreStatements(26, 21), 12);
+    assert.equal(estimateChannelSnapshotRestoreStatements(250, 600), 64);
+    assert.ok(
+        estimateChannelSnapshotRestoreStatements(2500, 12_500) >
+            channelSnapshotRestoreMaxStatements
+    );
+    assert.ok(
+        estimateChannelSnapshotRestoreStatements(250, 600) <=
+            channelSnapshotRestoreMaxStatements
+    );
 });
 
 test('global cleanup rejects disabled execution before querying D1', async () => {

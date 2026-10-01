@@ -1,5 +1,7 @@
 export {
     channelMembers,
+    channelSnapshotReasons,
+    channelSnapshots,
     channels,
     players,
     releaseAnnouncements,

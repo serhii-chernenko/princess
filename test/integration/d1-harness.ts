@@ -35,6 +35,7 @@ export const createD1Harness = async (options: D1HarnessOptions = {}) => {
         },
         async clearApplicationTables() {
             await proxy.env.DB.batch([
+                proxy.env.DB.prepare('DELETE FROM channel_snapshots'),
                 proxy.env.DB.prepare('DELETE FROM release_announcements'),
                 proxy.env.DB.prepare('DELETE FROM vote_wins'),
                 proxy.env.DB.prepare('DELETE FROM channel_members'),

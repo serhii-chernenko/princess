@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, ne, notExists, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, ne, notExists, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -46,6 +46,7 @@ export const createReleaseAnnouncementRepository = (db: AppDb) => {
                     .where(
                         and(
                             ne(channels.releaseVersion, releaseVersion),
+                            isNull(channels.stoppedAt),
                             notExists(
                                 db
                                     .select({ one: sql`1` })

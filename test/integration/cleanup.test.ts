@@ -70,6 +70,28 @@ describe('Inactive channel cleanup on D1', () => {
         assert.equal(await countRows(harness, 'players'), sharedPlayerCount);
     });
 
+    it('keeps paused channels even when their last vote is stale', async () => {
+        await seedChannelWithMembers(-1, staleVoteAt, 5);
+        await seedChannelWithMembers(-2, staleVoteAt, 5);
+        await harness.env.DB.prepare(
+            'UPDATE channels SET stopped_at = ? WHERE telegram_chat_id = -1'
+        )
+            .bind(staleVoteAt)
+            .run();
+
+        const cleaned = await createGameService(
+            harness.env
+        ).cleanupInactiveChannels(cutoff);
+        const { results } = await harness.env.DB.prepare(
+            'SELECT telegram_chat_id AS telegramChatId FROM channels'
+        ).all<{ telegramChatId: number }>();
+
+        assert.equal(cleaned, 1);
+        assert.deepEqual(results, [{ telegramChatId: -1 }]);
+        assert.equal(await countRows(harness, 'channel_members'), 5);
+        assert.equal(await countRows(harness, 'players'), playerCount);
+    });
+
     it('deletes orphaned players across multiple chunks and spares members', async () => {
         const memberCount = 100;
 
