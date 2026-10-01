@@ -59,6 +59,10 @@ describe('D1 migrations', () => {
         }
 
         assert.match(
+            findObject('players')?.sql ?? '',
+            /`language` text(?!\s+NOT NULL)/
+        );
+        assert.match(
             findObject('channel_members')?.sql ?? '',
             /channel_members_score_non_negative[^)]*CHECK\("score" >= 0\)/
         );
@@ -112,7 +116,7 @@ describe('D1 migrations', () => {
 
         await harness.applyMigrations();
 
-        assert.equal(appliedBefore, 7);
+        assert.equal(appliedBefore, 8);
         assert.equal(
             await countRows(harness, '__drizzle_migrations'),
             appliedBefore
@@ -137,7 +141,7 @@ describe('D1 migrations', () => {
         assert.equal(table?.name, migrationsTableName);
         assert.ok(columns.some(column => column.name === 'hash'));
         assert.ok(columns.some(column => column.name === 'id'));
-        assert.equal(hashes.length, 7);
+        assert.equal(hashes.length, 8);
         assert.ok(hashes.every(row => row.hash.length > 0));
     });
 

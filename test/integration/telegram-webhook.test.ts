@@ -156,7 +156,13 @@ const createPrivateUpdate = (updateId: number, text: string) => {
             chat: { id: 77, type: 'private', first_name: 'Ann' },
             from: { id: 77, is_bot: false, first_name: 'Ann' },
             text,
-            entities: [{ type: 'bot_command', offset: 0, length: text.length }]
+            entities: [
+                {
+                    type: 'bot_command',
+                    offset: 0,
+                    length: (text.split(' ')[0] ?? text).length
+                }
+            ]
         }
     };
 };
@@ -919,6 +925,124 @@ describe('Telegram webhook through the Worker on D1', () => {
             }),
             false
         );
+    });
+
+    describe('language in private chats and groups', () => {
+        const readPlayerLanguage = (telegramUserId: number) => {
+            return harness.env.DB.prepare(
+                'SELECT language FROM players WHERE telegram_user_id = ?'
+            )
+                .bind(telegramUserId)
+                .first<{ language: string | null }>();
+        };
+
+        const readStatsHeading = (locale: 'en' | 'ua') => {
+            const statsMessage = getMessages(locale).stats({
+                groups: 0,
+                players: 0,
+                youtube: '',
+                mail: ''
+            });
+
+            return statsMessage.split('\n')[0] ?? statsMessage;
+        };
+
+        it('changes the language in a private chat without creating a channel', async () => {
+            await sendPrivate('/lang en');
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.equal(
+                readLastReplyText(),
+                getMessages('en').lang.updatedPrivate({ language: 'en' })
+            );
+            assert.notEqual(readLastReplyText(), getMessages().hasNotData());
+            assert.equal(await countRows(harness, 'channels'), 0);
+            assert.equal((await readPlayerLanguage(77))?.language, 'en');
+        });
+
+        it('answers later private commands in the chosen language', async () => {
+            await sendPrivate('/lang en');
+            apiCalls.length = 0;
+            await sendPrivate('/stats');
+
+            assert.ok(readLastReplyText().startsWith(readStatsHeading('en')));
+
+            await sendPrivate('/lang ua');
+            apiCalls.length = 0;
+            await sendPrivate('/stats');
+
+            assert.ok(readLastReplyText().startsWith(readStatsHeading('ua')));
+            assert.equal(await countRows(harness, 'channels'), 0);
+        });
+
+        it('lists the available languages for a bare private /lang without storing anything', async () => {
+            await sendPrivate('/lang');
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.equal(readLastReplyText(), getMessages().lang.available());
+            assert.equal(await countRows(harness, 'players'), 0);
+        });
+
+        it('rejects an unknown language code in a private chat', async () => {
+            await sendPrivate('/lang xx');
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.ok(
+                readLastReplyText().startsWith(
+                    getMessages().lang.invalid({
+                        language: 'xx',
+                        languages: 'en, ua'
+                    })
+                )
+            );
+            assert.equal(await countRows(harness, 'players'), 0);
+            assert.equal(await countRows(harness, 'channels'), 0);
+        });
+
+        it('keeps the private language independent from the group language', async () => {
+            await send(77, '/start');
+            await sendPrivate('/lang en');
+
+            assert.equal((await readChannel())?.language, 'ua');
+            assert.equal((await readPlayerLanguage(77))?.language, 'en');
+        });
+
+        it('still denies a group /lang to a non-admin and leaves the language unchanged', async () => {
+            await send(77, '/start');
+            const languageBefore = (await readChannel())?.language;
+            apiCalls.length = 0;
+
+            await send(nonAdminUserId, '/lang en', { entityLength: 5 });
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.ok(
+                readLastReplyText().includes(
+                    getMessages().accessDenied({ name: 'Ann' })
+                )
+            );
+            assert.equal((await readChannel())?.language, languageBefore);
+            assert.equal(
+                (await readPlayerLanguage(nonAdminUserId))?.language ?? null,
+                null
+            );
+        });
+
+        it('lets a group admin change the group language as before', async () => {
+            await send(77, '/start');
+            apiCalls.length = 0;
+
+            await send(77, '/lang en', { entityLength: 5 });
+
+            assert.equal(
+                readLastReplyText(),
+                getMessages('en').lang.updated({ language: 'en' })
+            );
+            assert.equal((await readChannel())?.language, 'en');
+            assert.equal(
+                (await readPlayerLanguage(77))?.language ?? null,
+                null
+            );
+        });
     });
 
     it('rejects a wrong secret without touching the ledger or Telegram', async () => {
