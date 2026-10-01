@@ -69,8 +69,8 @@ An expired login shows up as `Invalid access token`. Run `pnpm exec wrangler log
 1. Create a branch and open a PR to `main`.
 2. GitHub CI job `validate` runs `pnpm run check`, checks generated artifacts for drift and does a `wrangler deploy --dry-run`.
 3. Workers Builds deploys a preview automatically at `https://<branch>-princess.chernenko.workers.dev`. Check the "Workers Builds: princess" status on the PR.
-4. If the PR has a migration, apply it first (see [section 4](#4-database-migrations)).
-5. Merge to `main`. Workers Builds deploys production and runs `pnpm releases:broadcast:prod`.
+4. If the PR has a migration, the branch build applies it to `princess-preview` before the preview deploys (see [section 4](#4-database-migrations)). Nothing to do by hand.
+5. Merge to `main`. Workers Builds applies pending migrations to `princess-production`, deploys production and runs `pnpm releases:broadcast:prod`.
 6. Delete merged branches and their previews:
 
 ```sh
@@ -85,32 +85,45 @@ pnpm run check
 
 ## 4. Database migrations
 
-Workers Builds does NOT run migrations. Apply them to both databases BEFORE merging.
+Workers Builds applies migrations automatically, before the deploy:
+
+| Build                      | Database migrated     |
+| -------------------------- | --------------------- |
+| `main` (production)        | `princess-production` |
+| any other branch (preview) | `princess-preview`    |
 
 ```sh
 pnpm db:generate            # after editing src/db/schemas/*, creates files in drizzle/
-pnpm db:migrate:prod
-pnpm db:migrate:preview
 ```
 
-The migrator is idempotent and reports `applied` and `alreadyApplied` migrations. The first D1 call of a session sometimes fails with D1 error 7403. Just rerun the same command.
+Commit the generated files in `drizzle/`. Do not run `db:migrate:prod` before a merge anymore. `pnpm db:migrate:prod` and `pnpm db:migrate:preview` stay available as manual fallbacks (for example when Workers Builds is down). The migrator is idempotent and reports `applied` and `alreadyApplied` migrations. The first D1 call of a session sometimes fails with D1 error 7403. Just rerun the same command.
 
-### Applying migrations automatically (not implemented)
+### How automatic migration works
 
-Migrations are manual today. Forgetting one before a merge deploys code that reads columns or tables that do not exist yet. This is the plan to remove that step. It needs an owner decision because it changes the rule that Workers Builds only deploys and GitHub Actions only validate.
+`pnpm db:migrate:ci` (`scripts/db/migrate-ci.ts`) runs in the Workers Builds build command, which finishes before the deploy command (production) or the Preview command (other branches) starts:
 
-Why not a GitHub Actions job: it would race with Workers Builds, which deploys independently, so the new code could start before the migration ran. `AGENTS.md` also forbids deploy jobs in GitHub Actions.
+```sh
+pnpm run i18n:generate && pnpm run db:migrate:ci
+```
 
-Plan, run inside Workers Builds so the order is guaranteed:
+- The target comes from `WORKERS_CI_BRANCH`: exactly `main` (a `refs/heads/` prefix is stripped) migrates production, every other branch migrates preview. A missing or empty branch, a `refs/...` value, or `WORKERS_CI` other than `1`, aborts the build. The script never defaults to a database.
+- Both database ids must be pinned as Workers Builds build variables (`CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_PREVIEW_DATABASE_ID`). They must differ, and the id of the chosen target must equal the `wrangler.jsonc` binding, so an accidental edit of the database ids in a branch fails the build. This protects against mistakes, not against a hostile branch: a branch build runs that branch's own code with the token in its environment, so anyone who can push a branch to this repository can reach production. Keep push access limited to people trusted with production.
+- It authenticates in token mode (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_D1_TOKEN`) and applies pending Drizzle migrations through drizzle-kit.
+- D1 error 7403 is retried up to 3 attempts with a growing delay. Any other error fails the build, so production is never deployed on top of an unmigrated schema.
+- Concurrent branch builds share `princess-preview`. The migrator is idempotent once a migration is recorded, but two builds that start before either has recorded it can race: the second fails on the duplicate DDL and is not retried, so rerun that build. A branch with a migration that is not on `main` leaves preview ahead of production until it merges.
 
-1. Put the migration in the Workers Builds build command, before the build and deploy steps. A failed migration must fail the build, so production is never deployed on top of an unmigrated schema.
-2. Guard it by branch. On `main` run `pnpm db:migrate:prod`. On every other branch run `pnpm db:migrate:preview`. A branch build must never touch `princess-production`. Workers Builds exposes the branch in `WORKERS_CI_BRANCH`; confirm the variable name in the Cloudflare docs before relying on it.
-3. Authenticate with an API token, not `wrangler login`. The migration scripts already support `CLOUDFLARE_AUTH_MODE=token` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; `wrangler-login` is rejected in CI. Create a token limited to this account with D1 edit permission only, and store it as a Workers Builds build secret (not a Worker secret and not in `wrangler.jsonc`).
-4. Retry the migration command on D1 error 7403, as operators do by hand, and fail on any other error.
-5. Keep every migration additive (new tables, new nullable or defaulted columns, new indexes). During a deploy the old code runs against the new schema for a short time. Ship destructive changes (drop, rename, new NOT NULL without default) in two releases: first stop using the column, then drop it.
-6. All preview branches share the one `princess-preview` database. The migrator is idempotent, so concurrent branch builds are safe, but a branch with a migration that is not on `main` leaves preview ahead of production until it merges.
+### One-time Cloudflare setup
 
-When this is implemented, update the "Workers Builds does NOT run migrations" sentence above, section 3 step 4, and the Deployment rules in `AGENTS.md`. Record the new build command here as well.
+The build command and secrets live in the Cloudflare dashboard, not in the repo. Do these in order, because changing the build command first makes the next build fail:
+
+1. Create two API tokens limited to this account with `Account > D1 > Edit` only: `princess-builds-d1-production` for production builds and `princess-builds-d1-preview` for preview builds, so either can be revoked on its own. Keep copies in `env/.env.d1` as `CLOUDFLARE_D1_TOKEN` and `CLOUDFLARE_D1_TOKEN_PREVIEW` (gitignored); Cloudflare shows a token only once. Cloudflare scopes D1 permissions to the account, not to one database, so the token is readable by every build. Do not give the token any other permission.
+2. Workers > `princess` > Settings > Build > Build variables and secrets: add `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID` (`princess-production` id) and `CLOUDFLARE_PREVIEW_DATABASE_ID` (`princess-preview` id) as variables, and `CLOUDFLARE_D1_TOKEN` as a secret. The ids are in `wrangler.jsonc`; they are not secret. Set them for the production build with the production token and, separately, for Previews (the Previews base config) with the preview token. These are build-only values and are not Worker runtime secrets. From the CLI: `cf builds triggers environment-variables upsert <trigger-uuid> --body ...` for production, `cf builds workers update <script-tag> --body '{"previews_base_config":{"environment_variables":{...}}}'` for Previews.
+3. Set the Build command to `pnpm run i18n:generate && pnpm run db:migrate:ci` for both production and Previews (`cf builds workers update <script-tag> --production-settings-build-command ... --previews-base-config-build-command ...`). Switch both only after this script is on `main`: a branch or `main` build without the script fails with `Missing script: db:migrate:ci`, and the Previews build command is shared by every branch. Keep the Deploy command (`pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`) and the Preview command as they are.
+4. Push a branch with a migration (or any branch) and check the build log for `Applying D1 migrations to the preview database`. Confirm that a failing migration command stops the build before the preview deploys.
+
+### Migration rules
+
+Keep every migration additive (new tables, new nullable or defaulted columns, new indexes). During a deploy the old code runs against the new schema for a short time, and a migration is applied before the code that needs it. Ship destructive changes (drop, rename, new NOT NULL without default) in two releases: first stop using the column, then drop it. Review the generated SQL in `drizzle/` in the PR, because merging now applies it to production without a manual step.
 
 ## 5. Copy production data into preview
 
