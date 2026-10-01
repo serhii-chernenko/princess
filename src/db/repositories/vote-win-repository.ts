@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppDb } from '../client';
@@ -23,6 +23,25 @@ export const createVoteWinRepository = (db: AppDb) => {
                         .innerJoin(players, eq(voteWins.playerId, players.id))
                         .where(eq(voteWins.channelId, channelId))
                         .orderBy(voteWins.wonAt, voteWins.id);
+                },
+                catch: cause => {
+                    return new Error(
+                        `Vote win repository failure: ${String(cause)}`
+                    );
+                }
+            });
+        },
+        findLatestWinForChannel(channelId: number) {
+            return Effect.tryPromise({
+                try: async () => {
+                    const [win] = await db
+                        .select()
+                        .from(voteWins)
+                        .where(eq(voteWins.channelId, channelId))
+                        .orderBy(desc(voteWins.wonAt), desc(voteWins.id))
+                        .limit(1);
+
+                    return win ?? null;
                 },
                 catch: cause => {
                     return new Error(

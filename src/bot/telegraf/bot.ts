@@ -5,6 +5,7 @@ import type { ChatMember, User } from 'telegraf/types';
 
 import { createGameService, isAdmin } from '../services/game-service';
 import { BotUserError, isBotUserError } from '../errors';
+import { renderDebugReport } from '../content/debug-report';
 import {
     getAvailableLanguagesMessage,
     getCommandList,
@@ -38,6 +39,8 @@ const GROUP_COMMANDS_REQUIRING_BOT_NAME: ReadonlySet<string> = new Set([
     'forget',
     'restore'
 ]);
+
+const TELEGRAM_MESSAGE_LIMIT = 4096;
 
 const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
@@ -234,6 +237,36 @@ const shouldSkipMessage = (ctx: Context) => {
     return isForwardedReply(messagePayload);
 };
 
+const isProposalPromptReply = (ctx: Context) => {
+    const messagePayload = ctx.message;
+
+    if (
+        !messagePayload ||
+        !('text' in messagePayload) ||
+        !messagePayload.reply_to_message
+    ) {
+        return false;
+    }
+
+    const prompt = messagePayload.reply_to_message;
+
+    if (
+        prompt.from?.id !== ctx.botInfo.id ||
+        !('text' in prompt) ||
+        isForwardedReply(messagePayload)
+    ) {
+        return false;
+    }
+
+    return getAvailableLanguageCodes().some(code => {
+        const LL = getMessages(code);
+
+        return [LL.proposalEnter(), LL.proposalWrong()].some(text => {
+            return text === prompt.text;
+        });
+    });
+};
+
 const getUnaddressedGroupCommand = (ctx: Context) => {
     if (!ctx.chat || !GROUP_CHAT_TYPES.has(ctx.chat.type)) {
         return null;
@@ -288,6 +321,16 @@ const createChatMemberReader = (ctx: Context): ChatMemberReader => {
             return ctx.getChatMember(userId);
         }
     };
+};
+
+const readLiveMemberStatus = async (ctx: Context, userId: number) => {
+    try {
+        const member = await ctx.getChatMember(userId);
+
+        return member.status;
+    } catch {
+        return null;
+    }
 };
 
 const renderWinnerMessage = (ctxUser: Context['from'], locale: AppLocale) => {
@@ -514,6 +557,69 @@ export const createPrincessBot = (
                     mail: env.MAIL || ''
                 })
             );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('propose', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+
+            await ctx.sendMessage(getMessages(locale).proposalEnter(), {
+                reply_markup: { force_reply: true, selective: true },
+                reply_parameters: { message_id: ctx.message.message_id }
+            });
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.on(message('text'), async (ctx, next) => {
+        if (!isProposalPromptReply(ctx)) {
+            return next();
+        }
+
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+
+            if (ctx.message.text.includes('/')) {
+                await ctx.sendMessage(LL.proposalWrong(), {
+                    reply_markup: { force_reply: true, selective: true },
+                    reply_parameters: { message_id: ctx.message.message_id }
+                });
+                return;
+            }
+
+            if (!env.ADMIN_ID) {
+                throw new Error('ADMIN_ID is required to forward proposals');
+            }
+
+            const authorLine = `\n${getMessages(getDefaultAppLocale()).from({
+                value: formatUserName(actor.user)
+            })}`;
+
+            await ctx.telegram.sendMessage(
+                env.ADMIN_ID,
+                ctx.message.text.slice(
+                    0,
+                    TELEGRAM_MESSAGE_LIMIT - authorLine.length
+                ) + authorLine
+            );
+            await ctx.sendMessage(LL.proposalLeave(), {
+                reply_parameters: { message_id: ctx.message.message_id }
+            });
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
         }
@@ -960,6 +1066,47 @@ export const createPrincessBot = (
                 nextLL.lang.updated({
                     language: normalized
                 })
+            );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('debug', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const isPrivateChat = ctx.chat.type === 'private';
+            const [info, userStatus, botStatus] = isPrivateChat
+                ? [null, null, null]
+                : await Promise.all([
+                      game.getChannelDebugInfo(actor.chatId, actor.user.id),
+                      readLiveMemberStatus(ctx, actor.user.id),
+                      readLiveMemberStatus(ctx, ctx.botInfo.id)
+                  ]);
+
+            await ctx.replyWithHTML(
+                renderDebugReport(
+                    {
+                        chatId: actor.chatId,
+                        chatType: ctx.chat.type,
+                        userId: actor.user.id,
+                        environment: env.BOT_ENVIRONMENT,
+                        currentReleaseVersion: getReleaseVersion(),
+                        liveStatuses: isPrivateChat
+                            ? null
+                            : { user: userStatus, bot: botStatus },
+                        info
+                    },
+                    LL
+                )
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
