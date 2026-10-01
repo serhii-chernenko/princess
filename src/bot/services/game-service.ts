@@ -3,6 +3,7 @@ import type { ChatMember, User } from 'telegraf/types';
 
 import { BotUserError } from '../errors';
 import { getLatestReleaseVersion } from '../content/releases';
+import type { ChannelDebugInfo } from '../content/debug-report';
 import { getHourLabel, getMessages } from '../content/messages';
 import {
     getDefaultAppLocale,
@@ -1039,9 +1040,76 @@ export const createGameService = (
         );
     };
 
+    const getChannelDebugInfo = async (
+        telegramChatId: number,
+        actorUserId: number
+    ): Promise<ChannelDebugInfo> => {
+        const [channel, latestSnapshot, actorPlayer] = await Promise.all([
+            findChannel(telegramChatId),
+            runEffect(
+                repositories.channelSnapshots.findLatestActiveSnapshotSummary(
+                    telegramChatId,
+                    new Date()
+                )
+            ),
+            runEffect(
+                repositories.players.findPlayerByTelegramUserId(actorUserId)
+            )
+        ]);
+
+        if (!channel) {
+            return {
+                channel: null,
+                memberCounts: { total: 0, active: 0, autoJoined: 0 },
+                actor: { player: null, member: null },
+                latestWin: null,
+                latestSnapshot
+            };
+        }
+
+        const [memberCounts, latestWin, actorMember] = await Promise.all([
+            runEffect(repositories.channels.countChannelMembers(channel.id)),
+            runEffect(
+                repositories.voteWins.findLatestWinForChannel(channel.id)
+            ),
+            actorPlayer
+                ? runEffect(
+                      repositories.channelMembers.findMember(
+                          channel.id,
+                          actorPlayer.id
+                      )
+                  )
+                : null
+        ]);
+
+        return {
+            channel,
+            memberCounts,
+            actor: {
+                player: actorPlayer ? { id: actorPlayer.id } : null,
+                member: actorMember
+                    ? {
+                          isActive: actorMember.isActive,
+                          isAutoJoined: actorMember.isAutoJoined,
+                          score: actorMember.score
+                      }
+                    : null
+            },
+            latestWin: latestWin
+                ? {
+                      wonAt: latestWin.wonAt,
+                      mode: latestWin.mode,
+                      eligibleCount: latestWin.eligibleCount
+                  }
+                : null,
+            latestSnapshot
+        };
+    };
+
     return {
         ensureChannel,
         getChannelLocale,
+        getChannelDebugInfo,
         setChannelLocale,
         getChannelAndActor,
         getActorMember,

@@ -195,6 +195,24 @@ export const createChannelRepository = (db: AppDb) => {
                 return Number(result?.count ?? 0);
             });
         },
+        countChannelMembers(channelId: number) {
+            return try_db(async () => {
+                const [result] = await db
+                    .select({
+                        total: sql<number>`count(*)`,
+                        active: sql<number>`coalesce(sum(${channelMembers.isActive}), 0)`,
+                        autoJoined: sql<number>`coalesce(sum(${channelMembers.isAutoJoined}), 0)`
+                    })
+                    .from(channelMembers)
+                    .where(eq(channelMembers.channelId, channelId));
+
+                return {
+                    total: Number(result?.total ?? 0),
+                    active: Number(result?.active ?? 0),
+                    autoJoined: Number(result?.autoJoined ?? 0)
+                };
+            });
+        },
         findInactiveChannelPlayerIds(cutoff: Date) {
             return try_db(() => {
                 return db
