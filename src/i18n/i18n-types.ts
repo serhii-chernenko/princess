@@ -126,6 +126,18 @@ type RootTranslation = {
 	 */
 	snapshotTooLarge: string
 	/**
+	 * I​n​ ​g​r​o​u​p​s​ ​t​h​i​s​ ​c​o​m​m​a​n​d​ ​o​n​l​y​ ​w​o​r​k​s​ ​w​i​t​h​ ​t​h​e​ ​b​o​t​'​s​ ​n​a​m​e​,​ ​s​o​ ​s​e​v​e​r​a​l​ ​b​o​t​s​ ​d​o​n​'​t​ ​r​u​n​ ​i​t​ ​b​y​ ​a​c​c​i​d​e​n​t​ ​�​�​‍​♀​️​
+​W​r​i​t​e​ ​/​{​c​o​m​m​a​n​d​}​@​{​u​s​e​r​n​a​m​e​}
+	 * @param {string} command
+	 * @param {string} username
+	 */
+	groupCommandNeedsBotName: RequiredParams<'command' | 'username'>
+	/**
+	 * I​n​ ​g​r​o​u​p​s​,​ ​w​r​i​t​e​ ​/​r​e​s​e​t​,​ ​/​s​t​o​p​,​ ​/​f​o​r​g​e​t​ ​a​n​d​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​ ​t​h​e​ ​b​o​t​'​s​ ​n​a​m​e​,​ ​f​o​r​ ​e​x​a​m​p​l​e​ ​/​s​t​o​p​@​{​u​s​e​r​n​a​m​e​}
+	 * @param {string} username
+	 */
+	groupCommandsNote: RequiredParams<'username'>
+	/**
 	 * T​h​e​ ​p​r​i​n​c​e​s​s​ ​d​e​t​e​c​t​o​r​ ​c​o​u​l​d​n​'​t​ ​f​i​n​d​ ​a​n​y​ ​p​l​a​y​e​r​s​ ​w​i​t​h​ ​a​ ​s​c​o​r​e​!​ ​�​�​‍​♀​️​️
 	 */
 	playersWithScoresNotFound: string
@@ -452,7 +464,8 @@ type RootTranslation = {
 				/**
 				 * -​ ​/​s​t​o​p​ ​o​n​l​y​ ​p​a​u​s​e​s​ ​t​h​e​ ​g​a​m​e​:​ ​p​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​s​t​a​y​,​ ​a​n​d​ ​/​s​t​a​r​t​ ​r​e​s​u​m​e​s​ ​i​t​.​
 			​-​ ​B​e​f​o​r​e​ ​/​r​e​s​e​t​ ​a​n​d​ ​/​f​o​r​g​e​t​ ​t​h​e​ ​b​o​t​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​k​e​e​p​s​ ​a​ ​b​a​c​k​u​p​ ​f​o​r​ ​7​ ​d​a​y​s​.​
-			​-​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​r​u​n​ ​/​r​e​s​t​o​r​e​ ​t​o​ ​b​r​i​n​g​ ​b​a​c​k​ ​t​h​e​ ​l​a​t​e​s​t​ ​b​a​c​k​u​p​.
+			​-​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​r​u​n​ ​/​r​e​s​t​o​r​e​ ​t​o​ ​b​r​i​n​g​ ​b​a​c​k​ ​t​h​e​ ​l​a​t​e​s​t​ ​b​a​c​k​u​p​.​
+			​-​ ​I​n​ ​g​r​o​u​p​s​ ​w​r​i​t​e​ ​/​s​t​o​p​,​ ​/​r​e​s​e​t​,​ ​/​f​o​r​g​e​t​ ​a​n​d​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​ ​t​h​e​ ​b​o​t​ ​n​a​m​e​,​ ​f​o​r​ ​e​x​a​m​p​l​e​ ​/​s​t​o​p​@​b​o​t​_​n​a​m​e​.​ ​T​h​e​ ​T​e​l​e​g​r​a​m​ ​c​o​m​m​a​n​d​ ​m​e​n​u​ ​a​d​d​s​ ​i​t​ ​f​o​r​ ​y​o​u​.
 				 */
 				answer: string
 			}
@@ -599,6 +612,15 @@ If this was an accident, an admin can bring it back with /restore within 7 days.
 	 * This group is too large to back up, so the command was cancelled. Please contact the bot author. 🙅‍♀️
 	 */
 	snapshotTooLarge: () => LocalizedString
+	/**
+	 * In groups this command only works with the bot's name, so several bots don't run it by accident 🙅‍♀️
+Write /{command}@{username}
+	 */
+	groupCommandNeedsBotName: (arg: { command: string, username: string }) => LocalizedString
+	/**
+	 * In groups, write /reset, /stop, /forget and /restore with the bot's name, for example /stop@{username}
+	 */
+	groupCommandsNote: (arg: { username: string }) => LocalizedString
 	/**
 	 * The princess detector couldn't find any players with a score! 🤷‍♀️️
 	 */
@@ -889,6 +911,7 @@ Players: <strong>{players}</strong>
 				 * - /stop only pauses the game: players and scores stay, and /start resumes it.
 			- Before /reset and /forget the bot automatically keeps a backup for 7 days.
 			- An admin can run /restore to bring back the latest backup.
+			- In groups write /stop, /reset, /forget and /restore with the bot name, for example /stop@bot_name. The Telegram command menu adds it for you.
 				 */
 				answer: () => LocalizedString
 			}

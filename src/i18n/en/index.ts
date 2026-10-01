@@ -28,6 +28,8 @@ const en: BaseTranslation = {
     successRestore: `Group data restored! 👸 Players and scores are back.`,
     restoreNotFound: `There is nothing to restore. Backups are kept for 7 days. 🤷‍♀️`,
     snapshotTooLarge: `This group is too large to back up, so the command was cancelled. Please contact the bot author. 🙅‍♀️`,
+    groupCommandNeedsBotName: `In groups this command only works with the bot's name, so several bots don't run it by accident 🙅‍♀️\nWrite /{command:string}@{username:string}`,
+    groupCommandsNote: `In groups, write /reset, /stop, /forget and /restore with the bot's name, for example /stop@{username:string}`,
     playersWithScoresNotFound: `The princess detector couldn't find any players with a score! 🤷‍♀️️`,
     playersNotFound: `Nobody in this group wants to be a princess yet! 🤷‍♀️`,
     playersNotEnough: `This group doesn't have enough princess volunteers yet. You need at least 2! 🤷‍♀️`,
@@ -103,7 +105,7 @@ const en: BaseTranslation = {
             },
             restore: {
                 question: 'What if the group data was deleted by accident?',
-                answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.'
+                answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the bot name, for example /stop@bot_name. The Telegram command menu adds it for you.'
             }
         }
     },

@@ -31,6 +31,14 @@ import {
 import { escapeHtml } from '../utils/strings';
 import type { WorkerBindings } from '../../worker/env';
 
+const GROUP_CHAT_TYPES: ReadonlySet<string> = new Set(['group', 'supergroup']);
+const GROUP_COMMANDS_REQUIRING_BOT_NAME: ReadonlySet<string> = new Set([
+    'stop',
+    'reset',
+    'forget',
+    'restore'
+]);
+
 const PRINCESS_STICKER_ID =
     'CAACAgIAAxkBAAI4P2evIVLlreY15PsmXGAHadnB7vj2AAJCAgACe8B9Ey8JprdoroWfNgQ';
 
@@ -225,6 +233,43 @@ const shouldSkipMessage = (ctx: Context) => {
     return isForwardedReply(messagePayload);
 };
 
+const getUnaddressedGroupCommand = (ctx: Context) => {
+    if (!ctx.chat || !GROUP_CHAT_TYPES.has(ctx.chat.type)) {
+        return null;
+    }
+
+    const messagePayload = ctx.message;
+
+    if (!messagePayload || !('text' in messagePayload)) {
+        return null;
+    }
+
+    if (isForwardedReply(messagePayload)) {
+        return null;
+    }
+
+    const commandEntity = messagePayload.entities?.[0];
+
+    if (commandEntity?.type !== 'bot_command' || commandEntity.offset > 0) {
+        return null;
+    }
+
+    const [commandPart, addressee] = messagePayload.text
+        .slice(0, commandEntity.length)
+        .split('@');
+    const command = commandPart?.slice(1).toLowerCase();
+
+    if (addressee || !command) {
+        return null;
+    }
+
+    if (!GROUP_COMMANDS_REQUIRING_BOT_NAME.has(command)) {
+        return null;
+    }
+
+    return { chatId: ctx.chat.id, command };
+};
+
 const getCommandActor = (ctx: Context) => {
     if (!ctx.from || !ctx.chat) {
         throw new Error('Missing Telegram actor or chat context');
@@ -351,6 +396,36 @@ export const createPrincessBot = (
         throw error;
     });
 
+    bot.use(async (ctx, next) => {
+        const unaddressed = getUnaddressedGroupCommand(ctx);
+
+        if (!unaddressed) {
+            return next();
+        }
+
+        try {
+            const locale = await game.getChannelLocale(unaddressed.chatId);
+
+            await ctx.sendMessage(
+                getMessages(locale).groupCommandNeedsBotName({
+                    command: unaddressed.command,
+                    username: ctx.me
+                })
+            );
+        } catch (error) {
+            telemetry?.internalFailure({
+                event: 'generic_error_reply_failed',
+                errorType: getErrorType(error)
+            });
+            console.error(
+                JSON.stringify({
+                    event: 'generic_error_reply_failed',
+                    errorType: getErrorType(error)
+                })
+            );
+        }
+    });
+
     bot.start(async ctx => {
         let locale: AppLocale = getDefaultAppLocale();
 
@@ -402,7 +477,11 @@ export const createPrincessBot = (
             await ctx.replyWithHTML(
                 `${resumeNotice}${LL.greetings({
                     name: escapeHtml(formatUserName(actor.user, 'name'))
-                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}${stoppedNotice}`
+                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}\n\n${LL.groupCommandsNote(
+                    {
+                        username: ctx.me
+                    }
+                )}${stoppedNotice}`
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
