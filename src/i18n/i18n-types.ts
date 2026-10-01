@@ -641,6 +641,16 @@ type RootTranslation = {
 				 */
 				answer: string
 			}
+			debug: {
+				/**
+				 * S​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​.​ ​W​h​a​t​ ​s​h​o​u​l​d​ ​I​ ​s​e​n​d​ ​t​o​ ​t​h​e​ ​b​o​t​ ​a​u​t​h​o​r​?
+				 */
+				question: string
+				/**
+				 * R​u​n​ ​/​d​e​b​u​g​ ​i​n​ ​t​h​e​ ​g​r​o​u​p​ ​w​h​e​r​e​ ​t​h​e​ ​p​r​o​b​l​e​m​ ​h​a​p​p​e​n​s​ ​a​n​d​ ​s​e​n​d​ ​t​h​e​ ​r​e​p​l​y​ ​t​o​ ​t​h​e​ ​b​o​t​ ​a​u​t​h​o​r​.​ ​I​t​ ​s​h​o​w​s​ ​t​e​c​h​n​i​c​a​l​ ​d​e​t​a​i​l​s​ ​o​n​l​y​:​ ​c​h​a​t​ ​a​n​d​ ​u​s​e​r​ ​I​D​s​,​ ​b​o​t​ ​s​t​a​t​u​s​,​ ​g​a​m​e​ ​s​t​a​t​e​,​ ​p​l​a​y​e​r​ ​c​o​u​n​t​s​,​ ​t​h​e​ ​l​a​s​t​ ​w​i​n​n​e​r​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​.​ ​I​t​ ​n​e​v​e​r​ ​s​h​o​w​s​ ​m​e​s​s​a​g​e​s​ ​o​r​ ​t​h​e​ ​l​i​s​t​ ​o​f​ ​o​t​h​e​r​ ​p​l​a​y​e​r​s​.​ ​Y​o​u​ ​c​a​n​ ​a​l​s​o​ ​r​u​n​ ​/​d​e​b​u​g​ ​i​n​ ​a​ ​p​r​i​v​a​t​e​ ​c​h​a​t​ ​w​i​t​h​ ​t​h​e​ ​b​o​t​ ​t​o​ ​f​i​n​d​ ​o​u​t​ ​y​o​u​r​ ​o​w​n​ ​u​s​e​r​ ​I​D​.
+				 */
+				answer: string
+			}
 		}
 	}
 	releases: {
@@ -1254,6 +1264,16 @@ Players: <strong>{players}</strong>
 			- Before /reset and /forget the bot automatically keeps a backup for 7 days.
 			- An admin can run /restore to bring back the latest backup.
 			- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.
+				 */
+				answer: () => LocalizedString
+			}
+			debug: {
+				/**
+				 * Something went wrong. What should I send to the bot author?
+				 */
+				question: () => LocalizedString
+				/**
+				 * Run /debug in the group where the problem happens and send the reply to the bot author. It shows technical details only: chat and user IDs, bot status, game state, player counts, the last winner and the backup. It never shows messages or the list of other players. You can also run /debug in a private chat with the bot to find out your own user ID.
 				 */
 				answer: () => LocalizedString
 			}

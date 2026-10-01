@@ -150,6 +150,11 @@ const en: BaseTranslation = {
             restore: {
                 question: 'What if the group data was deleted by accident?',
                 answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.'
+            },
+            debug: {
+                question:
+                    'Something went wrong. What should I send to the bot author?',
+                answer: 'Run /debug in the group where the problem happens and send the reply to the bot author. It shows technical details only: chat and user IDs, bot status, game state, player counts, the last winner and the backup. It never shows messages or the list of other players. You can also run /debug in a private chat with the bot to find out your own user ID.'
             }
         }
     },
