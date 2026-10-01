@@ -23,7 +23,8 @@ const commandOrder = [
     'restore',
     'stats',
     'releases',
-    'lang'
+    'lang',
+    'debug'
 ] as const;
 
 const congratsOrder = [

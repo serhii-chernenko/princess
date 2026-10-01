@@ -247,6 +247,23 @@ pnpm worker:deploy:prod
 
 Group requirement: keep the bot an administrator in every group. Non-admin bots can only resolve recently seen members, which makes draws unfair, and Telegram only guarantees `getChatMember` for other users when the bot is an administrator. Admin status also lifts privacy mode (bot admins receive every group message), which the automatic vote relies on. The bot only calls `sendMessage`, `getChatMember` and `replyWithSticker`, so no individual admin permission (delete messages, ban, pin, change info, ...) is used; the status alone is enough. Humans who post as an anonymous admin arrive as `sender_chat` with a fake bot sender, and admin-only commands refuse them.
 
+### The /debug command
+
+`/debug` is a read-only support command available to every user, without admin rights and without the `@botname` suffix. When a user reports a problem, ask them to run it in the affected group and paste the reply.
+
+It prints, all values in `<code>`:
+
+- Chat: Telegram chat id, chat type, the caller's Telegram user id, and the live `getChatMember` status of the caller and of the bot (`unavailable` if Telegram refuses).
+- Bot: `BOT_ENVIRONMENT` and the current release version.
+- Game: whether the chat is registered, the `channels.id`, language, stored release version, `stopped_at`, `created_at`, `last_vote_at`, and the stored bot admin status with its `bot_admin_checked_at` (refreshed only daily, so compare it with the live status).
+- Players: total, active and auto-joined counts, plus the caller's own player id, state and score.
+- Last winner: `won_at`, mode and eligible count of the newest `vote_wins` row.
+- Backup: reason, creation and expiry of the latest unexpired snapshot, which can exist even when the chat is no longer registered.
+
+Privacy boundary: it never prints the snapshot payload, other players' ids or names, tokens or any secret. Dates are ISO-8601 UTC and `-` means empty.
+
+Finding a chat or user: take the chat id from the reply and query `channels` by `telegram_chat_id` and `channel_snapshots` by `telegram_chat_id`, for example `pnpm db:query:prod --command "select * from channels where telegram_chat_id = -1001234567890"`. In a private chat the bot prints only the ids, so the same command is the way to read your own Telegram user id when a setting needs one.
+
 ## 8. Releases and announcements
 
 Add a changeset (`pnpm changeset:add`) with Ukrainian tagged bullets, each followed by a nested English line:

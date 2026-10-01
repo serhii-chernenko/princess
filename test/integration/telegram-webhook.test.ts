@@ -588,6 +588,177 @@ describe('Telegram webhook through the Worker on D1', () => {
         });
     });
 
+    describe('/debug', () => {
+        it('reports the registered group state to a non-admin without a bot name', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(nonAdminUserId, '/join');
+            apiCalls.length = 0;
+
+            await send(nonAdminUserId, '/debug');
+
+            const LL = getMessages((await readChannel())?.language as never);
+            const reply = readLastReplyText();
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.ok(reply.includes('<code>-1001</code>'));
+            assert.ok(reply.includes(`${LL.debug.userId()}: <code>79</code>`));
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.yes()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.playersTotal()}: <code>2</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.yourStatus()}: <code>member</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.botStatus()}: <code>creator</code>`)
+            );
+            const lastReply = apiCalls
+                .filter(call => call.method === 'sendMessage')
+                .at(-1)?.payload as { parse_mode?: string } | undefined;
+
+            assert.equal(lastReply?.parse_mode, 'HTML');
+        });
+
+        it('succeeds for a chat without a channel row', async () => {
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channels'), 0);
+            assert.ok(reply.includes('<code>-1001</code>'));
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.no()}</code>`
+                )
+            );
+            assert.equal(reply.includes(LL.debug.channelId()), false);
+        });
+
+        it('reports the backup of a forgotten group', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(77, `/forget@${botUsername}`);
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channels'), 0);
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.no()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.backupReason()}: <code>forget</code>`
+                )
+            );
+        });
+
+        it('reports unavailable live statuses when getChatMember fails', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            failingMethods = new Set(['getChatMember']);
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.yourStatus()}: <code>${LL.debug.unavailable()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.botStatus()}: <code>${LL.debug.unavailable()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.yes()}</code>`
+                )
+            );
+        });
+
+        it('picks the newest recorded win for the last winner section', async () => {
+            const newestWonAt = 1_800_000_100_000;
+
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(78, '/join');
+            await harness.env.DB.prepare(
+                `INSERT INTO vote_wins (channel_id, player_id, won_at, mode, eligible_count)
+                 SELECT c.id, p.id, ?, 'manual', 3 FROM channels c, players p WHERE p.telegram_user_id = 77
+                 UNION ALL
+                 SELECT c.id, p.id, ?, 'auto', 2 FROM channels c, players p WHERE p.telegram_user_id = 78`
+            )
+                .bind(newestWonAt, 1_700_000_000_000)
+                .run();
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+            const expectedWonAt = new Date(newestWonAt)
+                .toISOString()
+                .replace(/\.\d{3}Z$/, 'Z');
+
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.wonAt()}: <code>${expectedWonAt}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.winMode()}: <code>manual</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.eligibleCount()}: <code>3</code>`)
+            );
+            assert.equal(reply.includes('<code>auto</code>'), false);
+        });
+
+        it('never prints another player id or the snapshot payload', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(78, '/join');
+            await send(nonAdminUserId, '/join');
+            await send(77, `/reset@${botUsername}`);
+            await send(77, '/debug');
+
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channel_snapshots'), 1);
+
+            assert.ok(reply.includes('<code>77</code>'));
+            assert.equal(reply.includes('<code>78</code>'), false);
+            assert.equal(reply.includes('<code>79</code>'), false);
+            assert.equal(reply.includes('payload'), false);
+            assert.equal(reply.includes('displayName'), false);
+        });
+
+        it('reports ids and a no group data note in a private chat', async () => {
+            await sendPrivate('/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.ok(reply.includes(`${LL.debug.chatId()}: <code>77</code>`));
+            assert.ok(reply.includes(LL.debug.noGroupData()));
+            assert.equal(reply.includes(LL.debug.registered()), false);
+            assert.equal(
+                apiCalls.some(call => call.method === 'getChatMember'),
+                false
+            );
+        });
+    });
+
     it('rejects a wrong secret without touching the ledger or Telegram', async () => {
         const response = await deliver(createStartUpdate(1), 'wrong-secret');
 

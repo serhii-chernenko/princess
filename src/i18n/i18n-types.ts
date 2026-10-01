@@ -272,6 +272,176 @@ type RootTranslation = {
 		 * /​l​a​n​g​ ​-​ ​S​h​o​w​ ​o​r​ ​c​h​a​n​g​e​ ​t​h​e​ ​g​r​o​u​p​ ​l​a​n​g​u​a​g​e
 		 */
 		lang: string
+		/**
+		 * /​d​e​b​u​g​ ​-​ ​S​h​o​w​ ​c​h​a​t​ ​i​n​f​o​ ​t​o​ ​s​e​n​d​ ​t​o​ ​t​h​e​ ​b​o​t​ ​a​u​t​h​o​r​ ​w​h​e​n​ ​s​o​m​e​t​h​i​n​g​ ​g​o​e​s​ ​w​r​o​n​g
+		 */
+		debug: string
+	}
+	debug: {
+		/**
+		 * S​e​n​d​ ​t​h​i​s​ ​m​e​s​s​a​g​e​ ​t​o​ ​t​h​e​ ​b​o​t​ ​a​u​t​h​o​r​.
+		 */
+		intro: string
+		/**
+		 * B​o​t
+		 */
+		botSection: string
+		/**
+		 * E​n​v​i​r​o​n​m​e​n​t
+		 */
+		environment: string
+		/**
+		 * C​u​r​r​e​n​t​ ​r​e​l​e​a​s​e
+		 */
+		currentRelease: string
+		/**
+		 * C​h​a​t
+		 */
+		chatSection: string
+		/**
+		 * C​h​a​t​ ​I​D
+		 */
+		chatId: string
+		/**
+		 * C​h​a​t​ ​t​y​p​e
+		 */
+		chatType: string
+		/**
+		 * Y​o​u​r​ ​u​s​e​r​ ​I​D
+		 */
+		userId: string
+		/**
+		 * Y​o​u​r​ ​s​t​a​t​u​s
+		 */
+		yourStatus: string
+		/**
+		 * B​o​t​ ​s​t​a​t​u​s
+		 */
+		botStatus: string
+		/**
+		 * T​h​i​s​ ​i​s​ ​a​ ​p​r​i​v​a​t​e​ ​c​h​a​t​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​ ​g​r​o​u​p​ ​d​a​t​a​.
+		 */
+		noGroupData: string
+		/**
+		 * G​a​m​e
+		 */
+		gameSection: string
+		/**
+		 * R​e​g​i​s​t​e​r​e​d
+		 */
+		registered: string
+		/**
+		 * C​h​a​n​n​e​l​ ​D​B​ ​I​D
+		 */
+		channelId: string
+		/**
+		 * L​a​n​g​u​a​g​e
+		 */
+		language: string
+		/**
+		 * S​t​o​r​e​d​ ​r​e​l​e​a​s​e
+		 */
+		storedRelease: string
+		/**
+		 * P​a​u​s​e​d​ ​a​t
+		 */
+		pausedAt: string
+		/**
+		 * C​r​e​a​t​e​d​ ​a​t
+		 */
+		createdAt: string
+		/**
+		 * L​a​s​t​ ​v​o​t​e​ ​a​t
+		 */
+		lastVoteAt: string
+		/**
+		 * B​o​t​ ​s​t​a​t​u​s​ ​(​s​t​o​r​e​d​)
+		 */
+		storedBotStatus: string
+		/**
+		 * B​o​t​ ​s​t​a​t​u​s​ ​c​h​e​c​k​e​d​ ​a​t
+		 */
+		storedBotStatusCheckedAt: string
+		/**
+		 * P​l​a​y​e​r​s
+		 */
+		playersSection: string
+		/**
+		 * T​o​t​a​l
+		 */
+		playersTotal: string
+		/**
+		 * A​c​t​i​v​e
+		 */
+		playersActive: string
+		/**
+		 * A​u​t​o​-​j​o​i​n​e​d
+		 */
+		playersAutoJoined: string
+		/**
+		 * Y​o​u​r​ ​p​l​a​y​e​r​ ​I​D
+		 */
+		yourPlayerId: string
+		/**
+		 * Y​o​u​ ​a​r​e​ ​a​c​t​i​v​e
+		 */
+		yourActive: string
+		/**
+		 * Y​o​u​ ​w​e​r​e​ ​a​u​t​o​-​j​o​i​n​e​d
+		 */
+		yourAutoJoined: string
+		/**
+		 * Y​o​u​r​ ​s​c​o​r​e
+		 */
+		yourScore: string
+		/**
+		 * Y​o​u​ ​a​r​e​ ​n​o​t​ ​i​n​ ​t​h​e​ ​g​a​m​e
+		 */
+		notInGame: string
+		/**
+		 * L​a​s​t​ ​w​i​n​n​e​r
+		 */
+		lastWinSection: string
+		/**
+		 * W​o​n​ ​a​t
+		 */
+		wonAt: string
+		/**
+		 * M​o​d​e
+		 */
+		winMode: string
+		/**
+		 * E​l​i​g​i​b​l​e​ ​p​l​a​y​e​r​s
+		 */
+		eligibleCount: string
+		/**
+		 * B​a​c​k​u​p
+		 */
+		backupSection: string
+		/**
+		 * R​e​a​s​o​n
+		 */
+		backupReason: string
+		/**
+		 * C​r​e​a​t​e​d​ ​a​t
+		 */
+		backupCreatedAt: string
+		/**
+		 * E​x​p​i​r​e​s​ ​a​t
+		 */
+		backupExpiresAt: string
+		/**
+		 * y​e​s
+		 */
+		yes: string
+		/**
+		 * n​o
+		 */
+		no: string
+		/**
+		 * u​n​a​v​a​i​l​a​b​l​e
+		 */
+		unavailable: string
 	}
 	lang: {
 		/**
@@ -747,6 +917,176 @@ Players: <strong>{players}</strong>
 		 * /lang - Show or change the group language
 		 */
 		lang: () => LocalizedString
+		/**
+		 * /debug - Show chat info to send to the bot author when something goes wrong
+		 */
+		debug: () => LocalizedString
+	}
+	debug: {
+		/**
+		 * Send this message to the bot author.
+		 */
+		intro: () => LocalizedString
+		/**
+		 * Bot
+		 */
+		botSection: () => LocalizedString
+		/**
+		 * Environment
+		 */
+		environment: () => LocalizedString
+		/**
+		 * Current release
+		 */
+		currentRelease: () => LocalizedString
+		/**
+		 * Chat
+		 */
+		chatSection: () => LocalizedString
+		/**
+		 * Chat ID
+		 */
+		chatId: () => LocalizedString
+		/**
+		 * Chat type
+		 */
+		chatType: () => LocalizedString
+		/**
+		 * Your user ID
+		 */
+		userId: () => LocalizedString
+		/**
+		 * Your status
+		 */
+		yourStatus: () => LocalizedString
+		/**
+		 * Bot status
+		 */
+		botStatus: () => LocalizedString
+		/**
+		 * This is a private chat, so there is no group data.
+		 */
+		noGroupData: () => LocalizedString
+		/**
+		 * Game
+		 */
+		gameSection: () => LocalizedString
+		/**
+		 * Registered
+		 */
+		registered: () => LocalizedString
+		/**
+		 * Channel DB ID
+		 */
+		channelId: () => LocalizedString
+		/**
+		 * Language
+		 */
+		language: () => LocalizedString
+		/**
+		 * Stored release
+		 */
+		storedRelease: () => LocalizedString
+		/**
+		 * Paused at
+		 */
+		pausedAt: () => LocalizedString
+		/**
+		 * Created at
+		 */
+		createdAt: () => LocalizedString
+		/**
+		 * Last vote at
+		 */
+		lastVoteAt: () => LocalizedString
+		/**
+		 * Bot status (stored)
+		 */
+		storedBotStatus: () => LocalizedString
+		/**
+		 * Bot status checked at
+		 */
+		storedBotStatusCheckedAt: () => LocalizedString
+		/**
+		 * Players
+		 */
+		playersSection: () => LocalizedString
+		/**
+		 * Total
+		 */
+		playersTotal: () => LocalizedString
+		/**
+		 * Active
+		 */
+		playersActive: () => LocalizedString
+		/**
+		 * Auto-joined
+		 */
+		playersAutoJoined: () => LocalizedString
+		/**
+		 * Your player ID
+		 */
+		yourPlayerId: () => LocalizedString
+		/**
+		 * You are active
+		 */
+		yourActive: () => LocalizedString
+		/**
+		 * You were auto-joined
+		 */
+		yourAutoJoined: () => LocalizedString
+		/**
+		 * Your score
+		 */
+		yourScore: () => LocalizedString
+		/**
+		 * You are not in the game
+		 */
+		notInGame: () => LocalizedString
+		/**
+		 * Last winner
+		 */
+		lastWinSection: () => LocalizedString
+		/**
+		 * Won at
+		 */
+		wonAt: () => LocalizedString
+		/**
+		 * Mode
+		 */
+		winMode: () => LocalizedString
+		/**
+		 * Eligible players
+		 */
+		eligibleCount: () => LocalizedString
+		/**
+		 * Backup
+		 */
+		backupSection: () => LocalizedString
+		/**
+		 * Reason
+		 */
+		backupReason: () => LocalizedString
+		/**
+		 * Created at
+		 */
+		backupCreatedAt: () => LocalizedString
+		/**
+		 * Expires at
+		 */
+		backupExpiresAt: () => LocalizedString
+		/**
+		 * yes
+		 */
+		yes: () => LocalizedString
+		/**
+		 * no
+		 */
+		no: () => LocalizedString
+		/**
+		 * unavailable
+		 */
+		unavailable: () => LocalizedString
 	}
 	lang: {
 		/**

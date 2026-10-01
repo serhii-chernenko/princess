@@ -5,6 +5,7 @@ import type { ChatMember, User } from 'telegraf/types';
 
 import { createGameService, isAdmin } from '../services/game-service';
 import { BotUserError, isBotUserError } from '../errors';
+import { renderDebugReport } from '../content/debug-report';
 import {
     getAvailableLanguagesMessage,
     getCommandList,
@@ -288,6 +289,16 @@ const createChatMemberReader = (ctx: Context): ChatMemberReader => {
             return ctx.getChatMember(userId);
         }
     };
+};
+
+const readLiveMemberStatus = async (ctx: Context, userId: number) => {
+    try {
+        const member = await ctx.getChatMember(userId);
+
+        return member.status;
+    } catch {
+        return null;
+    }
 };
 
 const renderWinnerMessage = (ctxUser: Context['from'], locale: AppLocale) => {
@@ -960,6 +971,47 @@ export const createPrincessBot = (
                 nextLL.lang.updated({
                     language: normalized
                 })
+            );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('debug', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            locale = await game.getChannelLocale(actor.chatId);
+            const LL = getMessages(locale);
+            const isPrivateChat = ctx.chat.type === 'private';
+            const [info, userStatus, botStatus] = isPrivateChat
+                ? [null, null, null]
+                : await Promise.all([
+                      game.getChannelDebugInfo(actor.chatId, actor.user.id),
+                      readLiveMemberStatus(ctx, actor.user.id),
+                      readLiveMemberStatus(ctx, ctx.botInfo.id)
+                  ]);
+
+            await ctx.replyWithHTML(
+                renderDebugReport(
+                    {
+                        chatId: actor.chatId,
+                        chatType: ctx.chat.type,
+                        userId: actor.user.id,
+                        environment: env.BOT_ENVIRONMENT,
+                        currentReleaseVersion: getReleaseVersion(),
+                        liveStatuses: isPrivateChat
+                            ? null
+                            : { user: userStatus, bot: botStatus },
+                        info
+                    },
+                    LL
+                )
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
