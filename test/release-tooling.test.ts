@@ -3,6 +3,14 @@ import test from 'node:test';
 
 import { validateChangesetBody } from '../scripts/releases/changeset-validator';
 import { parseChangelog } from '../scripts/releases/changelog-parser';
+import {
+    findRelease,
+    getReleaseTitle,
+    parseGithubReleaseArguments,
+    publishGithubReleases,
+    renderGithubReleaseNotes,
+    type GithubCli
+} from '../scripts/releases/github-release';
 
 const validate = (body: string) => {
     return () => validateChangesetBody('sample.md', body);
@@ -124,4 +132,148 @@ test('changelog parser orders groups and requires release dates', () => {
 
     assert.deepEqual(Object.keys(release?.groups ?? {}), ['added', 'notes']);
     assert.throws(() => parseChangelog('## 1.0.0\n'), /Missing release date/);
+});
+
+const githubReleases = parseChangelog(`# princess
+
+## 5.0.0 - 29.09.2026
+
+### Major Changes
+
+- [notes] Примітка
+    - en: A note
+- [added] Одне
+    - en: One
+- [added] Два
+  друга лінія
+    - en: Two
+      second line
+- [fixed] Лише українською
+
+## 4.0.1 - 17.08.2024
+
+### Patch Changes
+
+- [notes] Староапізня примітка
+`);
+
+test('github release notes prefer English, follow group order and indent continuations', () => {
+    const release = findRelease(githubReleases, '5.0.0');
+
+    assert.equal(
+        renderGithubReleaseNotes(release),
+        [
+            '### Added',
+            '',
+            '- One',
+            '- Two',
+            '  second line',
+            '',
+            '### Fixed',
+            '',
+            '- Лише українською',
+            '',
+            '### Notes',
+            '',
+            '- A note',
+            ''
+        ].join('\n')
+    );
+});
+
+test('github release notes fall back to Ukrainian for legacy releases', () => {
+    const release = findRelease(githubReleases, '4.0.1');
+
+    assert.equal(
+        renderGithubReleaseNotes(release),
+        '### Notes\n\n- Староапізня примітка\n'
+    );
+});
+
+test('github release lookup, title and arguments are strict', () => {
+    assert.throws(() => findRelease(githubReleases, '9.9.9'), /not in/);
+    assert.equal(
+        getReleaseTitle(findRelease(githubReleases, '5.0.0')),
+        '5.0.0 - 2026-09-29'
+    );
+    assert.deepEqual(
+        parseGithubReleaseArguments([
+            '--version',
+            '5.0.0',
+            '--target',
+            'abc',
+            '--print'
+        ]),
+        { version: '5.0.0', target: 'abc', print: true }
+    );
+    assert.deepEqual(parseGithubReleaseArguments([]), {
+        version: null,
+        target: null,
+        print: false
+    });
+    assert.throws(() => parseGithubReleaseArguments(['--version']), /value/);
+    assert.throws(() => parseGithubReleaseArguments(['--bogus']), /Unknown/);
+});
+
+const createFakeGithub = (existing: string[] = []) => {
+    const present = new Set(existing);
+    const created: { tag: string; target: string; isLatest: boolean }[] = [];
+    const cli: GithubCli = {
+        releaseExists: tag => {
+            return present.has(tag);
+        },
+        createRelease: ({ tag, target, isLatest }) => {
+            created.push({ tag, target, isLatest });
+            present.add(tag);
+        }
+    };
+
+    return { cli, created };
+};
+
+const resolveFakeTarget = (version: string) => {
+    return `sha-${version}`;
+};
+
+test('github release publishing creates missing releases from 5.0.0 on and is idempotent', () => {
+    const { cli, created } = createFakeGithub();
+    const dependencies = {
+        cli,
+        resolveTarget: resolveFakeTarget,
+        log: () => {}
+    };
+    const options = { version: null, target: null, print: false };
+
+    assert.deepEqual(
+        publishGithubReleases(githubReleases, options, dependencies),
+        ['5.0.0']
+    );
+    assert.deepEqual(created, [
+        { tag: '5.0.0', target: 'sha-5.0.0', isLatest: true }
+    ]);
+    assert.deepEqual(
+        publishGithubReleases(githubReleases, options, dependencies),
+        []
+    );
+});
+
+test('github release publishing honors an explicit older version', () => {
+    const { cli, created } = createFakeGithub();
+    const dependencies = {
+        cli,
+        resolveTarget: resolveFakeTarget,
+        log: () => {}
+    };
+
+    assert.deepEqual(
+        publishGithubReleases(
+            githubReleases,
+            { version: '4.0.1', target: 'abc', print: false },
+            dependencies
+        ),
+        ['4.0.1']
+    );
+    assert.deepEqual(created, [
+        { tag: '4.0.1', target: 'abc', isLatest: false }
+    ]);
 });

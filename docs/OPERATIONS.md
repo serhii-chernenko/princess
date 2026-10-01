@@ -70,7 +70,7 @@ An expired login shows up as `Invalid access token`. Run `pnpm exec wrangler log
 2. GitHub CI job `validate` runs `pnpm run check`, checks generated artifacts for drift and does a `wrangler deploy --dry-run`.
 3. Workers Builds deploys a preview automatically at `https://<branch>-princess.chernenko.workers.dev`. Check the "Workers Builds: princess" status on the PR.
 4. If the PR has a migration, the branch build applies it to `princess-preview` before the preview deploys (see [section 4](#4-database-migrations)). Nothing to do by hand.
-5. Merge to `main`. Workers Builds applies pending migrations to `princess-production`, deploys production and runs `pnpm releases:broadcast:prod`.
+5. Merge to `main`. Workers Builds applies pending migrations to `princess-production`, deploys production and runs `pnpm releases:broadcast:prod`. When `CHANGELOG.md` changed, the `release` job in `main.yml` also publishes the GitHub Release (see [section 8](#8-releases-and-announcements)).
 6. Delete merged branches and their previews:
 
 ```sh
@@ -329,6 +329,23 @@ pnpm exec wrangler queues resume-delivery princess-release-announcements
 ```
 
 The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on production) needs a redeploy to take effect.
+
+### GitHub releases
+
+The same `CHANGELOG.md` entries are also published as GitHub Releases, which appear in the repository's release feed. The body is the English text of each bullet (falling back to Ukrainian where there is no `en:` line), grouped like the Telegram announcement.
+
+Nothing manual is needed. the `release` job in `.github/workflows/main.yml` runs after `validate` passes on every push to `main` (a merged PR or a direct push), so a failing build never gets a release. It runs `pnpm releases:github`, which creates a release for every version from 5.0.0 on that has none yet, oldest first, so the first run after merging also backfills 5.0.0 and 5.1.0. Each release is tagged on the commit that added its heading to `CHANGELOG.md` (found in git history), and the tag is named like the version (for example `5.1.0`). Versions that already have a release are skipped, so reruns are harmless.
+
+The workflow only publishes release notes: it does not deploy and does not touch the Worker or the database. Its `contents: write` permission is scoped to that one job.
+
+Optional local tools:
+
+```sh
+pnpm releases:github --print --version 5.0.0
+pnpm releases:github --version 4.0.1 --target <sha>
+```
+
+The first prints a release body without publishing. The second publishes an older version by hand (needs `gh auth login`); versions before 5.0.0 are never published automatically because their history is not tracked reliably.
 
 ## 9. Data and analytics
 
