@@ -12,6 +12,8 @@
     - en: Backups: before /reset and /forget the bot automatically keeps a copy of the community data for 7 days. An admin can bring it back with /restore, even after the community was deleted.
 - [notes] У групах команди /stop, /reset, /forget та /restore працюють лише з іменем бота, наприклад /stop@bot_username. Так звичайна /stop, призначена іншому боту, не спрацює ще й у цьому. Без імені бот підкаже правильний запис.
     - en: In groups, /stop, /reset, /forget and /restore only work with the bot name, for example /stop@bot_username. This way a plain /stop meant for another bot is not also acted on by this bot. Without the name the bot replies with the correct form.
+- [notes] Боту потрібен лише статус адміністратора спільноти, щоб бачити всіх учасниць і чесно проводити розіграш. Окремі права адміністратора (видалення повідомлень, блокування, закріплення тощо) не потрібні, їх вмикати не обов'язково.
+    - en: The bot only needs administrator status in the community so it can see every player and run a fair draw. Individual administrator permissions (delete messages, ban users, pin messages and so on) are not needed, so you do not have to enable them.
 
 ## 5.0.0 - 29.09.2026
 
@@ -23,8 +25,8 @@
     - en: The bot is now faster and more reliable.
 - [added] Команда /lang: адміністратори спільноти можуть обрати мову бота (українська або англійська). Admins can switch the bot to English with /lang en.
     - en: New /lang command: community admins can choose the bot language (Ukrainian or English).
-- [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Жодних додаткових прав не потрібно.
-    - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. No extra permissions are needed.
+- [notes] Щоб у розіграші брали участь усі учасниці гри, а не лише ті, хто нещодавно писав у чат, зробіть бота адміністратором спільноти. Окремі права адміністратора (видалення повідомлень, блокування, закріплення тощо) не потрібні: достатньо самого статусу.
+    - en: To make sure every player takes part in the draw, not only those who wrote in the chat recently, make the bot an administrator of the community. Individual administrator permissions (delete messages, ban users, pin messages and so on) are not needed: the status alone is enough.
 - [updated] Повідомлення про нові версії бота тепер надходять надійніше. Усі зміни завжди можна переглянути командою /releases.
     - en: New version announcements are now delivered more reliably. All changes are always available via /releases.
 

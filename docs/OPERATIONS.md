@@ -245,7 +245,7 @@ Manual deploy fallback if Workers Builds is down (uses `.dev.vars.production` as
 pnpm worker:deploy:prod
 ```
 
-Group requirement: keep the bot an administrator in every group. Non-admin bots can only resolve recently seen members, which makes draws unfair. No extra admin rights are needed.
+Group requirement: keep the bot an administrator in every group. Non-admin bots can only resolve recently seen members, which makes draws unfair, and Telegram only guarantees `getChatMember` for other users when the bot is an administrator. Admin status also lifts privacy mode (bot admins receive every group message), which the automatic vote relies on. The bot only calls `sendMessage`, `getChatMember` and `replyWithSticker`, so no individual admin permission (delete messages, ban, pin, change info, ...) is used; the status alone is enough. Humans who post as an anonymous admin arrive as `sender_chat` with a fake bot sender, and admin-only commands refuse them.
 
 ## 8. Releases and announcements
 
