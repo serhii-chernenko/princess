@@ -59,7 +59,51 @@ const en: BaseTranslation = {
             '/restore - Bring back data after /reset or /forget (within 7 days)',
         stats: '/stats - Show bot usage stats',
         releases: '/releases - Show all bot versions and changes',
-        lang: '/lang - Show or change the language'
+        lang: '/lang - Show or change the language',
+        debug: '/debug - Show chat info to send to the bot author when something goes wrong'
+    },
+    debug: {
+        intro: 'Send this message to the bot author.',
+        botSection: 'Bot',
+        environment: 'Environment',
+        currentRelease: 'Current release',
+        chatSection: 'Chat',
+        chatId: 'Chat ID',
+        chatType: 'Chat type',
+        userId: 'Your user ID',
+        yourStatus: 'Your status',
+        botStatus: 'Bot status',
+        noGroupData: 'This is a private chat, so there is no group data.',
+        gameSection: 'Game',
+        registered: 'Registered',
+        channelId: 'Channel DB ID',
+        language: 'Language',
+        storedRelease: 'Stored release',
+        pausedAt: 'Paused at',
+        createdAt: 'Created at',
+        lastVoteAt: 'Last vote at',
+        storedBotStatus: 'Bot status (stored)',
+        storedBotStatusCheckedAt: 'Bot status checked at',
+        playersSection: 'Players',
+        playersTotal: 'Total',
+        playersActive: 'Active',
+        playersAutoJoined: 'Auto-joined',
+        yourPlayerId: 'Your player ID',
+        yourActive: 'You are active',
+        yourAutoJoined: 'You were auto-joined',
+        yourScore: 'Your score',
+        notInGame: 'You are not in the game',
+        lastWinSection: 'Last winner',
+        wonAt: 'Won at',
+        winMode: 'Mode',
+        eligibleCount: 'Eligible players',
+        backupSection: 'Backup',
+        backupReason: 'Reason',
+        backupCreatedAt: 'Created at',
+        backupExpiresAt: 'Expires at',
+        yes: 'yes',
+        no: 'no',
+        unavailable: 'unavailable'
     },
     lang: {
         available: 'Available languages: en, ua\nДоступні мови: en, ua',
@@ -107,6 +151,11 @@ const en: BaseTranslation = {
             restore: {
                 question: 'What if the group data was deleted by accident?',
                 answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.'
+            },
+            debug: {
+                question:
+                    'Something went wrong. What should I send to the bot author?',
+                answer: 'Run /debug in the group where the problem happens and send the reply to the bot author. It shows technical details only: chat and user IDs, bot status, game state, player counts, the last winner and the backup. It never shows messages or the list of other players. You can also run /debug in a private chat with the bot to find out your own user ID.'
             }
         }
     },

@@ -30,6 +30,8 @@ const nodeFetchModulePath = () => {
 };
 
 const nonAdminUserId = 79;
+const proposalAdminId = '4242';
+const botUserId = 123456;
 const botUsername = 'princess_test_bot';
 
 const createTelegramResult = (method: string, payload: unknown) => {
@@ -165,6 +167,34 @@ const createPrivateUpdate = (updateId: number, text: string) => {
     };
 };
 
+const createPrivateReplyUpdate = (
+    updateId: number,
+    text: string,
+    repliedTo: { fromId: number; text: string }
+) => {
+    return {
+        update_id: updateId,
+        message: {
+            message_id: updateId,
+            date: 1_800_000_000,
+            chat: { id: 77, type: 'private', first_name: 'Ann' },
+            from: { id: 77, is_bot: false, first_name: 'Ann' },
+            text,
+            reply_to_message: {
+                message_id: 1,
+                date: 1_800_000_000,
+                chat: { id: 77, type: 'private', first_name: 'Ann' },
+                from: {
+                    id: repliedTo.fromId,
+                    is_bot: repliedTo.fromId === botUserId,
+                    first_name: 'Princess'
+                },
+                text: repliedTo.text
+            }
+        }
+    };
+};
+
 describe('Telegram webhook through the Worker on D1', () => {
     let harness: D1Harness;
     let worker: WorkerModule['default'];
@@ -183,6 +213,7 @@ describe('Telegram webhook through the Worker on D1', () => {
                 body: JSON.stringify(update)
             }),
             createWorkerEnv(harness, {
+                ADMIN_ID: proposalAdminId,
                 BOT_TOKEN: botToken,
                 TELEGRAM_WEBHOOK_SECRET: webhookSecret,
                 TELEGRAM_WEBHOOK_PATH: webhookPath
@@ -215,6 +246,29 @@ describe('Telegram webhook through the Worker on D1', () => {
         nextUpdateId += 1;
 
         assert.equal(response.status, 200);
+    };
+    const sendPrivateReply = async (
+        text: string,
+        repliedTo: { fromId: number; text: string }
+    ) => {
+        const response = await deliver(
+            createPrivateReplyUpdate(nextUpdateId, text, repliedTo)
+        );
+
+        nextUpdateId += 1;
+
+        assert.equal(response.status, 200);
+    };
+    const readSentMessages = () => {
+        return apiCalls
+            .filter(call => call.method === 'sendMessage')
+            .map(call => {
+                return call.payload as {
+                    chat_id: number | string;
+                    text: string;
+                    reply_markup?: { force_reply?: boolean };
+                };
+            });
     };
     const readLastReplyText = () => {
         const reply = apiCalls
@@ -592,6 +646,285 @@ describe('Telegram webhook through the Worker on D1', () => {
                 );
             }
         });
+    });
+
+    describe('/debug', () => {
+        it('reports the registered group state to a non-admin without a bot name', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(nonAdminUserId, '/join');
+            apiCalls.length = 0;
+
+            await send(nonAdminUserId, '/debug');
+
+            const LL = getMessages((await readChannel())?.language as never);
+            const reply = readLastReplyText();
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.ok(reply.includes('<code>-1001</code>'));
+            assert.ok(reply.includes(`${LL.debug.userId()}: <code>79</code>`));
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.yes()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.playersTotal()}: <code>2</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.yourStatus()}: <code>member</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.botStatus()}: <code>creator</code>`)
+            );
+            const lastReply = apiCalls
+                .filter(call => call.method === 'sendMessage')
+                .at(-1)?.payload as { parse_mode?: string } | undefined;
+
+            assert.equal(lastReply?.parse_mode, 'HTML');
+        });
+
+        it('succeeds for a chat without a channel row', async () => {
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channels'), 0);
+            assert.ok(reply.includes('<code>-1001</code>'));
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.no()}</code>`
+                )
+            );
+            assert.equal(reply.includes(LL.debug.channelId()), false);
+        });
+
+        it('reports the backup of a forgotten group', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(77, `/forget@${botUsername}`);
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channels'), 0);
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.no()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.backupReason()}: <code>forget</code>`
+                )
+            );
+        });
+
+        it('reports unavailable live statuses when getChatMember fails', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            failingMethods = new Set(['getChatMember']);
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.yourStatus()}: <code>${LL.debug.unavailable()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.botStatus()}: <code>${LL.debug.unavailable()}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.registered()}: <code>${LL.debug.yes()}</code>`
+                )
+            );
+        });
+
+        it('picks the newest recorded win for the last winner section', async () => {
+            const newestWonAt = 1_800_000_100_000;
+
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(78, '/join');
+            await harness.env.DB.prepare(
+                `INSERT INTO vote_wins (channel_id, player_id, won_at, mode, eligible_count)
+                 SELECT c.id, p.id, ?, 'manual', 3 FROM channels c, players p WHERE p.telegram_user_id = 77
+                 UNION ALL
+                 SELECT c.id, p.id, ?, 'auto', 2 FROM channels c, players p WHERE p.telegram_user_id = 78`
+            )
+                .bind(newestWonAt, 1_700_000_000_000)
+                .run();
+            await send(77, '/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+            const expectedWonAt = new Date(newestWonAt)
+                .toISOString()
+                .replace(/\.\d{3}Z$/, 'Z');
+
+            assert.ok(
+                reply.includes(
+                    `${LL.debug.wonAt()}: <code>${expectedWonAt}</code>`
+                )
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.winMode()}: <code>manual</code>`)
+            );
+            assert.ok(
+                reply.includes(`${LL.debug.eligibleCount()}: <code>3</code>`)
+            );
+            assert.equal(reply.includes('<code>auto</code>'), false);
+        });
+
+        it('never prints another player id or the snapshot payload', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(78, '/join');
+            await send(nonAdminUserId, '/join');
+            await send(77, `/reset@${botUsername}`);
+            await send(77, '/debug');
+
+            const reply = readLastReplyText();
+
+            assert.equal(await countRows(harness, 'channel_snapshots'), 1);
+
+            assert.ok(reply.includes('<code>77</code>'));
+            assert.equal(reply.includes('<code>78</code>'), false);
+            assert.equal(reply.includes('<code>79</code>'), false);
+            assert.equal(reply.includes('payload'), false);
+            assert.equal(reply.includes('displayName'), false);
+        });
+
+        it('reports ids and a no group data note in a private chat', async () => {
+            await sendPrivate('/debug');
+
+            const LL = getMessages();
+            const reply = readLastReplyText();
+
+            assert.ok(reply.includes(`${LL.debug.chatId()}: <code>77</code>`));
+            assert.ok(reply.includes(LL.debug.noGroupData()));
+            assert.equal(reply.includes(LL.debug.registered()), false);
+            assert.equal(
+                apiCalls.some(call => call.method === 'getChatMember'),
+                false
+            );
+        });
+    });
+
+    it('asks for a proposal with a forced reply on /propose', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+
+        const [prompt] = readSentMessages();
+
+        assert.equal(prompt?.text, LL.proposalEnter());
+        assert.equal(prompt?.reply_markup?.force_reply, true);
+    });
+
+    it('forwards a reply to the proposal prompt to the admin and confirms to the author', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+        await sendPrivateReply('Ваше високосте, Ваша Величносте!', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [forwarded, confirmation] = readSentMessages();
+
+        assert.equal(String(forwarded?.chat_id), proposalAdminId);
+        assert.equal(
+            forwarded?.text,
+            `Ваше високосте, Ваша Величносте!\n${LL.from({ value: 'Ann' })}`
+        );
+        assert.equal(confirmation?.chat_id, 77);
+        assert.equal(confirmation?.text, LL.proposalLeave());
+        assert.equal(await countRows(harness, 'channel_members'), 0);
+    });
+
+    it('keeps a forwarded proposal within the Telegram message limit', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('a'.repeat(4096), {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [forwarded] = readSentMessages();
+
+        assert.equal(forwarded?.text.length, 4096);
+        assert.ok(forwarded?.text.endsWith(LL.from({ value: 'Ann' })));
+    });
+
+    it('forwards a proposal that contains a word the sticker listener reacts to', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('принцеса дня', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        assert.equal(String(readSentMessages()[0]?.chat_id), proposalAdminId);
+        assert.equal(
+            apiCalls.some(call => {
+                return call.method === 'sendSticker';
+            }),
+            false
+        );
+    });
+
+    it('rejects a proposal that contains a command and lets the author try again', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('/start now', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [rejection] = readSentMessages();
+
+        assert.equal(readSentMessages().length, 1);
+        assert.equal(rejection?.chat_id, 77);
+        assert.equal(rejection?.text, LL.proposalWrong());
+        assert.equal(rejection?.reply_markup?.force_reply, true);
+
+        apiCalls.length = 0;
+        await sendPrivateReply('Вітаю, королево!', {
+            fromId: botUserId,
+            text: LL.proposalWrong()
+        });
+
+        assert.equal(String(readSentMessages()[0]?.chat_id), proposalAdminId);
+    });
+
+    it('does not forward replies to anything but the proposal prompt', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('some text', {
+            fromId: 55,
+            text: LL.proposalEnter()
+        });
+        await sendPrivateReply('some text', {
+            fromId: botUserId,
+            text: 'another bot message'
+        });
+
+        assert.equal(
+            readSentMessages().some(message => {
+                return String(message.chat_id) === proposalAdminId;
+            }),
+            false
+        );
     });
 
     describe('language in private chats and groups', () => {

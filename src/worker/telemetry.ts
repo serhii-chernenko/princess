@@ -75,6 +75,7 @@ const knownPaths = new Set(['/', '/health', '/admin/release-broadcast']);
 const commandCategories = new Set([
     'start',
     'help',
+    'propose',
     'join',
     'leave',
     'list',
