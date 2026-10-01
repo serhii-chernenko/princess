@@ -30,6 +30,7 @@
 !/.github
 !/.github/workflows
 !/.github/workflows/main.yml
+!/.github/workflows/release-probe.yml
 !/.github/workflows/copy-production-to-preview.yml
 !.dev.vars.example
 !.dev.vars.production.example

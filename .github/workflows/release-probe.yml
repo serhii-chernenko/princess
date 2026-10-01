@@ -1,0 +1,44 @@
+name: Release probe
+
+on:
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+jobs:
+    probe:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Probe release and tag creation
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  OLD_SHA: 8e4ca1c87577e41ecd197cb1424e90df898cf9e6
+              run: |
+                  set +e
+                  show() {
+                      grep -i -E '^HTTP|x-accepted-github|^\{|message' | head -8
+                  }
+                  echo "== 1. draft release at head sha"
+                  gh api -i -X POST "repos/$REPO/releases" -f tag_name=ci-probe-1 -f target_commitish="$HEAD_SHA" -F draft=true 2>&1 | show
+                  echo "== 2. draft release at old sha"
+                  gh api -i -X POST "repos/$REPO/releases" -f tag_name=ci-probe-2 -f target_commitish="$OLD_SHA" -F draft=true 2>&1 | show
+                  echo "== 3. git ref at head sha"
+                  gh api -i -X POST "repos/$REPO/git/refs" -f ref=refs/tags/ci-probe-3 -f sha="$HEAD_SHA" 2>&1 | show
+                  echo "== 4. git ref at old sha"
+                  gh api -i -X POST "repos/$REPO/git/refs" -f ref=refs/tags/ci-probe-4 -f sha="$OLD_SHA" 2>&1 | show
+                  echo "== cleanup"
+                  for id in $(gh api "repos/$REPO/releases" --jq '.[] | select(.tag_name | startswith("ci-probe-")) | .id'); do
+                      gh api -X DELETE "repos/$REPO/releases/$id" --silent
+                  done
+                  for tag in ci-probe-3 ci-probe-4; do
+                      gh api -X DELETE "repos/$REPO/git/refs/tags/$tag" --silent 2>/dev/null
+                  done
+                  gh api "repos/$REPO/git/matching-refs/tags/ci-probe" --jq '.[].ref'
+                  true
