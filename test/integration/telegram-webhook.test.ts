@@ -30,6 +30,8 @@ const nodeFetchModulePath = () => {
 };
 
 const nonAdminUserId = 79;
+const proposalAdminId = '4242';
+const botUserId = 123456;
 const botUsername = 'princess_test_bot';
 
 const createTelegramResult = (method: string, payload: unknown) => {
@@ -159,6 +161,34 @@ const createPrivateUpdate = (updateId: number, text: string) => {
     };
 };
 
+const createPrivateReplyUpdate = (
+    updateId: number,
+    text: string,
+    repliedTo: { fromId: number; text: string }
+) => {
+    return {
+        update_id: updateId,
+        message: {
+            message_id: updateId,
+            date: 1_800_000_000,
+            chat: { id: 77, type: 'private', first_name: 'Ann' },
+            from: { id: 77, is_bot: false, first_name: 'Ann' },
+            text,
+            reply_to_message: {
+                message_id: 1,
+                date: 1_800_000_000,
+                chat: { id: 77, type: 'private', first_name: 'Ann' },
+                from: {
+                    id: repliedTo.fromId,
+                    is_bot: repliedTo.fromId === botUserId,
+                    first_name: 'Princess'
+                },
+                text: repliedTo.text
+            }
+        }
+    };
+};
+
 describe('Telegram webhook through the Worker on D1', () => {
     let harness: D1Harness;
     let worker: WorkerModule['default'];
@@ -177,6 +207,7 @@ describe('Telegram webhook through the Worker on D1', () => {
                 body: JSON.stringify(update)
             }),
             createWorkerEnv(harness, {
+                ADMIN_ID: proposalAdminId,
                 BOT_TOKEN: botToken,
                 TELEGRAM_WEBHOOK_SECRET: webhookSecret,
                 TELEGRAM_WEBHOOK_PATH: webhookPath
@@ -209,6 +240,29 @@ describe('Telegram webhook through the Worker on D1', () => {
         nextUpdateId += 1;
 
         assert.equal(response.status, 200);
+    };
+    const sendPrivateReply = async (
+        text: string,
+        repliedTo: { fromId: number; text: string }
+    ) => {
+        const response = await deliver(
+            createPrivateReplyUpdate(nextUpdateId, text, repliedTo)
+        );
+
+        nextUpdateId += 1;
+
+        assert.equal(response.status, 200);
+    };
+    const readSentMessages = () => {
+        return apiCalls
+            .filter(call => call.method === 'sendMessage')
+            .map(call => {
+                return call.payload as {
+                    chat_id: number | string;
+                    text: string;
+                    reply_markup?: { force_reply?: boolean };
+                };
+            });
     };
     const readLastReplyText = () => {
         const reply = apiCalls
@@ -757,6 +811,114 @@ describe('Telegram webhook through the Worker on D1', () => {
                 false
             );
         });
+    });
+
+    it('asks for a proposal with a forced reply on /propose', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+
+        const [prompt] = readSentMessages();
+
+        assert.equal(prompt?.text, LL.proposalEnter());
+        assert.equal(prompt?.reply_markup?.force_reply, true);
+    });
+
+    it('forwards a reply to the proposal prompt to the admin and confirms to the author', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+        await sendPrivateReply('Ваше високосте, Ваша Величносте!', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [forwarded, confirmation] = readSentMessages();
+
+        assert.equal(String(forwarded?.chat_id), proposalAdminId);
+        assert.equal(
+            forwarded?.text,
+            `Ваше високосте, Ваша Величносте!\n${LL.from({ value: 'Ann' })}`
+        );
+        assert.equal(confirmation?.chat_id, 77);
+        assert.equal(confirmation?.text, LL.proposalLeave());
+        assert.equal(await countRows(harness, 'channel_members'), 0);
+    });
+
+    it('keeps a forwarded proposal within the Telegram message limit', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('a'.repeat(4096), {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [forwarded] = readSentMessages();
+
+        assert.equal(forwarded?.text.length, 4096);
+        assert.ok(forwarded?.text.endsWith(LL.from({ value: 'Ann' })));
+    });
+
+    it('forwards a proposal that contains a word the sticker listener reacts to', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('принцеса дня', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        assert.equal(String(readSentMessages()[0]?.chat_id), proposalAdminId);
+        assert.equal(
+            apiCalls.some(call => {
+                return call.method === 'sendSticker';
+            }),
+            false
+        );
+    });
+
+    it('rejects a proposal that contains a command and lets the author try again', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('/start now', {
+            fromId: botUserId,
+            text: LL.proposalEnter()
+        });
+
+        const [rejection] = readSentMessages();
+
+        assert.equal(readSentMessages().length, 1);
+        assert.equal(rejection?.chat_id, 77);
+        assert.equal(rejection?.text, LL.proposalWrong());
+        assert.equal(rejection?.reply_markup?.force_reply, true);
+
+        apiCalls.length = 0;
+        await sendPrivateReply('Вітаю, королево!', {
+            fromId: botUserId,
+            text: LL.proposalWrong()
+        });
+
+        assert.equal(String(readSentMessages()[0]?.chat_id), proposalAdminId);
+    });
+
+    it('does not forward replies to anything but the proposal prompt', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivateReply('some text', {
+            fromId: 55,
+            text: LL.proposalEnter()
+        });
+        await sendPrivateReply('some text', {
+            fromId: botUserId,
+            text: 'another bot message'
+        });
+
+        assert.equal(
+            readSentMessages().some(message => {
+                return String(message.chat_id) === proposalAdminId;
+            }),
+            false
+        );
     });
 
     it('rejects a wrong secret without touching the ledger or Telegram', async () => {
