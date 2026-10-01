@@ -128,7 +128,7 @@ export const renderGithubReleaseNotes = (release: ReleaseEntry) => {
 
 export type GithubReleaseDependencies = {
     cli: GithubCli;
-    resolveTarget: (version: string) => string;
+    target: string;
     log?: (message: string) => void;
 };
 
@@ -152,7 +152,8 @@ export const publishGithubReleases = (
     options: GithubReleaseOptions,
     dependencies: GithubReleaseDependencies
 ) => {
-    const { cli, resolveTarget, log = console.log } = dependencies;
+    const { cli, target, log = console.log } = dependencies;
+    const releaseTarget = options.target ?? target;
     const candidates = options.version
         ? [findRelease(releases, options.version)]
         : releases
@@ -171,9 +172,7 @@ export const publishGithubReleases = (
             continue;
         }
 
-        const target = options.target ?? resolveTarget(release.version);
-
-        publishOne(releases, release, target, cli);
+        publishOne(releases, release, releaseTarget, cli);
         log(`Created GitHub release ${release.version}.`);
         published.push(release.version);
     }
@@ -181,27 +180,11 @@ export const publishGithubReleases = (
     return published;
 };
 
-export const resolveTargetFromHistory = (version: string) => {
-    const commit = execFileSync(
-        'git',
-        [
-            'log',
-            '--reverse',
-            '--format=%H',
-            `-S## ${version}`,
-            '--',
-            CHANGELOG_PATH
-        ],
-        { encoding: 'utf8' }
-    )
-        .split('\n')
-        .find(Boolean);
-
-    if (!commit) {
-        throw new Error(`No commit in history added version ${version}`);
-    }
-
-    return commit;
+export const resolvePublishingCommit = () => {
+    return (
+        process.env.GITHUB_SHA ??
+        execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    );
 };
 
 export const ghCli: GithubCli = {
@@ -261,7 +244,7 @@ const run = () => {
 
     publishGithubReleases(releases, options, {
         cli: ghCli,
-        resolveTarget: resolveTargetFromHistory
+        target: resolvePublishingCommit()
     });
 };
 

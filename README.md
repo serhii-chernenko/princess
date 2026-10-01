@@ -368,7 +368,7 @@ Use them like this:
 - prepare a real release with `pnpm run changeset:version`
 - regenerate the runtime manifest with `pnpm run releases:sync`
 
-After a merge or push to `main` and a passing `validate` job, the `release` job in `.github/workflows/main.yml` publishes every missing version (from 5.0.0 on) as a GitHub Release using the English bullets. No manual step is needed.
+After a merge or push to `main` and a passing `validate` job, the `release` job in `.github/workflows/main.yml` publishes every missing version (from 5.0.0 on) as a GitHub Release using the English bullets. Each tag points at the `main` commit that published it (`GITHUB_SHA`), so a first run tags 5.0.0 and 5.1.0 on the same commit. Versions that already have a release are skipped, so a push that does not touch `CHANGELOG.md` just logs `already exists; skipping` and exits 0. No manual step is needed.
 
 Do not edit `releases.generated.json` by hand. `changelog.json` is retired and removed.
 
