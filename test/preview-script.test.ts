@@ -1576,7 +1576,7 @@ const worktreeRoot = '/repo/.herdr/worktrees/feat';
 const mainRoot = '/repo';
 const worktreeFile = `${worktreeRoot}/.dev.vars.preview`;
 const mainFile = `${mainRoot}/.dev.vars.preview`;
-const commonDirCommand = 'git rev-parse --git-common-dir';
+const commonDirCommand = `git -C ${worktreeRoot} rev-parse --git-common-dir`;
 
 const loadWithFiles = async (
     existingFiles: string[],

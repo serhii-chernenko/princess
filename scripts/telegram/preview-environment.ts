@@ -45,7 +45,14 @@ export const resolveMainWorktreeRoot = async (
     try {
         const commonDirectory = path.resolve(
             cwd,
-            (await runCommand('git', ['rev-parse', '--git-common-dir'])).trim()
+            (
+                await runCommand('git', [
+                    '-C',
+                    cwd,
+                    'rev-parse',
+                    '--git-common-dir'
+                ])
+            ).trim()
         );
 
         return path.basename(commonDirectory) === '.git'

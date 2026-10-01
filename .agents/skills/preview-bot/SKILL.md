@@ -10,7 +10,7 @@ Read `docs/OPERATIONS.md` section 6 first if you have not this session.
 ## Steps
 
 1. Make sure HEAD is pushed. `pnpm preview:point` refuses an unpushed HEAD; if it is not, push the branch first.
-2. Run `pnpm preview:point` and wait for it to finish. It waits for the Workers Builds check and for the preview to answer, then points the preview bot webhook at the branch preview. If the output contains `previousOrigin`, tell the user which preview the bot was taken from.
+2. Run `pnpm preview:point` and wait for it to finish. It can take up to about 12 minutes (10 for the build check, 2 for readiness), so run it in the background or with a long shell timeout. It waits for the Workers Builds check and for the preview to answer, then points the preview bot webhook at the branch preview. If the output contains `previousOrigin`, tell the user which preview the bot was taken from.
 3. Tell the user exactly what to do in the preview-only Telegram group: send `/start`, then the command under test. State that the production bot must never be added to that group.
 4. Offer `pnpm preview:smoke --chat-id <id>` only when the user gives a chat id. It sends a synthetic `/start` to the preview webhook and the bot may reply in that chat.
 5. After the PR is merged, run `pnpm preview:reset` to point the preview bot back at the long-lived preview.
