@@ -136,6 +136,13 @@ test('changelog parser orders groups and requires release dates', () => {
 
 const githubReleases = parseChangelog(`# princess
 
+## 5.1.0 - 30.09.2026
+
+### Minor Changes
+
+- [added] Нове
+    - en: New
+
 ## 5.0.0 - 29.09.2026
 
 ### Major Changes
@@ -231,45 +238,68 @@ const createFakeGithub = (existing: string[] = []) => {
     return { cli, created };
 };
 
-const resolveFakeTarget = (version: string) => {
-    return `sha-${version}`;
+const PUBLISHING_COMMIT = 'sha-head';
+
+const createDependencies = (cli: GithubCli) => {
+    return { cli, target: PUBLISHING_COMMIT, log: () => {} };
 };
 
-test('github release publishing creates missing releases from 5.0.0 on and is idempotent', () => {
+test('github release publishing creates missing releases from 5.0.0 oldest first and is idempotent', () => {
     const { cli, created } = createFakeGithub();
-    const dependencies = {
-        cli,
-        resolveTarget: resolveFakeTarget,
-        log: () => {}
-    };
+    const dependencies = createDependencies(cli);
     const options = { version: null, target: null, print: false };
 
     assert.deepEqual(
         publishGithubReleases(githubReleases, options, dependencies),
-        ['5.0.0']
+        ['5.0.0', '5.1.0']
     );
     assert.deepEqual(created, [
-        { tag: '5.0.0', target: 'sha-5.0.0', isLatest: true }
+        { tag: '5.0.0', target: PUBLISHING_COMMIT, isLatest: false },
+        { tag: '5.1.0', target: PUBLISHING_COMMIT, isLatest: true }
     ]);
     assert.deepEqual(
         publishGithubReleases(githubReleases, options, dependencies),
         []
     );
+    assert.equal(created.length, 2);
 });
 
-test('github release publishing honors an explicit older version', () => {
-    const { cli, created } = createFakeGithub();
+test('github release publishing skips releases that already exist', () => {
+    const { cli, created } = createFakeGithub(['5.0.0']);
+    const logged: string[] = [];
     const dependencies = {
         cli,
-        resolveTarget: resolveFakeTarget,
-        log: () => {}
+        target: PUBLISHING_COMMIT,
+        log: (message: string) => {
+            logged.push(message);
+        }
     };
 
     assert.deepEqual(
         publishGithubReleases(
             githubReleases,
-            { version: '4.0.1', target: 'abc', print: false },
+            { version: null, target: null, print: false },
             dependencies
+        ),
+        ['5.1.0']
+    );
+    assert.deepEqual(created, [
+        { tag: '5.1.0', target: PUBLISHING_COMMIT, isLatest: true }
+    ]);
+    assert.deepEqual(logged, [
+        'GitHub release 5.0.0 already exists; skipping.',
+        'Created GitHub release 5.1.0.'
+    ]);
+});
+
+test('github release publishing honors an explicit older version and target', () => {
+    const { cli, created } = createFakeGithub();
+
+    assert.deepEqual(
+        publishGithubReleases(
+            githubReleases,
+            { version: '4.0.1', target: 'abc', print: false },
+            createDependencies(cli)
         ),
         ['4.0.1']
     );

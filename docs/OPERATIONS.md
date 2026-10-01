@@ -370,7 +370,7 @@ The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on
 
 The same `CHANGELOG.md` entries are also published as GitHub Releases, which appear in the repository's release feed. The body is the English text of each bullet (falling back to Ukrainian where there is no `en:` line), grouped like the Telegram announcement.
 
-Nothing manual is needed. the `release` job in `.github/workflows/main.yml` runs after `validate` passes on every push to `main` (a merged PR or a direct push), so a failing build never gets a release. It runs `pnpm releases:github`, which creates a release for every version from 5.0.0 on that has none yet, oldest first, so the first run after merging also backfills 5.0.0 and 5.1.0. Each release is tagged on the commit that added its heading to `CHANGELOG.md` (found in git history), and the tag is named like the version (for example `5.1.0`). Versions that already have a release are skipped, so reruns are harmless.
+Nothing manual is needed. The `release` job in `.github/workflows/main.yml` runs after `validate` passes on every push to `main` (a merged PR or a direct push), so a failing build never gets a release. It runs `pnpm releases:github`, which creates a release for every version from 5.0.0 on that has none yet, oldest first, and marks only the newest one as latest. The tag is named like the version (for example `5.1.0`) and points at the `main` commit that published it (the merge or push commit, `GITHUB_SHA`), so the first run tags both 5.0.0 and 5.1.0 on the same commit. Versions that already have a release are skipped: a push that does not touch `CHANGELOG.md` only logs `already exists; skipping` and exits 0, so reruns are harmless.
 
 The workflow only publishes release notes: it does not deploy and does not touch the Worker or the database. Its `contents: write` permission is scoped to that one job.
 
@@ -381,7 +381,7 @@ pnpm releases:github --print --version 5.0.0
 pnpm releases:github --version 4.0.1 --target <sha>
 ```
 
-The first prints a release body without publishing. The second publishes an older version by hand (needs `gh auth login`); versions before 5.0.0 are never published automatically because their history is not tracked reliably.
+The first prints a release body without publishing. The second publishes an older version by hand (needs `gh auth login`); without `--target` it tags the current `HEAD`; versions before 5.0.0 are never published automatically because their history is not tracked reliably.
 
 ## 9. Data and analytics
 
