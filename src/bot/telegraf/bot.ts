@@ -62,6 +62,7 @@ export interface PrincessBotTelemetry {
     internalFailure(input: {
         event:
             | 'generic_error_reply_failed'
+            | 'group_command_hint_failed'
             | 'vote_announcement_failed'
             | 'telegraf_middleware_failed';
         errorType: string;
@@ -403,9 +404,11 @@ export const createPrincessBot = (
             return next();
         }
 
-        try {
-            const locale = await game.getChannelLocale(unaddressed.chatId);
+        const locale = await game
+            .getChannelLocale(unaddressed.chatId)
+            .catch(() => getDefaultAppLocale());
 
+        try {
             await ctx.sendMessage(
                 getMessages(locale).groupCommandNeedsBotName({
                     command: unaddressed.command,
@@ -414,12 +417,12 @@ export const createPrincessBot = (
             );
         } catch (error) {
             telemetry?.internalFailure({
-                event: 'generic_error_reply_failed',
+                event: 'group_command_hint_failed',
                 errorType: getErrorType(error)
             });
             console.error(
                 JSON.stringify({
-                    event: 'generic_error_reply_failed',
+                    event: 'group_command_hint_failed',
                     errorType: getErrorType(error)
                 })
             );
@@ -474,14 +477,14 @@ export const createPrincessBot = (
                 });
             }
 
+            const groupCommandsNote = LL.groupCommandsNote({
+                username: ctx.me
+            });
+
             await ctx.replyWithHTML(
                 `${resumeNotice}${LL.greetings({
                     name: escapeHtml(formatUserName(actor.user, 'name'))
-                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}\n\n${LL.groupCommandsNote(
-                    {
-                        username: ctx.me
-                    }
-                )}${stoppedNotice}`
+                })}\n\n<strong>${LL.commandsLabel()}:</strong>\n${getCommandList(locale).join('\n')}\n\n${groupCommandsNote}${stoppedNotice}`
             );
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
@@ -748,7 +751,7 @@ export const createPrincessBot = (
                 action: 'reset',
                 result: 'success'
             });
-            await ctx.sendMessage(LL.successReset());
+            await ctx.sendMessage(LL.successReset({ username: ctx.me }));
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
         }
@@ -824,7 +827,7 @@ export const createPrincessBot = (
                 action: 'forget',
                 result: 'success'
             });
-            await ctx.sendMessage(LL.successForget());
+            await ctx.sendMessage(LL.successForget({ username: ctx.me }));
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
         }

@@ -86,9 +86,10 @@ type RootTranslation = {
 	alreadyLeave: RequiredParams<'name'>
 	/**
 	 * P​r​i​n​c​e​s​s​ ​a​c​h​i​e​v​e​m​e​n​t​s​ ​w​i​p​e​d​ ​c​l​e​a​n​!​ ​�​�​‍​♀​️​
-​C​h​a​n​g​e​d​ ​y​o​u​r​ ​m​i​n​d​?​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
+​C​h​a​n​g​e​d​ ​y​o​u​r​ ​m​i​n​d​?​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​@​{​u​s​e​r​n​a​m​e​}​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
+	 * @param {string} username
 	 */
-	successReset: string
+	successReset: RequiredParams<'username'>
 	/**
 	 * T​h​e​ ​g​a​m​e​ ​i​s​ ​p​a​u​s​e​d​ ​⏸​️​ ​P​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​a​r​e​ ​k​e​p​t​.​
 ​T​o​ ​r​e​s​u​m​e​,​ ​a​n​ ​a​d​m​i​n​ ​r​u​n​s​ ​/​s​t​a​r​t​.
@@ -110,9 +111,10 @@ type RootTranslation = {
 	successResume: string
 	/**
 	 * A​l​l​ ​d​a​t​a​ ​a​b​o​u​t​ ​t​h​i​s​ ​g​r​o​u​p​ ​h​a​s​ ​b​e​e​n​ ​d​e​l​e​t​e​d​!​ ​�​�​‍​♀​️​
-​I​f​ ​t​h​i​s​ ​w​a​s​ ​a​n​ ​a​c​c​i​d​e​n​t​,​ ​a​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​i​t​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
+​I​f​ ​t​h​i​s​ ​w​a​s​ ​a​n​ ​a​c​c​i​d​e​n​t​,​ ​a​n​ ​a​d​m​i​n​ ​c​a​n​ ​b​r​i​n​g​ ​i​t​ ​b​a​c​k​ ​w​i​t​h​ ​/​r​e​s​t​o​r​e​@​{​u​s​e​r​n​a​m​e​}​ ​w​i​t​h​i​n​ ​7​ ​d​a​y​s​.
+	 * @param {string} username
 	 */
-	successForget: string
+	successForget: RequiredParams<'username'>
 	/**
 	 * G​r​o​u​p​ ​d​a​t​a​ ​r​e​s​t​o​r​e​d​!​ ​�​�​ ​P​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​a​r​e​ ​b​a​c​k​.
 	 */
@@ -465,7 +467,7 @@ type RootTranslation = {
 				 * -​ ​/​s​t​o​p​ ​o​n​l​y​ ​p​a​u​s​e​s​ ​t​h​e​ ​g​a​m​e​:​ ​p​l​a​y​e​r​s​ ​a​n​d​ ​s​c​o​r​e​s​ ​s​t​a​y​,​ ​a​n​d​ ​/​s​t​a​r​t​ ​r​e​s​u​m​e​s​ ​i​t​.​
 			​-​ ​B​e​f​o​r​e​ ​/​r​e​s​e​t​ ​a​n​d​ ​/​f​o​r​g​e​t​ ​t​h​e​ ​b​o​t​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​k​e​e​p​s​ ​a​ ​b​a​c​k​u​p​ ​f​o​r​ ​7​ ​d​a​y​s​.​
 			​-​ ​A​n​ ​a​d​m​i​n​ ​c​a​n​ ​r​u​n​ ​/​r​e​s​t​o​r​e​ ​t​o​ ​b​r​i​n​g​ ​b​a​c​k​ ​t​h​e​ ​l​a​t​e​s​t​ ​b​a​c​k​u​p​.​
-			​-​ ​I​n​ ​g​r​o​u​p​s​ ​w​r​i​t​e​ ​/​s​t​o​p​,​ ​/​r​e​s​e​t​,​ ​/​f​o​r​g​e​t​ ​a​n​d​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​ ​t​h​e​ ​b​o​t​ ​n​a​m​e​,​ ​f​o​r​ ​e​x​a​m​p​l​e​ ​/​s​t​o​p​@​b​o​t​_​n​a​m​e​.​ ​T​h​e​ ​T​e​l​e​g​r​a​m​ ​c​o​m​m​a​n​d​ ​m​e​n​u​ ​a​d​d​s​ ​i​t​ ​f​o​r​ ​y​o​u​.
+			​-​ ​I​n​ ​g​r​o​u​p​s​ ​w​r​i​t​e​ ​/​s​t​o​p​,​ ​/​r​e​s​e​t​,​ ​/​f​o​r​g​e​t​ ​a​n​d​ ​/​r​e​s​t​o​r​e​ ​w​i​t​h​ ​t​h​e​ ​@​u​s​e​r​n​a​m​e​ ​o​f​ ​t​h​e​ ​b​o​t​,​ ​f​o​r​ ​e​x​a​m​p​l​e​ ​/​s​t​o​p​@​b​o​t​_​u​s​e​r​n​a​m​e​.​ ​I​n​ ​g​r​o​u​p​s​ ​w​i​t​h​ ​s​e​v​e​r​a​l​ ​b​o​t​s​ ​T​e​l​e​g​r​a​m​ ​u​s​u​a​l​l​y​ ​a​d​d​s​ ​i​t​ ​a​u​t​o​m​a​t​i​c​a​l​l​y​ ​w​h​e​n​ ​y​o​u​ ​p​i​c​k​ ​t​h​e​ ​c​o​m​m​a​n​d​ ​f​r​o​m​ ​t​h​e​ ​m​e​n​u​.
 				 */
 				answer: string
 			}
@@ -573,9 +575,9 @@ Wait <strong>{hours}</strong> more {label}! 🙅‍♀️
 	alreadyLeave: (arg: { name: string }) => LocalizedString
 	/**
 	 * Princess achievements wiped clean! 💇‍♀️
-Changed your mind? An admin can bring them back with /restore within 7 days.
+Changed your mind? An admin can bring them back with /restore@{username} within 7 days.
 	 */
-	successReset: () => LocalizedString
+	successReset: (arg: { username: string }) => LocalizedString
 	/**
 	 * The game is paused ⏸️ Players and scores are kept.
 To resume, an admin runs /start.
@@ -597,9 +599,9 @@ To resume, an admin runs /start.
 	successResume: () => LocalizedString
 	/**
 	 * All data about this group has been deleted! 💇‍♀️
-If this was an accident, an admin can bring it back with /restore within 7 days.
+If this was an accident, an admin can bring it back with /restore@{username} within 7 days.
 	 */
-	successForget: () => LocalizedString
+	successForget: (arg: { username: string }) => LocalizedString
 	/**
 	 * Group data restored! 👸 Players and scores are back.
 	 */
@@ -911,7 +913,7 @@ Players: <strong>{players}</strong>
 				 * - /stop only pauses the game: players and scores stay, and /start resumes it.
 			- Before /reset and /forget the bot automatically keeps a backup for 7 days.
 			- An admin can run /restore to bring back the latest backup.
-			- In groups write /stop, /reset, /forget and /restore with the bot name, for example /stop@bot_name. The Telegram command menu adds it for you.
+			- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.
 				 */
 				answer: () => LocalizedString
 			}

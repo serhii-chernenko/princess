@@ -54,7 +54,10 @@ const createTelegramResult = (method: string, payload: unknown) => {
     return { message_id: 1, date: 0, chat: { id: 1, type: 'private' } };
 };
 
-const createTelegramFetchStub = (calls: TelegramApiCall[]) => {
+const createTelegramFetchStub = (
+    calls: TelegramApiCall[],
+    shouldFail: (method: string) => boolean
+) => {
     return async (url: URL, init: { body?: unknown }) => {
         const method = url.pathname.split('/').pop() ?? '';
         const payload =
@@ -62,6 +65,20 @@ const createTelegramFetchStub = (calls: TelegramApiCall[]) => {
         const result = createTelegramResult(method, payload);
 
         calls.push({ method, payload });
+
+        if (shouldFail(method)) {
+            const failure = {
+                ok: false,
+                error_code: 400,
+                description: 'Bad Request: simulated failure'
+            };
+
+            return {
+                status: 400,
+                statusText: 'Bad Request',
+                json: async () => failure
+            };
+        }
 
         return {
             status: 200,
@@ -85,7 +102,17 @@ const createStartUpdate = (updateId: number) => {
     };
 };
 
-const createGroupUpdate = (updateId: number, userId: number, text: string) => {
+interface GroupUpdateOptions {
+    entityLength?: number;
+    extraMessageFields?: object;
+}
+
+const createGroupUpdate = (
+    updateId: number,
+    userId: number,
+    text: string,
+    options: GroupUpdateOptions = {}
+) => {
     return {
         update_id: updateId,
         message: {
@@ -94,9 +121,28 @@ const createGroupUpdate = (updateId: number, userId: number, text: string) => {
             chat: { id: -1001, type: 'supergroup', title: 'Princesses' },
             from: { id: userId, is_bot: false, first_name: 'Ann' },
             text,
-            entities: [{ type: 'bot_command', offset: 0, length: text.length }]
+            entities: [
+                {
+                    type: 'bot_command',
+                    offset: 0,
+                    length: options.entityLength ?? text.length
+                }
+            ],
+            ...options.extraMessageFields
         }
     };
+};
+
+const forwardedReplyFields = {
+    forward_from: { id: 55, is_bot: false, first_name: 'Bob' },
+    forward_date: 1_800_000_000,
+    reply_to_message: {
+        message_id: 1,
+        date: 1_800_000_000,
+        chat: { id: -1001, type: 'supergroup', title: 'Princesses' },
+        from: { id: 55, is_bot: false, first_name: 'Bob' },
+        text: 'hello'
+    }
 };
 
 const createPrivateUpdate = (updateId: number, text: string) => {
@@ -118,6 +164,7 @@ describe('Telegram webhook through the Worker on D1', () => {
     let worker: WorkerModule['default'];
     let apiCalls: TelegramApiCall[];
     let restoreRuntimePatches: (() => void) | undefined;
+    let failingMethods: ReadonlySet<string> = new Set();
 
     const deliver = (update: object, secret = webhookSecret) => {
         return worker.fetch(
@@ -141,9 +188,13 @@ describe('Telegram webhook through the Worker on D1', () => {
         return apiCalls.filter(call => call.method === 'sendMessage').length;
     };
     let nextUpdateId = 9000;
-    const send = async (userId: number, command: string) => {
+    const send = async (
+        userId: number,
+        command: string,
+        options?: GroupUpdateOptions
+    ) => {
         const response = await deliver(
-            createGroupUpdate(nextUpdateId, userId, command)
+            createGroupUpdate(nextUpdateId, userId, command, options)
         );
 
         nextUpdateId += 1;
@@ -199,7 +250,9 @@ describe('Telegram webhook through the Worker on D1', () => {
             id: fetchModulePath,
             filename: fetchModulePath,
             loaded: true,
-            exports: createTelegramFetchStub(apiCalls)
+            exports: createTelegramFetchStub(apiCalls, method => {
+                return failingMethods.has(method);
+            })
         } as never;
         subtle.timingSafeEqual = (left: ArrayBuffer, right: ArrayBuffer) => {
             return timingSafeEqual(new Uint8Array(left), new Uint8Array(right));
@@ -225,6 +278,7 @@ describe('Telegram webhook through the Worker on D1', () => {
     beforeEach(async () => {
         await harness.clearApplicationTables();
         apiCalls.length = 0;
+        failingMethods = new Set();
     });
 
     it('admin forget then restore works without a channel row and non-admins are refused', async () => {
@@ -399,6 +453,98 @@ describe('Telegram webhook through the Worker on D1', () => {
             }
 
             assert.equal((await readChannel())?.stoppedAt, null);
+        });
+
+        it('refuses a guarded command followed by arguments when the entity covers only the command', async () => {
+            await seedGroup();
+
+            const cases = [
+                { text: '/stop foo', entityLength: 5, command: 'stop' },
+                { text: '/stop@', entityLength: 5, command: 'stop' },
+                { text: '/forget now', entityLength: 7, command: 'forget' }
+            ];
+
+            for (const { text, entityLength, command } of cases) {
+                apiCalls.length = 0;
+                await send(77, text, { entityLength });
+
+                assert.equal(countSendMessageCalls(), 1);
+                assert.equal(readLastReplyText(), await readHint(command));
+            }
+
+            assert.equal((await readChannel())?.stoppedAt, null);
+            assert.equal(await countRows(harness, 'channels'), 1);
+            assert.equal(await countRows(harness, 'channel_members'), 2);
+            assert.equal(await countRows(harness, 'channel_snapshots'), 0);
+        });
+
+        it('skips the guard for a forwarded reply and the handler ignores it without a hint', async () => {
+            await seedGroup();
+
+            for (const text of [
+                '/forget',
+                `/forget@${botUsername}`,
+                '/stop',
+                `/reset@${botUsername}`
+            ]) {
+                await send(77, text, {
+                    extraMessageFields: forwardedReplyFields
+                });
+            }
+
+            assert.equal(apiCalls.length, 0);
+            assert.equal((await readChannel())?.stoppedAt, null);
+            assert.equal(await countRows(harness, 'channels'), 1);
+            assert.equal(await countRows(harness, 'channel_members'), 2);
+            assert.equal(await countRows(harness, 'channel_snapshots'), 0);
+        });
+
+        it('swallows a failing hint send and still acknowledges the update', async () => {
+            await seedGroup();
+            failingMethods = new Set(['sendMessage']);
+            await send(77, '/forget');
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.equal((await readChannel())?.stoppedAt, null);
+            assert.equal(await countRows(harness, 'channels'), 1);
+            assert.equal(await countRows(harness, 'channel_members'), 2);
+            assert.equal(await countRows(harness, 'channel_snapshots'), 0);
+            assert.deepEqual(
+                await harness.env.DB.prepare(
+                    'SELECT status FROM telegram_updates ORDER BY update_id DESC LIMIT 1'
+                ).first(),
+                { status: 'processed' }
+            );
+        });
+
+        it('shows the real bot username in the /start note and the explicit form in reset and forget replies', async () => {
+            await send(77, '/start');
+
+            const LL = getMessages((await readChannel())?.language as never);
+
+            assert.ok(
+                readLastReplyText().includes(
+                    LL.groupCommandsNote({ username: botUsername })
+                )
+            );
+            assert.ok(readLastReplyText().includes(`/stop@${botUsername}`));
+
+            await send(77, '/join');
+            await send(77, `/reset@${botUsername}`);
+
+            assert.equal(
+                readLastReplyText(),
+                LL.successReset({ username: botUsername })
+            );
+            assert.ok(readLastReplyText().includes(`/restore@${botUsername}`));
+
+            await send(77, `/forget@${botUsername}`);
+
+            assert.equal(
+                readLastReplyText(),
+                LL.successForget({ username: botUsername })
+            );
+            assert.ok(readLastReplyText().includes(`/restore@${botUsername}`));
         });
 
         it('refuses the bare form for non-admins too without running the admin check', async () => {

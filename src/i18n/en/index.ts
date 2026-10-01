@@ -19,12 +19,12 @@ const en: BaseTranslation = {
     successBack: `Glad you're back, {name:string}! 🙋‍♀️`,
     successLeave: `You won't be today's princess anymore, {name:string}! 🙍‍♀️`,
     alreadyLeave: `You already opted out of the game, {name:string}! 🙅‍♀️`,
-    successReset: `Princess achievements wiped clean! 💇‍♀️\nChanged your mind? An admin can bring them back with /restore within 7 days.`,
+    successReset: `Princess achievements wiped clean! 💇‍♀️\nChanged your mind? An admin can bring them back with /restore@{username:string} within 7 days.`,
     successStop: `The game is paused ⏸️ Players and scores are kept.\nTo resume, an admin runs /start.`,
     alreadyStop: `The game is already paused ⏸️\nTo resume, an admin runs /start.`,
     gameStopped: `The game is paused ⏸️ The princess detector is resting.\nTo resume, an admin runs /start.`,
     successResume: `The game is back on! ▶️ The princess detector is working again.`,
-    successForget: `All data about this group has been deleted! 💇‍♀️\nIf this was an accident, an admin can bring it back with /restore within 7 days.`,
+    successForget: `All data about this group has been deleted! 💇‍♀️\nIf this was an accident, an admin can bring it back with /restore@{username:string} within 7 days.`,
     successRestore: `Group data restored! 👸 Players and scores are back.`,
     restoreNotFound: `There is nothing to restore. Backups are kept for 7 days. 🤷‍♀️`,
     snapshotTooLarge: `This group is too large to back up, so the command was cancelled. Please contact the bot author. 🙅‍♀️`,
@@ -105,7 +105,7 @@ const en: BaseTranslation = {
             },
             restore: {
                 question: 'What if the group data was deleted by accident?',
-                answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the bot name, for example /stop@bot_name. The Telegram command menu adds it for you.'
+                answer: '- /stop only pauses the game: players and scores stay, and /start resumes it.\n- Before /reset and /forget the bot automatically keeps a backup for 7 days.\n- An admin can run /restore to bring back the latest backup.\n- In groups write /stop, /reset, /forget and /restore with the @username of the bot, for example /stop@bot_username. In groups with several bots Telegram usually adds it automatically when you pick the command from the menu.'
             }
         }
     },
