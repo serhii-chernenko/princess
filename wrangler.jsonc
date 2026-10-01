@@ -86,6 +86,7 @@
             },
             "secrets": {
                 "required": [
+                    "ADMIN_ID",
                     "BOT_TOKEN",
                     "NEW_RELIC_LICENSE_KEY",
                     "TELEGRAM_WEBHOOK_SECRET",
