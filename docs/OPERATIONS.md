@@ -46,9 +46,9 @@ Examples with placeholder values are committed next to them (`*.example`).
 
 | File                   | Variable names                                                                                                             |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `.dev.vars`            | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                                         |
-| `.dev.vars.production` | `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `NEW_RELIC_LICENSE_KEY`, `WORKER_BASE_URL`                |
-| `.dev.vars.preview`    | `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`                                       |
+| `.dev.vars`            | `ADMIN_ID`, `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `WORKER_BASE_URL`                             |
+| `.dev.vars.production` | `ADMIN_ID`, `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`, `NEW_RELIC_LICENSE_KEY`, `WORKER_BASE_URL`    |
+| `.dev.vars.preview`    | `ADMIN_ID`, `BOT_TOKEN` (of the preview bot), `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`                           |
 | `env/.env.d1`          | `CLOUDFLARE_AUTH_MODE=wrangler-login`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_PREVIEW_DATABASE_ID` |
 
 Examples: `.dev.vars.production.example`, `.dev.vars.preview.example`, `env/.env.d1.example`.
@@ -194,6 +194,7 @@ pnpm worker:preview --name preview
 Set preview secrets (names only; feed values from your password manager or `.dev.vars.preview`):
 
 ```sh
+printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put ADMIN_ID --env production
 printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put BOT_TOKEN --env production
 printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_SECRET --env production
 printf %s "$VALUE" | pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env production
@@ -224,6 +225,12 @@ pnpm telegram:webhook:set:prod --drop-pending-updates=false
 ```
 
 Set requires an explicit `--drop-pending-updates=true|false`.
+
+`/propose` forwards the user's suggestion to the Telegram user whose numeric id is in the `ADMIN_ID` secret. That user must have started a chat with the bot once, or Telegram refuses the delivery. `ADMIN_ID` is a required production secret, so set it before the deploy:
+
+```sh
+printf %s "$ADMIN_ID" | pnpm exec wrangler secret put ADMIN_ID --env production
+```
 
 Health check (returns 200 only with the correct secret, 401 without):
 
