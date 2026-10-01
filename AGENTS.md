@@ -45,6 +45,8 @@ This rule is enforced in linting with the custom `arrow-body/explicit-return-for
 ## Deployment
 
 - Cloudflare Workers Builds deploys production (`princess`, from `main`) and creates Worker Previews for other branches.
+- Workers Builds applies D1 migrations before it deploys: `main` migrates `princess-production`, every other branch migrates `princess-preview` (`pnpm db:migrate:ci`, see `docs/OPERATIONS.md` section 4). Never run `db:migrate:prod` by hand before a merge.
+- Keep migrations additive; ship destructive schema changes in two releases.
 - GitHub Actions only validate and publish GitHub release notes (the `release` job in `.github/workflows/main.yml`); do not add a deploy job.
 
 ## Worker Previews

@@ -23,7 +23,8 @@ const commandOrder = [
     'restore',
     'stats',
     'releases',
-    'lang'
+    'lang',
+    'debug'
 ] as const;
 
 const congratsOrder = [
@@ -126,6 +127,10 @@ export const getHelpEntries = (
         {
             question: LL.help.items.restore.question(),
             answer: LL.help.items.restore.answer()
+        },
+        {
+            question: LL.help.items.debug.question(),
+            answer: LL.help.items.debug.answer()
         }
     ];
 };

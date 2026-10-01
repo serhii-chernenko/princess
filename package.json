@@ -22,6 +22,7 @@
         "db:import:preview": "tsx scripts/db/run-mongo-import.ts preview",
         "db:migrate:prod": "tsx scripts/db/migrate-production.ts",
         "db:migrate:preview": "tsx scripts/db/migrate-preview.ts",
+        "db:migrate:ci": "tsx scripts/db/migrate-ci.ts",
         "db:copy:production-to-preview": "tsx scripts/db/copy-production-to-preview.ts",
         "db:query:local": "wrangler d1 execute DB --local",
         "db:query:prod": "pnpm exec wrangler d1 execute DB --remote --env production",

@@ -28,6 +28,10 @@ export const getProductionMigrationArguments = (configPath: string) => {
     ];
 };
 
+export const redactSecret = (text: string, secret: string | undefined) => {
+    return secret ? text.split(secret).join('[redacted]') : text;
+};
+
 export const runRemoteMigration = async (target: D1DatabaseTarget) => {
     const projectRoot = getProjectRoot();
 
@@ -72,17 +76,30 @@ export const runRemoteMigration = async (target: D1DatabaseTarget) => {
                 databaseId,
                 target
             ) as unknown as NodeJS.ProcessEnv,
-            stdio: 'inherit'
+            encoding: 'utf8',
+            maxBuffer: 16 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'pipe']
         }
     );
+
+    const token = process.env.CLOUDFLARE_D1_TOKEN;
+    const stdout = redactSecret(result.stdout ?? '', token);
+    const stderr = redactSecret(result.stderr ?? '', token);
+
+    process.stdout.write(stdout);
+    process.stderr.write(stderr);
 
     if (result.error) {
         throw result.error;
     }
 
     if (result.status !== 0) {
+        const detail = `${stderr}${stdout}`.trim();
+
         throw new Error(
-            `${target} Drizzle migration exited with status ${result.status}`
+            detail
+                ? `${target} Drizzle migration exited with status ${result.status}\n${detail}`
+                : `${target} Drizzle migration exited with status ${result.status}`
         );
     }
 };

@@ -277,13 +277,14 @@ pnpm run worker:tail:prod
 
 Cloudflare Workers Builds is connected to `serhii-chernenko/princess`:
 
-- `princess` builds from `main` (build command `pnpm run i18n:generate`, deploy
+- `princess` builds from `main` (build command `pnpm run i18n:generate && pnpm run db:migrate:ci`, deploy
   command `pnpm exec wrangler deploy --env production && pnpm releases:broadcast:prod`)
 - Pull requests and non-production branches get automatic Worker Previews of `princess` when preview builds are enabled (see [Testing with Worker Previews](#testing-with-worker-previews))
 
 Runtime secrets (`BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBHOOK_PATH`) are
-set on the Worker (and in the Preview base config for previews), not in GitHub. Builds do not apply D1 migrations or change
-Telegram webhooks.
+set on the Worker (and in the Preview base config for previews), not in GitHub. The build command applies pending D1 migrations
+(`main` to `princess-production`, other branches to `princess-preview`, see
+[docs/OPERATIONS.md](./docs/OPERATIONS.md#4-database-migrations)); builds never change Telegram webhooks.
 
 ## GitHub Actions
 
@@ -421,8 +422,8 @@ Redeploy it with `pnpm worker:preview --name preview`.
 
 What a preview gets:
 
-- Its own D1 database, `princess-preview`, migrated with `pnpm run db:migrate:preview`
-  after setting `CLOUDFLARE_PREVIEW_DATABASE_ID` (or `CLOUDFLARE_AUTH_MODE=wrangler-login`).
+- Its own D1 database, `princess-preview`, migrated automatically by the branch build
+  (manual fallback: `pnpm run db:migrate:preview` after setting `CLOUDFLARE_PREVIEW_DATABASE_ID` or `CLOUDFLARE_AUTH_MODE=wrangler-login`).
   The tooling refuses an id or name shared with production.
 - Its own producer-only queue, `princess-preview-release-announcements`.
 - `BOT_ENVIRONMENT="preview"`, `ENABLE_RELEASE_BROADCAST="false"`,
@@ -448,7 +449,7 @@ Flow:
     pnpm exec wrangler preview base-config secret put TELEGRAM_WEBHOOK_PATH --env production
     ```
 
-3. Migrate the preview database:
+3. Migrate the preview database (the branch build already does this; run it by hand only as a fallback):
 
     ```sh
     pnpm run db:migrate:preview

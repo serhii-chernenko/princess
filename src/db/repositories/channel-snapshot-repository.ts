@@ -133,6 +133,30 @@ export const createChannelSnapshotRepository = (db: AppDb) => {
                 return snapshot ?? null;
             });
         },
+        findLatestActiveSnapshotSummary(telegramChatId: number, now: Date) {
+            return tryDb(async () => {
+                const [snapshot] = await db
+                    .select({
+                        reason: channelSnapshots.reason,
+                        createdAt: channelSnapshots.createdAt,
+                        expiresAt: channelSnapshots.expiresAt
+                    })
+                    .from(channelSnapshots)
+                    .where(
+                        and(
+                            eq(channelSnapshots.telegramChatId, telegramChatId),
+                            gt(channelSnapshots.expiresAt, now)
+                        )
+                    )
+                    .orderBy(
+                        desc(channelSnapshots.createdAt),
+                        desc(channelSnapshots.id)
+                    )
+                    .limit(1);
+
+                return snapshot ?? null;
+            });
+        },
         deleteExpiredSnapshots(now: Date) {
             return tryDb(async () => {
                 const deleted = await deleteExpiredStatement(now);
