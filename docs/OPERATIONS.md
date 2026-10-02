@@ -305,11 +305,11 @@ Group requirement: keep the bot an administrator in every group. Non-admin bots 
 
 ### The /debug command
 
-`/debug` is a read-only support command available to every user, without admin rights and without the `@botname` suffix. When a user reports a problem, ask them to run it in the affected group and paste the reply.
+`/debug` is a read-only support command for group admins, without the `@botname` suffix. Other group members get the standard access denied reply. When a user reports a problem, ask a group admin to run it in the affected group and paste the reply. In a private chat it needs no admin rights because it prints only the ids.
 
 It prints, all values in `<code>`:
 
-- Chat: Telegram chat id, chat type, the caller's Telegram user id, and the live `getChatMember` status of the caller and of the bot (`unavailable` if Telegram refuses).
+- Chat: Telegram chat id, chat type, the caller's Telegram user id, and the live `getChatMember` status of the caller and of the bot. The bot status shows `unavailable` if Telegram refuses; if the caller lookup fails, the command answers with the generic error, like other admin commands.
 - Bot: `BOT_ENVIRONMENT` and the current release version.
 - Game: whether the chat is registered, the `channels.id`, language, stored release version, `stopped_at`, `created_at`, `last_vote_at`, and the stored bot admin status with its `bot_admin_checked_at` (refreshed only daily, so compare it with the live status).
 - Players: total, active and auto-joined counts, plus the caller's own player id, state and score.

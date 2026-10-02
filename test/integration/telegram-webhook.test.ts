@@ -58,7 +58,7 @@ const createTelegramResult = (method: string, payload: unknown) => {
 
 const createTelegramFetchStub = (
     calls: TelegramApiCall[],
-    shouldFail: (method: string) => boolean
+    shouldFail: (method: string, payload: unknown) => boolean
 ) => {
     return async (url: URL, init: { body?: unknown }) => {
         const method = url.pathname.split('/').pop() ?? '';
@@ -68,7 +68,7 @@ const createTelegramFetchStub = (
 
         calls.push({ method, payload });
 
-        if (shouldFail(method)) {
+        if (shouldFail(method, payload)) {
             const failure = {
                 ok: false,
                 error_code: 400,
@@ -201,6 +201,7 @@ describe('Telegram webhook through the Worker on D1', () => {
     let apiCalls: TelegramApiCall[];
     let restoreRuntimePatches: (() => void) | undefined;
     let failingMethods: ReadonlySet<string> = new Set();
+    let failingChatMemberUserIds: ReadonlySet<number> = new Set();
 
     const deliver = (update: object, secret = webhookSecret) => {
         return worker.fetch(
@@ -310,8 +311,19 @@ describe('Telegram webhook through the Worker on D1', () => {
             id: fetchModulePath,
             filename: fetchModulePath,
             loaded: true,
-            exports: createTelegramFetchStub(apiCalls, method => {
-                return failingMethods.has(method);
+            exports: createTelegramFetchStub(apiCalls, (method, payload) => {
+                if (failingMethods.has(method)) {
+                    return true;
+                }
+
+                const userId = (payload as { user_id?: number } | null)
+                    ?.user_id;
+
+                return (
+                    method === 'getChatMember' &&
+                    userId !== undefined &&
+                    failingChatMemberUserIds.has(userId)
+                );
             })
         } as never;
         subtle.timingSafeEqual = (left: ArrayBuffer, right: ArrayBuffer) => {
@@ -339,6 +351,7 @@ describe('Telegram webhook through the Worker on D1', () => {
         await harness.clearApplicationTables();
         apiCalls.length = 0;
         failingMethods = new Set();
+        failingChatMemberUserIds = new Set();
     });
 
     it('admin forget then restore works without a channel row and non-admins are refused', async () => {
@@ -649,7 +662,7 @@ describe('Telegram webhook through the Worker on D1', () => {
     });
 
     describe('/debug', () => {
-        it('reports the registered group state to a non-admin without a bot name', async () => {
+        it('denies a group non-admin with the access denied message and no report', async () => {
             await send(77, '/start');
             await send(77, '/join');
             await send(nonAdminUserId, '/join');
@@ -658,11 +671,25 @@ describe('Telegram webhook through the Worker on D1', () => {
             await send(nonAdminUserId, '/debug');
 
             const LL = getMessages((await readChannel())?.language as never);
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.equal(readLastReplyText(), LL.accessDenied({ name: 'Ann' }));
+        });
+
+        it('reports the registered group state to an admin without a bot name', async () => {
+            await send(77, '/start');
+            await send(77, '/join');
+            await send(nonAdminUserId, '/join');
+            apiCalls.length = 0;
+
+            await send(77, '/debug');
+
+            const LL = getMessages((await readChannel())?.language as never);
             const reply = readLastReplyText();
 
             assert.equal(countSendMessageCalls(), 1);
             assert.ok(reply.includes('<code>-1001</code>'));
-            assert.ok(reply.includes(`${LL.debug.userId()}: <code>79</code>`));
+            assert.ok(reply.includes(`${LL.debug.userId()}: <code>77</code>`));
             assert.ok(
                 reply.includes(
                     `${LL.debug.registered()}: <code>${LL.debug.yes()}</code>`
@@ -672,7 +699,7 @@ describe('Telegram webhook through the Worker on D1', () => {
                 reply.includes(`${LL.debug.playersTotal()}: <code>2</code>`)
             );
             assert.ok(
-                reply.includes(`${LL.debug.yourStatus()}: <code>member</code>`)
+                reply.includes(`${LL.debug.yourStatus()}: <code>creator</code>`)
             );
             assert.ok(
                 reply.includes(`${LL.debug.botStatus()}: <code>creator</code>`)
@@ -722,19 +749,27 @@ describe('Telegram webhook through the Worker on D1', () => {
             );
         });
 
-        it('reports unavailable live statuses when getChatMember fails', async () => {
+        it('replies with the generic error when the caller getChatMember fails', async () => {
+            await send(77, '/start');
+            apiCalls.length = 0;
+            failingChatMemberUserIds = new Set([77]);
+            await send(77, '/debug');
+
+            assert.equal(countSendMessageCalls(), 1);
+            assert.equal(readLastReplyText(), getMessages().error());
+        });
+
+        it('reports an unavailable bot status when the bot getChatMember fails', async () => {
             await send(77, '/start');
             await send(77, '/join');
-            failingMethods = new Set(['getChatMember']);
+            failingChatMemberUserIds = new Set([botUserId]);
             await send(77, '/debug');
 
             const LL = getMessages();
             const reply = readLastReplyText();
 
             assert.ok(
-                reply.includes(
-                    `${LL.debug.yourStatus()}: <code>${LL.debug.unavailable()}</code>`
-                )
+                reply.includes(`${LL.debug.yourStatus()}: <code>creator</code>`)
             );
             assert.ok(
                 reply.includes(
