@@ -1170,13 +1170,26 @@ export const createPrincessBot = (
                 isPrivateChat
             });
             const LL = getMessages(locale);
-            const [info, userStatus, botStatus] = isPrivateChat
-                ? [null, null, null]
-                : await Promise.all([
+            const actorMember = isPrivateChat
+                ? null
+                : await game.getActorMember(
+                      actor.chatId,
+                      actor.user.id,
+                      createChatMemberReader(ctx),
+                      'command',
+                      locale
+                  );
+
+            if (actorMember) {
+                assertAdminActor(actorMember, locale);
+            }
+
+            const [info, botStatus] = actorMember
+                ? await Promise.all([
                       game.getChannelDebugInfo(actor.chatId, actor.user.id),
-                      readLiveMemberStatus(ctx, actor.user.id),
                       readLiveMemberStatus(ctx, ctx.botInfo.id)
-                  ]);
+                  ])
+                : [null, null];
 
             await ctx.replyWithHTML(
                 renderDebugReport(
@@ -1186,9 +1199,9 @@ export const createPrincessBot = (
                         userId: actor.user.id,
                         environment: env.BOT_ENVIRONMENT,
                         currentReleaseVersion: getReleaseVersion(),
-                        liveStatuses: isPrivateChat
-                            ? null
-                            : { user: userStatus, bot: botStatus },
+                        liveStatuses: actorMember
+                            ? { user: actorMember.status, bot: botStatus }
+                            : null,
                         info
                     },
                     LL

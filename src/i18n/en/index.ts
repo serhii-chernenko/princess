@@ -155,7 +155,7 @@ const en: BaseTranslation = {
             debug: {
                 question:
                     'Something went wrong. What should I send to the bot author?',
-                answer: 'Run /debug in the group where the problem happens and send the reply to the bot author. It shows technical details only: chat and user IDs, bot status, game state, player counts, the last winner and the backup. It never shows messages or the list of other players. You can also run /debug in a private chat with the bot to find out your own user ID.'
+                answer: 'A group admin should run /debug in the group where the problem happens and send the reply to the bot author. It shows technical details only: chat and user IDs, bot status, game state, player counts, the last winner and the backup. It never shows messages or the list of other players. You can also run /debug in a private chat with the bot to find out your own user ID.'
             }
         }
     },
