@@ -366,7 +366,19 @@ pnpm exec wrangler queues resume-delivery princess-release-announcements
 
 The kill switch var `ENABLE_RELEASE_BROADCAST` (in `wrangler.jsonc`, `"true"` on production) needs a redeploy to take effect.
 
-To publish a release on GitHub without the Telegram announcement, set `ENABLE_RELEASE_BROADCAST` to `"false"` for production in the same PR that cuts the release. Groups keep their stored `release_version`, so the next deploy with the switch back on announces only the version that is current at that moment. Set it back to `"true"` in the PR of the next release that should be announced. 5.2.0 was published this way.
+### Silent releases
+
+To publish a release on GitHub without the Telegram announcement, add a `<!-- silent -->` line inside that version's section of `CHANGELOG.md`, for example right under the heading, then run `pnpm run releases:sync`:
+
+```md
+## 5.3.0 - 01.11.2026
+
+<!-- silent -->
+
+### Patch Changes
+```
+
+The marker becomes `"silent": true` in `releases.generated.json`. After the deploy the broadcast logs `release_broadcast_skipped` with reason `silent` and enqueues nothing; the GitHub Release and `/releases` are unchanged. Groups keep their stored `release_version`, so the next release without the marker announces only that release. Do not use `ENABLE_RELEASE_BROADCAST` for this: it is the kill switch.
 
 ### GitHub releases
 

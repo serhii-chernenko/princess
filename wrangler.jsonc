@@ -75,7 +75,7 @@
             "vars": {
                 "BOT_ENVIRONMENT": "production",
                 "ENABLE_SCHEDULED_CLEANUP": "false",
-                "ENABLE_RELEASE_BROADCAST": "false",
+                "ENABLE_RELEASE_BROADCAST": "true",
                 "AUTHOR_TWITTER_LINK": "https://x.com/serhiichernenko",
                 "WISHLIST_TG_URL": "https://t.me/wishlist_ua_bot",
                 "CHATGPT_GITHUB_REPO_URL": "https://github.com/serhii-chernenko/chatgpt-telegram-bot",

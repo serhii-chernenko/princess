@@ -16,6 +16,7 @@ export type ReleaseItem = {
 export type ReleaseEntry = {
     version: string;
     date: string;
+    silent?: true;
     groups: Partial<Record<ReleaseGroup, ReleaseItem[]>>;
 };
 
@@ -29,6 +30,7 @@ const releaseHeadingPattern = /^## (\d+\.\d+\.\d+)(?: - (.+))?$/;
 const taggedItemPattern =
     /^\s*-\s+(?:[0-9a-f]{7,40}:\s+(?:-\s+)?)?\[(added|updated|fixed|removed|notes)\] (.+)$/;
 const englishLinePattern = /^\s*-\s+en: (.+)$/;
+const silentMarkerPattern = /^<!--\s*silent\s*-->$/;
 
 export const parseChangelog = (changelog: string) => {
     const releases: ReleaseEntry[] = [];
@@ -76,6 +78,7 @@ export const parseChangelog = (changelog: string) => {
         releases.push({
             version: release.version,
             date: release.date,
+            ...(release.silent ? { silent: true as const } : {}),
             groups: orderedGroups
         });
         currentRelease = null;
@@ -102,6 +105,12 @@ export const parseChangelog = (changelog: string) => {
         }
 
         if (!currentRelease) {
+            continue;
+        }
+
+        if (silentMarkerPattern.test(line.trim())) {
+            flushItem();
+            currentRelease.silent = true;
             continue;
         }
 

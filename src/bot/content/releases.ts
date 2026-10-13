@@ -17,6 +17,7 @@ export type ReleaseItem = {
 export type ReleaseRecord = {
     version: string;
     date: string;
+    silent?: boolean;
     groups: Partial<Record<ReleaseGroup, ReleaseItem[]>>;
 };
 
@@ -25,6 +26,7 @@ type RawReleaseItem = string | ReleaseItem;
 type RawReleaseRecord = {
     version: string;
     date: string;
+    silent?: boolean;
     groups: Partial<Record<ReleaseGroup, RawReleaseItem[]>>;
 };
 
@@ -52,7 +54,12 @@ export const normalizeReleaseRecords = (
             }
         }
 
-        return { version: record.version, date: record.date, groups };
+        return {
+            version: record.version,
+            date: record.date,
+            ...(record.silent ? { silent: true } : {}),
+            groups
+        };
     });
 };
 
@@ -70,6 +77,12 @@ export const getLatestRelease = () => {
 
 export const getLatestReleaseVersion = () => {
     return releases[0]?.version ?? '0.0.0';
+};
+
+export const isSilentRelease = (version: string) => {
+    return releases.some(release => {
+        return release.version === version && release.silent === true;
+    });
 };
 
 export const getReleaseItemText = (item: ReleaseItem, locale: AppLocale) => {

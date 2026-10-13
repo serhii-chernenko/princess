@@ -1,6 +1,9 @@
 import { Effect } from 'effect';
 
-import { getLatestReleaseVersion } from '../../bot/content/releases';
+import {
+    getLatestReleaseVersion,
+    isSilentRelease
+} from '../../bot/content/releases';
 import { isSemverLower } from '../../bot/utils/semver';
 import { createDb } from '../../db/client';
 import { createRepositories } from '../../db/repositories';
@@ -17,6 +20,7 @@ export interface ReleaseBroadcastCandidate {
 
 export interface ReleaseBroadcastDependencies {
     getCurrentReleaseVersion: () => string;
+    isSilentRelease: (releaseVersion: string) => boolean;
     listCandidates: (
         releaseVersion: string
     ) => Promise<ReleaseBroadcastCandidate[]>;
@@ -49,6 +53,7 @@ export interface ReleaseBroadcastSummary {
     candidates: number;
     inserted: number;
     enqueued: number;
+    silent?: true;
 }
 
 const chunk = <T>(items: readonly T[], size: number) => {
@@ -72,6 +77,7 @@ export const createReleaseBroadcastDependencies = (
 
     return {
         getCurrentReleaseVersion: getLatestReleaseVersion,
+        isSilentRelease,
         listCandidates(releaseVersion) {
             return Effect.runPromise(
                 repository.listChannelsWithoutAnnouncement(releaseVersion)
@@ -133,6 +139,23 @@ export const runReleaseBroadcast = async (
     }
 
     const releaseVersion = dependencies.getCurrentReleaseVersion();
+
+    if (dependencies.isSilentRelease(releaseVersion)) {
+        dependencies.log({
+            ...baseLog,
+            event: 'release_broadcast_skipped',
+            reason: 'silent',
+            releaseVersion
+        });
+        return {
+            releaseVersion,
+            candidates: 0,
+            inserted: 0,
+            enqueued: 0,
+            silent: true
+        };
+    }
+
     const staleCutoff = new Date(
         dependencies.now().getTime() - STALE_ANNOUNCEMENT_AGE_MILLISECONDS
     );
