@@ -99,6 +99,64 @@ test('changelog parser reads bilingual items', () => {
     ]);
 });
 
+test('changelog parser marks a release with the silent marker', () => {
+    const [silent, announced] = parseChangelog(`## 6.1.0 - 02.01.2027
+
+<!-- silent -->
+
+### Patch Changes
+
+- [fixed] Тихо
+    - en: Quietly
+
+## 6.0.0 - 01.01.2027
+
+### Patch Changes
+
+- [fixed] Голосно
+    - en: Loudly
+`);
+
+    assert.equal(silent?.silent, true);
+    assert.deepEqual(silent?.groups.fixed, [{ uk: 'Тихо', en: 'Quietly' }]);
+    assert.equal('silent' in (announced ?? {}), false);
+    assert.equal(renderGithubReleaseNotes(silent!).includes('silent'), false);
+});
+
+test('changelog parser keeps an item whole when the silent marker sits inside it', () => {
+    const [release] = parseChangelog(`## 6.1.0 - 02.01.2027
+
+### Patch Changes
+
+- [fixed] Перший рядок
+  другий рядок
+<!-- SILENT -->
+  третій рядок
+    - en: First line
+`);
+
+    assert.equal(release?.silent, true);
+    assert.deepEqual(release?.groups.fixed, [
+        {
+            uk: 'Перший рядок\nдругий рядок\nтретій рядок',
+            en: 'First line'
+        }
+    ]);
+});
+
+test('changelog parser rejects an unknown marker instead of announcing the release', () => {
+    assert.throws(() => {
+        return parseChangelog(`## 6.1.0 - 02.01.2027
+
+<!-- silent: yes -->
+
+### Patch Changes
+
+- [fixed] Тихо
+`);
+    }, /Unknown marker/);
+});
+
 test('changelog parser keeps legacy Ukrainian-only history without an English key', () => {
     const legacy = parseChangelog(changelog)[1];
 

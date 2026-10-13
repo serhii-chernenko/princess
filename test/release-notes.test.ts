@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
     getLatestRelease,
+    getLatestReleaseVersion,
     getReleaseItemText,
+    isSilentRelease,
     normalizeReleaseRecords,
     renderReleaseAnnouncement,
     renderReleaseNotes,
@@ -23,14 +25,34 @@ const bilingualRelease: ReleaseRecord = {
     }
 };
 
-test('the newest release is 5.1.0 with Ukrainian and English items', () => {
+test('the newest release is 5.2.0 with Ukrainian and English items', () => {
     const latest = getLatestRelease();
     const items = Object.values(latest?.groups ?? {}).flat();
 
-    assert.equal(latest?.version, '5.1.0');
+    assert.equal(latest?.version, '5.2.0');
     assert.ok(items.length > 0);
     assert.ok(items.every(item => item.uk.length > 0));
     assert.ok(items.every(item => (item.en ?? '').length > 0));
+});
+
+test('release records keep the silent flag only where it is set', () => {
+    const [silent, announced] = normalizeReleaseRecords([
+        {
+            version: '6.1.0',
+            date: '02.01.2027',
+            silent: true,
+            groups: { fixed: [{ uk: 'Тихо' }] }
+        },
+        {
+            version: '6.0.0',
+            date: '01.01.2027',
+            groups: { fixed: [{ uk: 'Голосно' }] }
+        }
+    ]);
+
+    assert.equal(silent?.silent, true);
+    assert.equal('silent' in (announced ?? {}), false);
+    assert.equal(isSilentRelease(getLatestReleaseVersion()), false);
 });
 
 test('release items fall back to Ukrainian when English is missing', () => {
@@ -95,15 +117,22 @@ test('release notes and announcements escape HTML in item text', () => {
 });
 
 test('/releases renders English text for en channels', () => {
-    assert.match(renderReleaseNotes(2, 'en'), /New \/lang command/);
-    assert.match(renderReleaseNotes(2, 'ua'), /Команда \/lang/);
+    assert.match(renderReleaseNotes(3, 'en'), /New \/lang command/);
+    assert.match(renderReleaseNotes(3, 'ua'), /Команда \/lang/);
 });
 
-test('the newest release describes /forget and /restore in both languages', () => {
-    assert.match(renderReleaseNotes(1, 'en'), /New admin command \/forget/);
-    assert.match(renderReleaseNotes(1, 'ua'), /Нова команда \/forget/);
-    assert.match(renderReleaseNotes(1, 'en'), /\/restore/);
-    assert.match(renderReleaseNotes(1, 'ua'), /\/restore/);
+test('the newest release describes /debug and /cancel in both languages', () => {
+    assert.match(renderReleaseNotes(1, 'en'), /New \/debug command/);
+    assert.match(renderReleaseNotes(1, 'ua'), /Нова команда \/debug/);
+    assert.match(renderReleaseNotes(1, 'en'), /\/cancel/);
+    assert.match(renderReleaseNotes(1, 'ua'), /\/cancel/);
+});
+
+test('the 5.1.0 release describes /forget and /restore in both languages', () => {
+    assert.match(renderReleaseNotes(2, 'en'), /New admin command \/forget/);
+    assert.match(renderReleaseNotes(2, 'ua'), /Нова команда \/forget/);
+    assert.match(renderReleaseNotes(2, 'en'), /\/restore/);
+    assert.match(renderReleaseNotes(2, 'ua'), /\/restore/);
 });
 
 test('oversized announcements are truncated below the Telegram limit', () => {

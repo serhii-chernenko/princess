@@ -30,6 +30,7 @@ import {
     randomInt
 } from '../utils/telegram';
 import { escapeHtml } from '../utils/strings';
+import { proposalTtlMinutes } from '../../db/repositories/proposal-request-repository';
 import type { WorkerBindings } from '../../worker/env';
 
 const GROUP_CHAT_TYPES: ReadonlySet<string> = new Set(['group', 'supergroup']);
@@ -54,8 +55,16 @@ export interface PrincessBotTelemetry {
             | 'stop'
             | 'resume'
             | 'forget'
-            | 'restore';
-        result: 'joined' | 'reactivated' | 'already-active' | 'success';
+            | 'restore'
+            | 'propose';
+        result:
+            | 'joined'
+            | 'reactivated'
+            | 'already-active'
+            | 'success'
+            | 'forwarded'
+            | 'rejected'
+            | 'cancelled';
     }): void;
     voteCompleted(input: {
         mode: 'auto' | 'manual' | 'sudo';
@@ -237,34 +246,49 @@ const shouldSkipMessage = (ctx: Context) => {
     return isForwardedReply(messagePayload);
 };
 
-const isProposalPromptReply = (ctx: Context) => {
+const getRepliedBotMessageId = (ctx: Context) => {
     const messagePayload = ctx.message;
 
     if (
         !messagePayload ||
         !('text' in messagePayload) ||
-        !messagePayload.reply_to_message
-    ) {
-        return false;
-    }
-
-    const prompt = messagePayload.reply_to_message;
-
-    if (
-        prompt.from?.id !== ctx.botInfo.id ||
-        !('text' in prompt) ||
+        !messagePayload.reply_to_message ||
         isForwardedReply(messagePayload)
     ) {
-        return false;
+        return null;
     }
 
-    return getAvailableLanguageCodes().some(code => {
-        const LL = getMessages(code);
+    const repliedMessage = messagePayload.reply_to_message;
 
-        return [LL.proposalEnter(), LL.proposalWrong()].some(text => {
-            return text === prompt.text;
-        });
-    });
+    return repliedMessage.from?.id === ctx.botInfo.id
+        ? repliedMessage.message_id
+        : null;
+};
+
+const createProposalReplyMarkup = (LL: ReturnType<typeof getMessages>) => {
+    return {
+        force_reply: true as const,
+        selective: true,
+        input_field_placeholder: LL.proposalPlaceholder()
+    };
+};
+
+const closeProposalPrompt = async (
+    ctx: Context,
+    chatId: number,
+    promptMessageId: number,
+    text: string
+) => {
+    try {
+        await ctx.telegram.editMessageText(
+            chatId,
+            promptMessageId,
+            undefined,
+            text
+        );
+    } catch {
+        return;
+    }
 };
 
 const getUnaddressedGroupCommand = (ctx: Context) => {
@@ -585,9 +609,86 @@ export const createPrincessBot = (
                 isPrivateChat: isPrivateChat(ctx)
             });
 
-            await ctx.sendMessage(getMessages(locale).proposalEnter(), {
-                reply_markup: { force_reply: true, selective: true },
+            const previousRequest = await game.findPendingProposalRequest(
+                actor.chatId,
+                actor.user.id
+            );
+            const LL = getMessages(locale);
+            const prompt = await ctx.sendMessage(
+                LL.proposalEnter({
+                    name: formatUserName(actor.user),
+                    minutes: proposalTtlMinutes
+                }),
+                {
+                    reply_markup: createProposalReplyMarkup(LL),
+                    reply_parameters: { message_id: ctx.message.message_id }
+                }
+            );
+
+            if (previousRequest) {
+                await closeProposalPrompt(
+                    ctx,
+                    actor.chatId,
+                    previousRequest.promptMessageId,
+                    LL.proposalCancelled()
+                );
+            }
+
+            await game.saveProposalRequest(
+                actor.chatId,
+                actor.user.id,
+                prompt.message_id
+            );
+        } catch (error) {
+            await handleCommandError(ctx, error, locale, telemetry);
+        }
+    });
+
+    bot.command('cancel', async ctx => {
+        let locale: AppLocale = getDefaultAppLocale();
+
+        try {
+            if (isForwardedReply(ctx.message)) {
+                return;
+            }
+
+            const actor = getCommandActor(ctx);
+            const request = await game.findPendingProposalRequest(
+                actor.chatId,
+                actor.user.id
+            );
+
+            if (!request && !isPrivateChat(ctx)) {
+                return;
+            }
+
+            locale = await game.getLocale({
+                chatId: actor.chatId,
+                userId: actor.user.id,
+                isPrivateChat: isPrivateChat(ctx)
+            });
+            const LL = getMessages(locale);
+
+            if (!request) {
+                await ctx.sendMessage(LL.proposalNothingToCancel(), {
+                    reply_parameters: { message_id: ctx.message.message_id }
+                });
+                return;
+            }
+
+            await game.clearProposalRequest(actor.chatId, actor.user.id);
+            await closeProposalPrompt(
+                ctx,
+                actor.chatId,
+                request.promptMessageId,
+                LL.proposalCancelled()
+            );
+            await ctx.sendMessage(LL.proposalCancelled(), {
                 reply_parameters: { message_id: ctx.message.message_id }
+            });
+            telemetry?.botActionCompleted({
+                action: 'propose',
+                result: 'cancelled'
             });
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);
@@ -595,7 +696,9 @@ export const createPrincessBot = (
     });
 
     bot.on(message('text'), async (ctx, next) => {
-        if (!isProposalPromptReply(ctx)) {
+        const promptMessageId = getRepliedBotMessageId(ctx);
+
+        if (promptMessageId === null) {
             return next();
         }
 
@@ -603,6 +706,15 @@ export const createPrincessBot = (
 
         try {
             const actor = getCommandActor(ctx);
+            const request = await game.findPendingProposalRequest(
+                actor.chatId,
+                actor.user.id
+            );
+
+            if (!request || request.promptMessageId !== promptMessageId) {
+                return next();
+            }
+
             locale = await game.getLocale({
                 chatId: actor.chatId,
                 userId: actor.user.id,
@@ -611,15 +723,35 @@ export const createPrincessBot = (
             const LL = getMessages(locale);
 
             if (ctx.message.text.includes('/')) {
-                await ctx.sendMessage(LL.proposalWrong(), {
-                    reply_markup: { force_reply: true, selective: true },
+                const retryPrompt = await ctx.sendMessage(LL.proposalWrong(), {
+                    reply_markup: createProposalReplyMarkup(LL),
                     reply_parameters: { message_id: ctx.message.message_id }
+                });
+
+                await game.replaceProposalPrompt(
+                    actor.chatId,
+                    actor.user.id,
+                    retryPrompt.message_id
+                );
+                telemetry?.botActionCompleted({
+                    action: 'propose',
+                    result: 'rejected'
                 });
                 return;
             }
 
             if (!env.ADMIN_ID) {
                 throw new Error('ADMIN_ID is required to forward proposals');
+            }
+
+            const claimedRequest = await game.claimProposalRequest(
+                actor.chatId,
+                actor.user.id,
+                promptMessageId
+            );
+
+            if (!claimedRequest) {
+                return;
             }
 
             const authorLine = `\n${getMessages(getDefaultAppLocale()).from({
@@ -635,6 +767,16 @@ export const createPrincessBot = (
             );
             await ctx.sendMessage(LL.proposalLeave(), {
                 reply_parameters: { message_id: ctx.message.message_id }
+            });
+            await closeProposalPrompt(
+                ctx,
+                actor.chatId,
+                claimedRequest.promptMessageId,
+                LL.proposalClosed()
+            );
+            telemetry?.botActionCompleted({
+                action: 'propose',
+                result: 'forwarded'
             });
         } catch (error) {
             await handleCommandError(ctx, error, locale, telemetry);

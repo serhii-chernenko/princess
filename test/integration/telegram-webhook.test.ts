@@ -31,6 +31,7 @@ const nodeFetchModulePath = () => {
 
 const nonAdminUserId = 79;
 const proposalAdminId = '4242';
+const proposalPromptParams = { name: 'Ann', minutes: 15 };
 const botUserId = 123456;
 const botUsername = 'princess_test_bot';
 
@@ -167,10 +168,45 @@ const createPrivateUpdate = (updateId: number, text: string) => {
     };
 };
 
+interface RepliedTo {
+    fromId: number;
+    text: string;
+    messageId?: number;
+}
+
+const createGroupReplyUpdate = (
+    updateId: number,
+    userId: number,
+    text: string,
+    repliedTo: RepliedTo
+) => {
+    return {
+        update_id: updateId,
+        message: {
+            message_id: updateId,
+            date: 1_800_000_000,
+            chat: { id: -1001, type: 'supergroup', title: 'Princesses' },
+            from: { id: userId, is_bot: false, first_name: 'Ann' },
+            text,
+            reply_to_message: {
+                message_id: repliedTo.messageId ?? 1,
+                date: 1_800_000_000,
+                chat: { id: -1001, type: 'supergroup', title: 'Princesses' },
+                from: {
+                    id: repliedTo.fromId,
+                    is_bot: repliedTo.fromId === botUserId,
+                    first_name: 'Princess'
+                },
+                text: repliedTo.text
+            }
+        }
+    };
+};
+
 const createPrivateReplyUpdate = (
     updateId: number,
     text: string,
-    repliedTo: { fromId: number; text: string }
+    repliedTo: RepliedTo
 ) => {
     return {
         update_id: updateId,
@@ -181,7 +217,7 @@ const createPrivateReplyUpdate = (
             from: { id: 77, is_bot: false, first_name: 'Ann' },
             text,
             reply_to_message: {
-                message_id: 1,
+                message_id: repliedTo.messageId ?? 1,
                 date: 1_800_000_000,
                 chat: { id: 77, type: 'private', first_name: 'Ann' },
                 from: {
@@ -248,10 +284,20 @@ describe('Telegram webhook through the Worker on D1', () => {
 
         assert.equal(response.status, 200);
     };
-    const sendPrivateReply = async (
+    const sendGroupReply = async (
+        userId: number,
         text: string,
-        repliedTo: { fromId: number; text: string }
+        repliedTo: RepliedTo
     ) => {
+        const response = await deliver(
+            createGroupReplyUpdate(nextUpdateId, userId, text, repliedTo)
+        );
+
+        nextUpdateId += 1;
+
+        assert.equal(response.status, 200);
+    };
+    const sendPrivateReply = async (text: string, repliedTo: RepliedTo) => {
         const response = await deliver(
             createPrivateReplyUpdate(nextUpdateId, text, repliedTo)
         );
@@ -267,9 +313,36 @@ describe('Telegram webhook through the Worker on D1', () => {
                 return call.payload as {
                     chat_id: number | string;
                     text: string;
-                    reply_markup?: { force_reply?: boolean };
+                    reply_markup?: {
+                        force_reply?: boolean;
+                        selective?: boolean;
+                        input_field_placeholder?: string;
+                    };
                 };
             });
+    };
+    const readEditedMessages = () => {
+        return apiCalls
+            .filter(call => call.method === 'editMessageText')
+            .map(call => {
+                return call.payload as {
+                    chat_id: number | string;
+                    message_id: number;
+                    text: string;
+                };
+            });
+    };
+    const wasForwardedToAdmin = () => {
+        return readSentMessages().some(message => {
+            return String(message.chat_id) === proposalAdminId;
+        });
+    };
+    const backdateProposalRequests = (milliseconds: number) => {
+        return harness.env.DB.prepare(
+            'UPDATE proposal_requests SET created_at = created_at - ?'
+        )
+            .bind(milliseconds)
+            .run();
     };
     const readLastReplyText = () => {
         const reply = apiCalls
@@ -861,8 +934,30 @@ describe('Telegram webhook through the Worker on D1', () => {
 
         const [prompt] = readSentMessages();
 
-        assert.equal(prompt?.text, LL.proposalEnter());
+        assert.equal(prompt?.text, LL.proposalEnter(proposalPromptParams));
         assert.equal(prompt?.reply_markup?.force_reply, true);
+        assert.equal(prompt?.reply_markup?.selective, true);
+        assert.equal(
+            prompt?.reply_markup?.input_field_placeholder,
+            LL.proposalPlaceholder()
+        );
+    });
+
+    it('ignores a message from the requester that is not a reply to the prompt', async () => {
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+
+        const update = createPrivateUpdate(nextUpdateId, 'Вітаю, королево!');
+        const response = await deliver({
+            ...update,
+            message: { ...update.message, entities: [] }
+        });
+
+        nextUpdateId += 1;
+
+        assert.equal(response.status, 200);
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
     });
 
     it('forwards a reply to the proposal prompt to the admin and confirms to the author', async () => {
@@ -872,7 +967,7 @@ describe('Telegram webhook through the Worker on D1', () => {
         apiCalls.length = 0;
         await sendPrivateReply('Ваше високосте, Ваша Величносте!', {
             fromId: botUserId,
-            text: LL.proposalEnter()
+            text: LL.proposalEnter(proposalPromptParams)
         });
 
         const [forwarded, confirmation] = readSentMessages();
@@ -890,9 +985,11 @@ describe('Telegram webhook through the Worker on D1', () => {
     it('keeps a forwarded proposal within the Telegram message limit', async () => {
         const LL = getMessages('ua');
 
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
         await sendPrivateReply('a'.repeat(4096), {
             fromId: botUserId,
-            text: LL.proposalEnter()
+            text: LL.proposalEnter(proposalPromptParams)
         });
 
         const [forwarded] = readSentMessages();
@@ -904,9 +1001,11 @@ describe('Telegram webhook through the Worker on D1', () => {
     it('forwards a proposal that contains a word the sticker listener reacts to', async () => {
         const LL = getMessages('ua');
 
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
         await sendPrivateReply('принцеса дня', {
             fromId: botUserId,
-            text: LL.proposalEnter()
+            text: LL.proposalEnter(proposalPromptParams)
         });
 
         assert.equal(String(readSentMessages()[0]?.chat_id), proposalAdminId);
@@ -921,9 +1020,11 @@ describe('Telegram webhook through the Worker on D1', () => {
     it('rejects a proposal that contains a command and lets the author try again', async () => {
         const LL = getMessages('ua');
 
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
         await sendPrivateReply('/start now', {
             fromId: botUserId,
-            text: LL.proposalEnter()
+            text: LL.proposalEnter(proposalPromptParams)
         });
 
         const [rejection] = readSentMessages();
@@ -947,7 +1048,7 @@ describe('Telegram webhook through the Worker on D1', () => {
 
         await sendPrivateReply('some text', {
             fromId: 55,
-            text: LL.proposalEnter()
+            text: LL.proposalEnter(proposalPromptParams)
         });
         await sendPrivateReply('some text', {
             fromId: botUserId,
@@ -960,6 +1061,299 @@ describe('Telegram webhook through the Worker on D1', () => {
             }),
             false
         );
+    });
+
+    it('stores the prompt of a pending proposal for the requester', async () => {
+        await send(77, '/propose');
+
+        const row = await harness.env.DB.prepare(
+            'SELECT chat_id AS chatId, user_id AS userId, prompt_message_id AS promptMessageId FROM proposal_requests'
+        ).first<{ chatId: number; userId: number; promptMessageId: number }>();
+
+        assert.deepEqual(row, {
+            chatId: -1001,
+            userId: 77,
+            promptMessageId: 1
+        });
+    });
+
+    it('does not forward a reply from another group member to the requester prompt', async () => {
+        const LL = getMessages('ua');
+
+        await send(77, '/propose');
+        apiCalls.length = 0;
+        await sendGroupReply(78, 'Привіт, королево!', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(countSendMessageCalls(), 0);
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
+        assert.equal(readEditedMessages().length, 0);
+    });
+
+    it('forwards a group reply from the requester and closes the prompt', async () => {
+        const LL = getMessages('ua');
+
+        await send(77, '/propose');
+        apiCalls.length = 0;
+        await sendGroupReply(77, 'Привіт, королево!', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), true);
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+        assert.deepEqual(readEditedMessages(), [
+            {
+                chat_id: -1001,
+                message_id: 1,
+                text: LL.proposalClosed()
+            }
+        ]);
+    });
+
+    it('does not forward a second reply after a successful proposal', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        await sendPrivateReply('Перша версія', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+        apiCalls.length = 0;
+        await sendPrivateReply('Друга версія', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(readSentMessages().length, 0);
+    });
+
+    it('does not forward a reply to a prompt that is not the latest one', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+        await sendPrivateReply('Стара відповідь', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams),
+            messageId: 5
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
+    });
+
+    it('does not forward a reply to an expired proposal prompt and drops the request', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        await backdateProposalRequests(15 * 60 * 1000 + 1000);
+        apiCalls.length = 0;
+        await sendPrivateReply('Запізніла відповідь', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+    });
+
+    it('keeps the original expiry when a rejected proposal gets a retry prompt', async () => {
+        const LL = getMessages('ua');
+        const ageMilliseconds = 10 * 60 * 1000;
+
+        await sendPrivate('/propose');
+        await backdateProposalRequests(ageMilliseconds);
+        await sendPrivateReply('/start now', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        const row = await harness.env.DB.prepare(
+            'SELECT created_at AS createdAt FROM proposal_requests'
+        ).first<{ createdAt: number }>();
+
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
+        assert.ok(Date.now() - (row?.createdAt ?? 0) >= ageMilliseconds);
+
+        await backdateProposalRequests(6 * 60 * 1000);
+        apiCalls.length = 0;
+        await sendPrivateReply('Вітаю, королево!', {
+            fromId: botUserId,
+            text: LL.proposalWrong()
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+    });
+
+    it('treats a /cancel reply to the prompt as a cancellation', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+
+        const update = createPrivateReplyUpdate(nextUpdateId, '/cancel', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        nextUpdateId += 1;
+
+        const response = await deliver({
+            ...update,
+            message: {
+                ...update.message,
+                entities: [{ type: 'bot_command', offset: 0, length: 7 }]
+            }
+        });
+
+        assert.equal(response.status, 200);
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+        assert.equal(readSentMessages().length, 1);
+        assert.equal(readLastReplyText(), LL.proposalCancelled());
+        assert.equal(
+            readSentMessages().some(message => {
+                return message.text === LL.proposalWrong();
+            }),
+            false
+        );
+        assert.equal(wasForwardedToAdmin(), false);
+    });
+
+    it('forwards two back-to-back replies to the same prompt exactly once', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+
+        const firstUpdateId = nextUpdateId;
+        const secondUpdateId = nextUpdateId + 1;
+
+        nextUpdateId += 2;
+
+        const responses = await Promise.all(
+            [firstUpdateId, secondUpdateId].map(updateId => {
+                return deliver(
+                    createPrivateReplyUpdate(updateId, `Версія ${updateId}`, {
+                        fromId: botUserId,
+                        text: LL.proposalEnter(proposalPromptParams)
+                    })
+                );
+            })
+        );
+
+        assert.deepEqual(
+            responses.map(response => {
+                return response.status;
+            }),
+            [200, 200]
+        );
+        assert.equal(
+            readSentMessages().filter(message => {
+                return String(message.chat_id) === proposalAdminId;
+            }).length,
+            1
+        );
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+    });
+
+    it('closes the old prompt when /propose is sent again', async () => {
+        const LL = getMessages('ua');
+
+        await send(77, '/propose');
+        apiCalls.length = 0;
+        await send(77, '/propose');
+
+        assert.deepEqual(readEditedMessages(), [
+            {
+                chat_id: -1001,
+                message_id: 1,
+                text: LL.proposalCancelled()
+            }
+        ]);
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
+    });
+
+    it('cancels a pending proposal on /cancel and ignores a later reply', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        apiCalls.length = 0;
+        await sendPrivate('/cancel');
+
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+        assert.deepEqual(readEditedMessages(), [
+            {
+                chat_id: 77,
+                message_id: 1,
+                text: LL.proposalCancelled()
+            }
+        ]);
+        assert.equal(readLastReplyText(), LL.proposalCancelled());
+
+        apiCalls.length = 0;
+        await sendPrivateReply('Запізніла відповідь', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), false);
+    });
+
+    it('cancels a pending proposal on /cancel addressed to the bot in a group', async () => {
+        const LL = getMessages('ua');
+
+        await send(77, '/propose');
+        apiCalls.length = 0;
+        await send(77, `/cancel@${botUsername}`);
+
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
+        assert.equal(readLastReplyText(), LL.proposalCancelled());
+    });
+
+    it('keeps the proposal of the requester when another member sends /cancel in a group', async () => {
+        await send(77, '/propose');
+        apiCalls.length = 0;
+        await send(78, '/cancel');
+
+        assert.equal(await countRows(harness, 'proposal_requests'), 1);
+        assert.equal(countSendMessageCalls(), 0);
+        assert.equal(readEditedMessages().length, 0);
+    });
+
+    it('reports nothing to cancel in a private chat', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/cancel');
+
+        assert.equal(readLastReplyText(), LL.proposalNothingToCancel());
+        assert.equal(readEditedMessages().length, 0);
+    });
+
+    it('stays silent on /cancel in a group when nothing is pending', async () => {
+        await send(77, '/cancel');
+
+        assert.equal(countSendMessageCalls(), 0);
+    });
+
+    it('does not report a failed prompt edit as a proposal failure', async () => {
+        const LL = getMessages('ua');
+
+        await sendPrivate('/propose');
+        failingMethods = new Set(['editMessageText']);
+        apiCalls.length = 0;
+        await sendPrivateReply('Вітаю, королево!', {
+            fromId: botUserId,
+            text: LL.proposalEnter(proposalPromptParams)
+        });
+
+        assert.equal(wasForwardedToAdmin(), true);
+        assert.equal(await countRows(harness, 'proposal_requests'), 0);
     });
 
     describe('language in private chats and groups', () => {

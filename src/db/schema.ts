@@ -4,6 +4,7 @@ export {
     channelSnapshots,
     channels,
     players,
+    proposalRequests,
     releaseAnnouncements,
     releaseAnnouncementStatuses,
     telegramUpdates,

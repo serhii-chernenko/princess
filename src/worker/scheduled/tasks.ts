@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import { createGameService } from '../../bot/services/game-service';
 import { createDb } from '../../db/client';
 import { createRepositories } from '../../db/repositories';
+import { proposalTtlMilliseconds } from '../../db/repositories/proposal-request-repository';
 import {
     telegramAbandonedUpdateRetentionMilliseconds,
     telegramUpdateRetentionMilliseconds
@@ -54,6 +55,10 @@ interface ScheduledTaskDependencies {
     pruneExpiredChannelSnapshots?: (
         env: WorkerBindings,
         now: Date
+    ) => Promise<number>;
+    pruneExpiredProposalRequests?: (
+        env: WorkerBindings,
+        createdBefore: Date
     ) => Promise<number>;
     readBotStateSnapshot?: (
         env: WorkerBindings,
@@ -124,6 +129,15 @@ const pruneExpiredChannelSnapshots = (env: WorkerBindings, now: Date) => {
     const repository = createRepositories(createDb(env)).channelSnapshots;
 
     return Effect.runPromise(repository.deleteExpiredSnapshots(now));
+};
+
+const pruneExpiredProposalRequests = (
+    env: WorkerBindings,
+    createdBefore: Date
+) => {
+    const repository = createRepositories(createDb(env)).proposalRequests;
+
+    return Effect.runPromise(repository.deleteCreatedBefore(createdBefore));
 };
 
 const getErrorType = (error: unknown) => {
@@ -246,6 +260,40 @@ export const runScheduledTasks = async (
             console.error(
                 JSON.stringify({
                     event: 'channel_snapshot_prune_failed',
+                    botEnvironment: env.BOT_ENVIRONMENT,
+                    cron: controller.cron,
+                    errorType: getErrorType(error)
+                })
+            );
+        }
+    }
+
+    if (
+        env.BOT_ENVIRONMENT === 'production' &&
+        !taskNames.includes(TASKS.releaseBroadcast)
+    ) {
+        const pruneProposals =
+            dependencies.pruneExpiredProposalRequests ??
+            pruneExpiredProposalRequests;
+
+        try {
+            const prunedProposalRequests = await pruneProposals(
+                env,
+                new Date(Date.now() - proposalTtlMilliseconds)
+            );
+
+            console.log(
+                JSON.stringify({
+                    event: 'proposal_requests_pruned',
+                    botEnvironment: env.BOT_ENVIRONMENT,
+                    cron: controller.cron,
+                    prunedProposalRequests
+                })
+            );
+        } catch (error) {
+            console.error(
+                JSON.stringify({
+                    event: 'proposal_request_prune_failed',
                     botEnvironment: env.BOT_ENVIRONMENT,
                     cron: controller.cron,
                     errorType: getErrorType(error)

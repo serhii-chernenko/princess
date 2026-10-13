@@ -35,6 +35,7 @@ const createDependencies = (
     };
     const dependencies: ReleaseBroadcastDependencies = {
         getCurrentReleaseVersion: () => currentVersion,
+        isSilentRelease: () => false,
         async listCandidates() {
             return candidates;
         },
@@ -76,6 +77,34 @@ test('release broadcast does nothing when the flag is disabled', async () => {
     assert.deepEqual(calls.inserted, []);
     assert.deepEqual(calls.batches, []);
     assert.equal(calls.logs[0]?.reason, 'disabled');
+});
+
+test('release broadcast skips a silent release but still reports its version', async () => {
+    const { calls, dependencies } = createDependencies(
+        [{ id: 1, releaseVersion: '4.0.1' }],
+        {
+            isSilentRelease: version => version === currentVersion,
+            async requeueStale() {
+                throw new Error('stale recovery must not run');
+            }
+        }
+    );
+
+    const summary = await runReleaseBroadcast(
+        createEnv('true', 'production'),
+        dependencies
+    );
+
+    assert.deepEqual(summary, {
+        releaseVersion: currentVersion,
+        candidates: 0,
+        inserted: 0,
+        enqueued: 0,
+        silent: true
+    });
+    assert.deepEqual(calls.inserted, []);
+    assert.deepEqual(calls.batches, []);
+    assert.equal(calls.logs[0]?.reason, 'silent');
 });
 
 test('release broadcast does nothing when every channel is current', async () => {

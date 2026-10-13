@@ -1,5 +1,41 @@
 [
     {
+        "version": "5.2.0",
+        "date": "13.10.2026",
+        "groups": {
+            "added": [
+                {
+                    "uk": "Нова команда /debug для адмінів групи: показує службову інформацію про чат (ідентифікатори, статус бота, стан гри, кількість гравців, останню переможницю та резервну копію). Якщо щось пішло не так, адмін має виконати її в групі та надіслати відповідь автору бота.",
+                    "en": "New /debug command for group admins: it shows technical info about the chat (IDs, bot status, game state, player counts, the last winner and the backup). If something goes wrong, an admin should run it in the group and send the reply to the bot author."
+                },
+                {
+                    "uk": "Додано команду /cancel, яка скасовує поточну пропозицію з /propose.",
+                    "en": "Added the /cancel command, which cancels the pending /propose suggestion."
+                }
+            ],
+            "updated": [
+                {
+                    "uk": "Команди в приватному чаті відповідають обраною мовою.",
+                    "en": "Commands in a private chat now answer in the chosen language."
+                }
+            ],
+            "fixed": [
+                {
+                    "uk": "Тепер мову бота можна змінити в приватному чаті командою /lang.",
+                    "en": "You can now change the bot language in a private chat with /lang."
+                },
+                {
+                    "uk": "Повернуто команду /propose: бот знову просить запропонувати привітання для принцес і передає відповідь адміністратору.",
+                    "en": "Restored the /propose command: the bot asks for a princess greeting suggestion again and forwards the reply to the admin."
+                },
+                {
+                    "uk": "Пропозицію через /propose тепер приймають лише як відповідь (reply) на повідомлення бота від того, хто викликав команду, протягом 15 хвилин і лише один раз; чужі, прострочені, повторні відповіді та повідомлення без reply ігноруються.",
+                    "en": "A /propose suggestion is now accepted only as a reply to the bot's prompt from the person who called the command, within 15 minutes and only once; replies from others, expired or repeated replies and messages that are not replies are ignored."
+                }
+            ]
+        }
+    },
+    {
         "version": "5.1.0",
         "date": "01.10.2026",
         "groups": {
