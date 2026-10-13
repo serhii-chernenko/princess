@@ -645,6 +645,9 @@ test('scheduled cleanup remains gated by the environment flag', async () => {
         },
         async pruneExpiredChannelSnapshots() {
             return 0;
+        },
+        async pruneExpiredProposalRequests() {
+            return 0;
         }
     };
 
@@ -695,6 +698,9 @@ test('daily maintenance prunes expired channel snapshots even with cleanup disab
             async pruneExpiredChannelSnapshots() {
                 snapshotPruneCalls += 1;
                 return 4;
+            },
+            async pruneExpiredProposalRequests() {
+                return 0;
             }
         }
     );
@@ -703,6 +709,46 @@ test('daily maintenance prunes expired channel snapshots even with cleanup disab
     assert.equal(cleanupCalls, 0);
     assert.equal(snapshotPruneCalls, 1);
     assert.equal(summary.prunedChannelSnapshots, 4);
+});
+
+test('daily maintenance prunes proposal requests older than the proposal window', async () => {
+    const { database } = createReadinessDatabase(1);
+    const controller = {
+        cron: '0 0 * * *',
+        scheduledTime: Date.now(),
+        noRetry() {}
+    } satisfies ScheduledController;
+    const cutoffs: Date[] = [];
+    const startedAt = Date.now();
+
+    await runScheduledTasks(
+        controller,
+        createBindings(database, 'production'),
+        {} as ExecutionContext,
+        {
+            async cleanupInactiveChannels() {
+                return 0;
+            },
+            async pruneProcessedTelegramUpdates() {
+                return 0;
+            },
+            async pruneAbandonedTelegramUpdates() {
+                return 0;
+            },
+            async pruneExpiredChannelSnapshots() {
+                return 0;
+            },
+            async pruneExpiredProposalRequests(_env, createdBefore) {
+                cutoffs.push(createdBefore);
+                return 2;
+            }
+        }
+    );
+
+    assert.equal(cutoffs.length, 1);
+    assert.ok(
+        Math.abs(cutoffs[0]!.getTime() - (startedAt - 15 * 60 * 1000)) < 5000
+    );
 });
 
 test('a failing channel snapshot prune is logged and does not fail the scheduled run', async () => {
@@ -733,6 +779,9 @@ test('a failing channel snapshot prune is logged and does not fail the scheduled
                 },
                 async pruneExpiredChannelSnapshots() {
                     throw new TypeError('d1 unavailable');
+                },
+                async pruneExpiredProposalRequests() {
+                    return 0;
                 }
             }
         );

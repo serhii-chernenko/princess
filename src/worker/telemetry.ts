@@ -55,8 +55,16 @@ type TelemetryFields = {
         | 'stop'
         | 'resume'
         | 'forget'
-        | 'restore';
-    result?: 'joined' | 'reactivated' | 'already-active' | 'success';
+        | 'restore'
+        | 'propose';
+    result?:
+        | 'joined'
+        | 'reactivated'
+        | 'already-active'
+        | 'success'
+        | 'forwarded'
+        | 'rejected'
+        | 'cancelled';
     registeredChats?: number;
     adminChats?: number;
     nonAdminChats?: number;
@@ -76,6 +84,7 @@ const commandCategories = new Set([
     'start',
     'help',
     'propose',
+    'cancel',
     'join',
     'leave',
     'list',

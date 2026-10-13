@@ -26,6 +26,7 @@ import {
 } from '../../db/channel-snapshot-payload';
 import { createRepositories } from '../../db/repositories';
 import type { NewChannelSnapshot } from '../../db/repositories/channel-snapshot-repository';
+import { proposalTtlMilliseconds } from '../../db/repositories/proposal-request-repository';
 import { createDb } from '../../db/client';
 import {
     channelMembers,
@@ -1144,6 +1145,78 @@ export const createGameService = (
         };
     };
 
+    const saveProposalRequest = async (
+        chatId: number,
+        userId: number,
+        promptMessageId: number
+    ) => {
+        await runEffect(
+            repositories.proposalRequests.saveRequest({
+                chatId,
+                userId,
+                promptMessageId,
+                createdAt: new Date()
+            })
+        );
+    };
+
+    const clearProposalRequest = async (chatId: number, userId: number) => {
+        await runEffect(
+            repositories.proposalRequests.deleteRequest({ chatId, userId })
+        );
+    };
+
+    const replaceProposalPrompt = async (
+        chatId: number,
+        userId: number,
+        promptMessageId: number
+    ) => {
+        await runEffect(
+            repositories.proposalRequests.replacePrompt(
+                { chatId, userId },
+                promptMessageId
+            )
+        );
+    };
+
+    const claimProposalRequest = (
+        chatId: number,
+        userId: number,
+        promptMessageId: number
+    ) => {
+        return runEffect(
+            repositories.proposalRequests.claimRequest({
+                chatId,
+                userId,
+                promptMessageId,
+                createdAfter: new Date(Date.now() - proposalTtlMilliseconds)
+            })
+        );
+    };
+
+    const findPendingProposalRequest = async (
+        chatId: number,
+        userId: number
+    ) => {
+        const request = await runEffect(
+            repositories.proposalRequests.findRequest({ chatId, userId })
+        );
+
+        if (!request) {
+            return null;
+        }
+
+        const ageMilliseconds = Date.now() - request.createdAt.getTime();
+
+        if (ageMilliseconds > proposalTtlMilliseconds) {
+            await clearProposalRequest(chatId, userId);
+
+            return null;
+        }
+
+        return request;
+    };
+
     return {
         ensureChannel,
         getChannelLocale,
@@ -1162,6 +1235,11 @@ export const createGameService = (
         forgetChannel,
         restoreChannel,
         cleanupInactiveChannels,
+        saveProposalRequest,
+        replaceProposalPrompt,
+        claimProposalRequest,
+        findPendingProposalRequest,
+        clearProposalRequest,
         getStats
     };
 };

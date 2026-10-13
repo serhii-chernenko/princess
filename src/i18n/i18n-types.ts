@@ -17,13 +17,34 @@ type RootTranslation = {
 	donationGeneral: string
 	donationLocal: string
 	/**
-	 * S​e​n​d​ ​y​o​u​r​ ​v​e​r​s​i​o​n​!
+	 * {​n​a​m​e​}​,​ ​r​e​p​l​y​ ​t​o​ ​t​h​i​s​ ​m​e​s​s​a​g​e​ ​w​i​t​h​ ​y​o​u​r​ ​g​r​e​e​t​i​n​g​ ​s​u​g​g​e​s​t​i​o​n​ ​w​i​t​h​i​n​ ​{​m​i​n​u​t​e​s​}​ ​m​i​n​.​
+​O​n​l​y​ ​y​o​u​r​ ​r​e​p​l​y​ ​t​o​ ​t​h​i​s​ ​m​e​s​s​a​g​e​ ​c​o​u​n​t​s​,​ ​e​v​e​r​y​ ​o​t​h​e​r​ ​m​e​s​s​a​g​e​ ​i​s​ ​i​g​n​o​r​e​d​.​
+​T​o​ ​c​a​n​c​e​l​,​ ​s​e​n​d​ ​/​c​a​n​c​e​l
+	 * @param {number} minutes
+	 * @param {string} name
 	 */
-	proposalEnter: string
+	proposalEnter: RequiredParams<'minutes' | 'name'>
 	/**
-	 * Y​o​u​ ​c​a​n​'​t​ ​s​u​g​g​e​s​t​ ​a​ ​c​o​m​m​a​n​d​.​ ​T​r​y​ ​a​g​a​i​n​ ​�​�​‍​♀
+	 * Y​o​u​ ​c​a​n​'​t​ ​s​u​g​g​e​s​t​ ​a​ ​c​o​m​m​a​n​d​ ​�​�​‍​♀​
+​R​e​p​l​y​ ​t​o​ ​t​h​i​s​ ​m​e​s​s​a​g​e​ ​w​i​t​h​ ​a​n​o​t​h​e​r​ ​v​e​r​s​i​o​n​,​ ​o​r​ ​s​e​n​d​ ​/​c​a​n​c​e​l​ ​t​o​ ​c​a​n​c​e​l​.
 	 */
 	proposalWrong: string
+	/**
+	 * Y​o​u​r​ ​g​r​e​e​t​i​n​g​ ​s​u​g​g​e​s​t​i​o​n
+	 */
+	proposalPlaceholder: string
+	/**
+	 * P​r​o​p​o​s​a​l​ ​c​a​n​c​e​l​l​e​d​.
+	 */
+	proposalCancelled: string
+	/**
+	 * P​r​o​p​o​s​a​l​ ​r​e​c​e​i​v​e​d​.
+	 */
+	proposalClosed: string
+	/**
+	 * N​o​t​h​i​n​g​ ​t​o​ ​c​a​n​c​e​l​.
+	 */
+	proposalNothingToCancel: string
 	/**
 	 * Y​o​u​r​ ​s​u​g​g​e​s​t​i​o​n​ ​w​i​l​l​ ​b​e​ ​r​e​v​i​e​w​e​d​!
 	 */
@@ -699,13 +720,32 @@ export type TranslationFunctions = {
 	donationGeneral: () => LocalizedString
 	donationLocal: () => LocalizedString
 	/**
-	 * Send your version!
+	 * {name}, reply to this message with your greeting suggestion within {minutes} min.
+Only your reply to this message counts, every other message is ignored.
+To cancel, send /cancel
 	 */
-	proposalEnter: () => LocalizedString
+	proposalEnter: (arg: { minutes: number, name: string }) => LocalizedString
 	/**
-	 * You can't suggest a command. Try again 🤷‍♀
+	 * You can't suggest a command 🤷‍♀
+Reply to this message with another version, or send /cancel to cancel.
 	 */
 	proposalWrong: () => LocalizedString
+	/**
+	 * Your greeting suggestion
+	 */
+	proposalPlaceholder: () => LocalizedString
+	/**
+	 * Proposal cancelled.
+	 */
+	proposalCancelled: () => LocalizedString
+	/**
+	 * Proposal received.
+	 */
+	proposalClosed: () => LocalizedString
+	/**
+	 * Nothing to cancel.
+	 */
+	proposalNothingToCancel: () => LocalizedString
 	/**
 	 * Your suggestion will be reviewed!
 	 */
