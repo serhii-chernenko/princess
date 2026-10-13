@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
     getLatestRelease,
+    getLatestReleaseVersion,
     getReleaseItemText,
+    isSilentRelease,
     normalizeReleaseRecords,
     renderReleaseAnnouncement,
     renderReleaseNotes,
@@ -31,6 +33,26 @@ test('the newest release is 5.2.0 with Ukrainian and English items', () => {
     assert.ok(items.length > 0);
     assert.ok(items.every(item => item.uk.length > 0));
     assert.ok(items.every(item => (item.en ?? '').length > 0));
+});
+
+test('release records keep the silent flag only where it is set', () => {
+    const [silent, announced] = normalizeReleaseRecords([
+        {
+            version: '6.1.0',
+            date: '02.01.2027',
+            silent: true,
+            groups: { fixed: [{ uk: 'Тихо' }] }
+        },
+        {
+            version: '6.0.0',
+            date: '01.01.2027',
+            groups: { fixed: [{ uk: 'Голосно' }] }
+        }
+    ]);
+
+    assert.equal(silent?.silent, true);
+    assert.equal('silent' in (announced ?? {}), false);
+    assert.equal(isSilentRelease(getLatestReleaseVersion()), false);
 });
 
 test('release items fall back to Ukrainian when English is missing', () => {

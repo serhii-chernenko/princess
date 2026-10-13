@@ -378,7 +378,7 @@ To publish a release on GitHub without the Telegram announcement, add a `<!-- si
 ### Patch Changes
 ```
 
-The marker becomes `"silent": true` in `releases.generated.json`. After the deploy the broadcast logs `release_broadcast_skipped` with reason `silent` and enqueues nothing; the GitHub Release and `/releases` are unchanged. Groups keep their stored `release_version`, so the next release without the marker announces only that release. Do not use `ENABLE_RELEASE_BROADCAST` for this: it is the kill switch.
+The marker becomes `"silent": true` in `releases.generated.json`. After the deploy the broadcast logs `release_broadcast_skipped` with reason `silent` and enqueues nothing; the GitHub Release and `/releases` are unchanged. Groups keep their stored `release_version`, so the next release without the marker announces only that release. The marker is case-insensitive. Any other `<!-- ... -->` line inside a release section fails `releases:sync` and CI, so a mistyped marker cannot slip through and announce the release. Do not use `ENABLE_RELEASE_BROADCAST` for this: it is the kill switch.
 
 ### GitHub releases
 

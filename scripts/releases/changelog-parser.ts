@@ -30,7 +30,8 @@ const releaseHeadingPattern = /^## (\d+\.\d+\.\d+)(?: - (.+))?$/;
 const taggedItemPattern =
     /^\s*-\s+(?:[0-9a-f]{7,40}:\s+(?:-\s+)?)?\[(added|updated|fixed|removed|notes)\] (.+)$/;
 const englishLinePattern = /^\s*-\s+en: (.+)$/;
-const silentMarkerPattern = /^<!--\s*silent\s*-->$/;
+const silentMarkerPattern = /^<!--\s*silent\s*-->$/i;
+const htmlCommentPattern = /^<!--.*-->$/;
 
 export const parseChangelog = (changelog: string) => {
     const releases: ReleaseEntry[] = [];
@@ -109,9 +110,14 @@ export const parseChangelog = (changelog: string) => {
         }
 
         if (silentMarkerPattern.test(line.trim())) {
-            flushItem();
             currentRelease.silent = true;
             continue;
+        }
+
+        if (htmlCommentPattern.test(line.trim())) {
+            throw new Error(
+                `Unknown marker "${line.trim()}" in version ${currentRelease.version} of CHANGELOG.md; only <!-- silent --> is supported`
+            );
         }
 
         const taggedItem = line.match(taggedItemPattern);
