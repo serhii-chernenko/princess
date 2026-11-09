@@ -22,7 +22,7 @@ No secret values appear here, only names and file locations.
 | Piece             | Value                                                                                                                                                                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runtime           | Cloudflare Worker `princess` (wrangler env `production`), Hono + Telegraf                                                                                                                                                                   |
-| Domain            | `princess.chernenko.dev` (custom domain)                                                                                                                                                                                                    |
+| Domain            | `princess.serhiichernenko.com` (custom domain)                                                                                                                                                                                              |
 | Telegram webhook  | Secret header (`X-Telegram-Bot-Api-Secret-Token`) plus secret path (`TELEGRAM_WEBHOOK_PATH`)                                                                                                                                                |
 | Production D1     | `princess-production` (`19c5b5dd-ac9e-43ff-9a0a-40c77c39d1d1`)                                                                                                                                                                              |
 | Preview D1        | `princess-preview` (`b9a13fb8-8745-4d33-a5a2-f067b7b35220`)                                                                                                                                                                                 |
@@ -284,7 +284,7 @@ printf %s "$ADMIN_ID" | pnpm exec wrangler secret put ADMIN_ID --env production
 Health check (returns 200 only with the correct secret, 401 without):
 
 ```sh
-curl -H "X-Telegram-Bot-Api-Secret-Token: $TELEGRAM_WEBHOOK_SECRET" https://princess.chernenko.dev/health
+curl -H "X-Telegram-Bot-Api-Secret-Token: $TELEGRAM_WEBHOOK_SECRET" https://princess.serhiichernenko.com/health
 ```
 
 Logs:

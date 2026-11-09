@@ -95,7 +95,7 @@
             },
             "routes": [
                 {
-                    "pattern": "princess.chernenko.dev",
+                    "pattern": "princess.serhiichernenko.com",
                     "custom_domain": true
                 }
             ],
