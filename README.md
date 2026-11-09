@@ -55,7 +55,7 @@ cp .dev.vars.production.example .dev.vars.production
 BOT_TOKEN="123456:telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
 TELEGRAM_WEBHOOK_PATH="/telegram/princess-dev"
-WORKER_BASE_URL="https://princess-dev.chernenko.dev"
+WORKER_BASE_URL="https://princess-dev.serhiichernenko.com"
 ```
 
 4. If you want real Telegram delivery into local `wrangler dev`, copy and configure the tunnel file:
@@ -204,7 +204,7 @@ Fill `.dev.vars.production` for the production bot:
 BOT_TOKEN="123456:telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-a-secret-token"
 TELEGRAM_WEBHOOK_PATH="/telegram/princess"
-WORKER_BASE_URL="https://princess.chernenko.dev"
+WORKER_BASE_URL="https://princess.serhiichernenko.com"
 ```
 
 Apply production migrations:
@@ -344,7 +344,7 @@ Production example:
 
 ```sh
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -d "url=https://princess.chernenko.dev/telegram/princess" \
+  -d "url=https://princess.serhiichernenko.com/telegram/princess" \
   -d "secret_token=replace-with-a-secret-token"
 ```
 

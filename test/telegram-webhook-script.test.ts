@@ -379,7 +379,7 @@ test('preview base URL validation rejects non-workers.dev, non-https and decorat
     for (const invalid of [
         'not a url',
         'http://a.b.workers.dev',
-        'https://princess.chernenko.dev',
+        'https://princess.serhiichernenko.com',
         'https://workers.dev',
         'https://evilworkers.dev',
         'https://a.b.workers.dev.evil.com',
